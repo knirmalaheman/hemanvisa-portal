@@ -310,6 +310,18 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
+    /* Link-style button for username */
+    .stButton.link-btn > button {
+        background: transparent !important;
+        color: #1d6fa5 !important;
+        box-shadow: none !important;
+        text-decoration: underline !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        text-align: left !important;
+        font-weight: 600 !important;
+    }
+
     div[data-testid="stExpander"] {
         width: 100% !important;
         max-width: 950px !important;
@@ -380,9 +392,9 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 Case Details Edit Popup Dialog (For Both Admin & Case Worker)
-@st.dialog("✏️ Edit Case Details", width="large")
-def edit_single_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
+# 🌟 Case Details View & Edit Dialog (Popup with Edit Option)
+@st.dialog("📋 Case Details & Edit", width="large")
+def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
     if df_full is None or row_idx not in df_full.index:
         st.error("Case data not found.")
@@ -392,46 +404,71 @@ def edit_single_case_dialog(sheet_name, row_idx, role, current_user, can_update=
     u_col = find_username_column(df_full)
     p_col = find_password_column(df_full)
 
-    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}**")
+    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[u_col]}**")
 
-    if role == "worker" and not can_update:
-        st.warning("⚠️ View Only Mode: Admin has disabled update permissions for your account.")
+    edit_state_key = f"dlg_editing_{row_idx}"
+    if edit_state_key not in st.session_state:
+        st.session_state[edit_state_key] = False
+
+    if not st.session_state[edit_state_key]:
+        # View Mode inside Popup
+        st.markdown("### 📄 Case Information")
         for col in df_full.columns:
-            if col not in [u_col, p_col]:
-                st.text_input(col, value=str(row_data[col]), disabled=True, key=f"view_only_{col}")
-        return
-
-    with st.form("single_case_edit_form"):
-        updated_values = {}
-        cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [u_col, p_col, "Updated_By", "Updated_At"]]
+            if col not in [p_col]:
+                st.text(f"{col}: {row_data[col]}")
         
-        f_col1, f_col2 = st.columns(2)
-        for i, col_name in enumerate(cols_to_show):
-            target_col = f_col1 if i % 2 == 0 else f_col2
-            with target_col:
-                updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]))
-
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-        if st.form_submit_button("💾 Save & Update Case", type="primary", use_container_width=True):
-            try:
-                current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                changed = False
-                for col_name, new_val in updated_values.items():
-                    old_val = str(df_full.at[row_idx, col_name]).strip()
-                    if old_val != str(new_val).strip():
-                        changed = True
-                    df_full.at[row_idx, col_name] = str(new_val).strip()
-
-                if changed and role == "worker":
-                    df_full.at[row_idx, "Updated_By"] = current_user
-                    df_full.at[row_idx, "Updated_At"] = current_time
-
-                save_data(df_full, sheet_name=sheet_name)
-                st.session_state["selected_row_idx"] = None
-                st.success("✅ Case details updated successfully!")
+        st.markdown("---")
+        if role == "worker" and not can_update:
+            st.warning("⚠️ View Only Mode: Admin has disabled update permissions for your account.")
+        else:
+            if st.button("✏️ Edit Case Details", type="primary", use_container_width=True):
+                st.session_state[edit_state_key] = True
                 st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error updating case: {e}")
+    else:
+        # Edit Mode inside Popup
+        st.markdown("### ✏️ Edit Case Details")
+        with st.form(f"popup_edit_form_{row_idx}"):
+            updated_values = {}
+            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [u_col, p_col, "Updated_By", "Updated_At"]]
+            
+            f_col1, f_col2 = st.columns(2)
+            for i, col_name in enumerate(cols_to_show):
+                target_col = f_col1 if i % 2 == 0 else f_col2
+                with target_col:
+                    updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]))
+
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+            col_save, col_back = st.columns(2)
+            with col_save:
+                submitted = st.form_submit_button("💾 Save & Update", type="primary", use_container_width=True)
+            with col_back:
+                cancelled = st.form_submit_button("↩️ Cancel", use_container_width=True)
+
+            if submitted:
+                try:
+                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    changed = False
+                    for col_name, new_val in updated_values.items():
+                        old_val = str(df_full.at[row_idx, col_name]).strip()
+                        if old_val != str(new_val).strip():
+                            changed = True
+                        df_full.at[row_idx, col_name] = str(new_val).strip()
+
+                    if changed and role == "worker":
+                        df_full.at[row_idx, "Updated_By"] = current_user
+                        df_full.at[row_idx, "Updated_At"] = current_time
+
+                    save_data(df_full, sheet_name=sheet_name)
+                    st.session_state[edit_state_key] = False
+                    st.session_state["selected_row_idx"] = None
+                    st.success("✅ Case details updated successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error updating case: {e}")
+            
+            if cancelled:
+                st.session_state[edit_state_key] = False
+                st.rerun()
 
 # 🌟 Other Modal Dialogs
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
@@ -707,7 +744,7 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         curr_u = st.session_state.get("username", "")
         perms = load_permissions()
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
-        edit_single_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
+        view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
     st.session_state["open_dialog"] = None
 
 # 1. Login Screen
@@ -850,27 +887,26 @@ elif st.session_state["role"] == "admin":
         display_df = df
 
     st.markdown("---")
-    st.subheader("✏️ Select Case to Edit")
-    
-    if not display_df.empty:
-        row_indices = list(display_df.index)
-        col_sel1, col_sel2 = st.columns([3, 1])
-        with col_sel1:
-            selected_admin_row = st.selectbox(
-                "Choose a case row to edit:",
-                options=row_indices,
-                format_func=lambda idx: f"Row {idx+1} | " + " | ".join([f"{c}: {str(display_df.loc[idx, c])}" for c in display_df.columns[:2]]),
-                key="admin_case_selectbox",
-                label_visibility="collapsed"
-            )
-        with col_sel2:
-            if st.button("✏️ Edit Selected Case", type="primary", use_container_width=True, key="admin_open_popup_btn"):
-                st.session_state["selected_row_idx"] = selected_admin_row
-                st.session_state["open_dialog"] = "edit_case_popup"
-                st.rerun()
+    st.subheader("🔗 Click Username (Hyperlink) to View & Edit")
+
+    if display_df.empty:
+        st.info("No cases found.")
+    else:
+        st.caption("క్రింద ఉన్న యూజర్‌నేమ్‌ల (Hyperlinks) పై క్లిక్ చేయగానే ఆ కేస్ వివరాల పాప్-అప్ ఓపెన్ అవుతుంది:")
+        for idx, row in display_df.iterrows():
+            col_link, col_info = st.columns([2, 5])
+            with col_link:
+                u_val = str(row[u_col]).strip() if str(row[u_col]).strip() != "" else "Not Assigned"
+                if st.button(f"🔗 {u_val}", key=f"admin_link_{idx}", use_container_width=True):
+                    st.session_state["selected_row_idx"] = idx
+                    st.session_state["open_dialog"] = "edit_case_popup"
+                    st.rerun()
+            with col_info:
+                preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [u_col, p_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
+                st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
 
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.dataframe(display_df, use_container_width=True, height=380, key="admin_full_table")
+    st.dataframe(display_df, use_container_width=True, height=320, key="admin_full_table")
                 
     if os.path.exists(EXCEL_FILE):
         with open(EXCEL_FILE, "rb") as f:
@@ -1018,24 +1054,22 @@ else:
     st.divider()
     
     st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-    st.subheader("✏️ Select Case to Edit")
+    st.subheader("🔗 Click Username (Hyperlink) to View & Edit")
 
-    if not user_rows.empty:
-        worker_row_indices = list(user_rows.index)
-        col_wsel1, col_wsel2 = st.columns([3, 1])
-        with col_wsel1:
-            selected_worker_row = st.selectbox(
-                "Choose your case row to edit:",
-                options=worker_row_indices,
-                format_func=lambda idx: f"Row {idx+1} | " + " | ".join([f"{c}: {str(user_rows.loc[idx, c])}" for c in user_rows.columns[:2] if c not in [user_col, pass_col]]),
-                key="worker_case_selectbox",
-                label_visibility="collapsed"
-            )
-        with col_wsel2:
-            if st.button("✏️ Edit Selected Case", type="primary", use_container_width=True, key="worker_open_popup_btn"):
-                st.session_state["selected_row_idx"] = selected_worker_row
-                st.session_state["open_dialog"] = "edit_case_popup"
-                st.rerun()
+    if user_rows.empty:
+        st.info("No cases assigned to you in this sheet.")
+    else:
+        st.caption("క్రింద మీ యూజర్‌నేమ్ హైపర్‌లింక్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
+        for idx, row in user_rows.iterrows():
+            col_link, col_info = st.columns([2, 5])
+            with col_link:
+                if st.button(f"🔗 {current_user}", key=f"worker_link_{idx}", use_container_width=True):
+                    st.session_state["selected_row_idx"] = idx
+                    st.session_state["open_dialog"] = "edit_case_popup"
+                    st.rerun()
+            with col_info:
+                preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [user_col, pass_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
+                st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
 
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     display_worker_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
