@@ -380,7 +380,7 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 NEW: Case Details Edit Popup Dialog (For Both Admin & Case Worker)
+# 🌟 Case Details Edit Popup Dialog (For Both Admin & Case Worker)
 @st.dialog("✏️ Edit Case Details", width="large")
 def edit_single_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -405,7 +405,6 @@ def edit_single_case_dialog(sheet_name, row_idx, role, current_user, can_update=
         updated_values = {}
         cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [u_col, p_col, "Updated_By", "Updated_At"]]
         
-        # 2 కాలమ్స్‌లో ఫామ్ ఫీల్డ్స్ నీట్‌గా కనిపించేలా అమర్చడం
         f_col1, f_col2 = st.columns(2)
         for i, col_name in enumerate(cols_to_show):
             target_col = f_col1 if i % 2 == 0 else f_col2
@@ -437,7 +436,7 @@ def edit_single_case_dialog(sheet_name, row_idx, role, current_user, can_update=
 # 🌟 Other Modal Dialogs
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
-    st.info("💡 Modify **Password**, **Update**, **Add**, **Search**, **Download**, and **Sync** permissions for each case worker, then click the **💾 Save** button:")
+    st.info("💡 Modify permissions for each case worker, then click the **💾 Save** button:")
     sheets = get_sheet_names()
     all_users_dict = {}
     for s in sheets:
@@ -850,24 +849,28 @@ elif st.session_state["role"] == "admin":
     else:
         display_df = df
 
-    st.caption("💡 Click on any row checkbox on the left to open and edit that case's details in a popup.")
+    st.markdown("---")
+    st.subheader("✏️ Select Case to Edit")
     
-    # Row selection enabled for Popup Editing
-    admin_selection = st.dataframe(
-        display_df,
-        use_container_width=True,
-        height=480,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="admin_selectable_table"
-    )
-    
-    if admin_selection and len(admin_selection.selection.rows) > 0:
-        selected_pos = admin_selection.selection.rows[0]
-        actual_excel_idx = display_df.index[selected_pos]
-        st.session_state["selected_row_idx"] = actual_excel_idx
-        st.session_state["open_dialog"] = "edit_case_popup"
-        st.rerun()
+    if not display_df.empty:
+        row_indices = list(display_df.index)
+        col_sel1, col_sel2 = st.columns([3, 1])
+        with col_sel1:
+            selected_admin_row = st.selectbox(
+                "Choose a case row to edit:",
+                options=row_indices,
+                format_func=lambda idx: f"Row {idx+1} | " + " | ".join([f"{c}: {str(display_df.loc[idx, c])}" for c in display_df.columns[:2]]),
+                key="admin_case_selectbox",
+                label_visibility="collapsed"
+            )
+        with col_sel2:
+            if st.button("✏️ Edit Selected Case", type="primary", use_container_width=True, key="admin_open_popup_btn"):
+                st.session_state["selected_row_idx"] = selected_admin_row
+                st.session_state["open_dialog"] = "edit_case_popup"
+                st.rerun()
+
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    st.dataframe(display_df, use_container_width=True, height=380, key="admin_full_table")
                 
     if os.path.exists(EXCEL_FILE):
         with open(EXCEL_FILE, "rb") as f:
@@ -1015,23 +1018,24 @@ else:
     st.divider()
     
     st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-    st.caption("💡 Click on any row checkbox on the left to view and update that case's details in a popup.")
+    
+    if not user_rows.empty:
+        worker_row_indices = list(user_rows.index)
+        col_wsel1, col_wsel2 = st.columns([3, 1])
+        with col_wsel1:
+            selected_worker_row = st.selectbox(
+                "Choose your case row to edit:",
+                options=worker_row_indices,
+                format_func=lambda idx: f"Row {idx+1} | " + " | ".join([f"{c}: {str(user_rows.loc[idx, c])}" for c in user_rows.columns[:2] if c not in [user_col, pass_col]]),
+                key="worker_case_selectbox",
+                label_visibility="collapsed"
+            )
+        with col_wsel2:
+            if st.button("✏️ Edit Selected Case", type="primary", use_container_width=True, key="worker_open_popup_btn"):
+                st.session_state["selected_row_idx"] = selected_worker_row
+                st.session_state["open_dialog"] = "edit_case_popup"
+                st.rerun()
 
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     display_worker_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
-    
-    # Row selection enabled for Worker Popup Editing
-    worker_selection = st.dataframe(
-        display_worker_df,
-        use_container_width=True,
-        height=380,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="worker_selectable_table"
-    )
-    
-    if worker_selection and len(worker_selection.selection.rows) > 0:
-        selected_w_pos = worker_selection.selection.rows[0]
-        actual_w_excel_idx = user_rows.index[selected_w_pos]
-        st.session_state["selected_row_idx"] = actual_w_excel_idx
-        st.session_state["open_dialog"] = "edit_case_popup"
-        st.rerun()
+    st.dataframe(display_worker_df, use_container_width=True, height=380, key="worker_full_table")
