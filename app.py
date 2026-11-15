@@ -785,7 +785,7 @@ def updated_cases_history_dialog():
                 display_hist.index = range(1, len(display_hist) + 1)
                 st.dataframe(display_hist, use_container_width=True)
 
-# 🌟 Handle Dialog Execution securely via Session State and clear it immediately
+# 🌟 Handle Dialog Execution securely via Session State
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -815,7 +815,7 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         perms = load_permissions()
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
-    st.session_state["open_dialog"] = None
+    # Note: open_dialog for edit_case_popup is cleared inside save/cancel inside the dialog itself so it stays open during editing.
 
 # 1. Login Screen
 if not st.session_state["logged_in"]:
