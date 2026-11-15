@@ -118,7 +118,7 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# 🎨 Modern Professional CSS with Minimal Top Gap
+# 🎨 Modern Professional CSS with Larger Logo & Adjusted Top Padding
 st.markdown("""
 <style>
     /* Hide Streamlit default top header bar */
@@ -136,7 +136,7 @@ st.markdown("""
         background: #ffffff;
         background-image: radial-gradient(#d0e1f9 1px, transparent 1px), linear-gradient(to right, rgba(29,111,165,0.03), rgba(243,156,18,0.03));
         background-size: 20px 20px;
-        padding: 6px 20px;
+        padding: 8px 20px;
         border-bottom: 3px solid #1d6fa5;
         box-shadow: 0 4px 15px rgba(11, 60, 101, 0.15);
         display: flex;
@@ -146,7 +146,7 @@ st.markdown("""
         box-sizing: border-box;
     }
     .sticky-top-banner img {
-        max-height: 85px;
+        max-height: 115px; /* లోగో సైజు పెంచబడింది */
         width: auto;
     }
     .banner-middle {
@@ -209,16 +209,16 @@ st.markdown("""
         }
     }
 
-    /* Push main page content down minimally so top banner doesn't overlap */
+    /* Push main page content down so larger top banner doesn't overlap */
     .block-container {
-        padding-top: 105px !important;
+        padding-top: 135px !important;
         padding-bottom: 2rem;
     }
 
-    /* Make Welcome bar, Buttons and KPI cards sticky right below top banner with minimal gap */
+    /* Make Welcome bar, Buttons and KPI cards sticky right below top banner */
     .sticky-control-panel {
         position: sticky;
-        top: 98px;
+        top: 125px;
         z-index: 99998;
         background-color: #ffffff;
         padding-top: 2px;
@@ -332,7 +332,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 🌟 Fixed Top Banner with Logo, Middle Text, and Contact/Socials on Right
+# 🌟 Fixed Top Banner with Larger Logo, Middle Text, and Contact/Socials on Right
 found_logo = next((f for f in LOGO_FILES if os.path.exists(f)), None)
 logo_html = ""
 if found_logo:
