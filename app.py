@@ -870,7 +870,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_w_btn1, col_w_btn2, col_w_btn3, col_w_btn4 = st.columns(4)
+    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
     with col_w_btn1:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
@@ -889,21 +889,33 @@ else:
                 st.rerun()
         else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
-    with col_w_btn4:
-        if worker_perm.get("can_download", False):
-            if os.path.exists(EXCEL_FILE):
-                with open(EXCEL_FILE, "rb") as f:
-                    excel_bytes = f.read()
-                st.download_button(
-                    label="📥 Download Excel", 
-                    data=excel_bytes, 
-                    file_name=EXCEL_FILE, 
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                    use_container_width=True, 
-                    key="worker_dl_all_btn"
-                )
+
+    # Search Main Data మరియు Download Excel బటన్‌లను ఒకే వరుసలో (Same Row) అమర్చడం
+    col_w_sch_row, col_w_dl_row = st.columns(2)
+    with col_w_sch_row:
+        if worker_perm.get("can_search", True):
+            if st.button("🔍 Search Main Data", use_container_width=True, key="worker_search_row_btn"):
+                st.session_state["open_dialog"] = "search_data"
+                st.rerun()
         else:
-            st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_disabled")
+            st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_row_disabled")
+            
+    with col_w_dl_row:
+        if worker_perm.get("can_download", False):
+            worker_buffer = io.BytesIO()
+            with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
+                user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
+            
+            st.download_button(
+                label="📥 Download Excel", 
+                data=worker_buffer.getvalue(), 
+                file_name=f"{current_user}_cases.xlsx", 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="worker_dl_row_btn"
+            )
+        else:
+            st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_row_disabled")
             
     st.divider()
 
