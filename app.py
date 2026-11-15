@@ -134,11 +134,23 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-def find_username_column(df):
+def find_login_user_column(df):
     for col in df.columns:
-        if col.strip().lower() in ["username", "cases_worker", "user"]:
+        if col.strip() in ["username", "Case Worker", "DS-160 Case Worker"]:
+            return col
+    for col in df.columns:
+        if col.strip().lower() in ["cases_worker", "user", "case worker"]:
             return col
     return df.columns[0]
+
+def find_display_username_column(df):
+    for col in df.columns:
+        if col.strip() == "USERNAME":
+            return col
+    for col in df.columns:
+        if col.strip().lower() == "username":
+            return col
+    return find_login_user_column(df)
 
 def find_password_column(df):
     for col in df.columns:
@@ -410,10 +422,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         return
 
     row_data = df_full.loc[row_idx]
-    u_col = find_username_column(df_full)
+    display_c = find_display_username_column(df_full)
     p_col = find_password_column(df_full)
 
-    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[u_col]}**")
+    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[display_c]}**")
 
     edit_state_key = f"dlg_editing_{row_idx}"
     if edit_state_key not in st.session_state:
@@ -436,7 +448,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         st.markdown("### ✏️ Edit Case Details")
         with st.form(f"popup_edit_form_{row_idx}"):
             updated_values = {}
-            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [u_col, p_col, "Updated_By", "Updated_At"]]
+            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, p_col, "Updated_By", "Updated_At"]]
             
             f_col1, f_col2 = st.columns(2)
             for i, col_name in enumerate(cols_to_show):
@@ -477,15 +489,21 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state[edit_state_key] = False
                 st.rerun()
 
-# 🌟 Helper function to render table with clickable Username hyperlinks inside table cells
-def render_clickable_table(df, u_col, p_col):
+# 🌟 Helper function to render table with clickable USERNAME hyperlinks inside table cells (preserving session state)
+def render_clickable_table(df, display_c, p_col):
     if df.empty:
         st.info("No cases found.")
         return
 
     display_cols = [c for c in df.columns if c not in [p_col]]
     
-    html = """
+    # Preserve current auth query params so clicking link doesn't log out
+    curr_logged = qp.get("logged_in", "true" if st.session_state.get("logged_in") else "false")
+    curr_user = qp.get("username", st.session_state.get("username", ""))
+    curr_role = qp.get("role", st.session_state.get("role", ""))
+    curr_sheet = qp.get("active_sheet", st.session_state.get("active_sheet", ""))
+
+    html = f"""
     <div style="max-height: 480px; overflow-y: auto; overflow-x: auto; border: 1px solid #e1e4e8; border-radius: 8px; margin-bottom: 15px;">
     <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
         <thead>
@@ -503,9 +521,10 @@ def render_clickable_table(df, u_col, p_col):
         
         for col in display_cols:
             val = str(row[col])
-            if col == u_col:
+            if col == display_c:
                 display_val = val.strip() if val.strip() != "" else "Not Assigned"
-                cell_content = f'<a href="?edit_row={idx}" target="_self" class="username-hyperlink">{display_val}</a>'
+                link_url = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row={idx}"
+                cell_content = f'<a href="{link_url}" target="_self" class="username-hyperlink">{display_val}</a>'
             else:
                 cell_content = val if val != "" else "-"
             
@@ -524,11 +543,11 @@ def permissions_dialog():
     for s in sheets:
         df_s = load_data(sheet_name=s)
         if df_s is not None and not df_s.empty:
-            u_col = find_username_column(df_s)
+            login_c = find_login_user_column(df_s)
             p_col = find_password_column(df_s)
-            if u_col in df_s.columns and p_col in df_s.columns:
+            if login_c in df_s.columns and p_col in df_s.columns:
                 for _, r in df_s.iterrows():
-                    u_name = str(r[u_col]).strip()
+                    u_name = str(r[login_c]).strip()
                     pwd = str(r[p_col]).strip()
                     if u_name != "" and u_name.lower() != "admin":
                         if u_name not in all_users_dict:
@@ -565,10 +584,10 @@ def permissions_dialog():
                         xls = pd.ExcelFile(EXCEL_FILE)
                         for s in xls.sheet_names:
                             df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
-                            uc = find_username_column(df_s)
+                            lc = find_login_user_column(df_s)
                             pc = find_password_column(df_s)
-                            if uc in df_s.columns and pc in df_s.columns:
-                                mask = df_s[uc].astype(str).str.strip().str.lower() == u_name.lower()
+                            if lc in df_s.columns and pc in df_s.columns:
+                                mask = df_s[lc].astype(str).str.strip().str.lower() == u_name.lower()
                                 if mask.any():
                                     df_s.loc[mask, pc] = new_pwd_val.strip()
                             all_sheets_data[s] = df_s
@@ -631,9 +650,9 @@ def worker_password_dialog(worker_name):
     for s in sheets:
         df_chk = load_data(sheet_name=s)
         if df_chk is not None and not df_chk.empty:
-            uc = find_username_column(df_chk)
+            lc = find_login_user_column(df_chk)
             pc = find_password_column(df_chk)
-            matched_r = df_chk[df_chk[uc].astype(str).str.strip().str.lower() == worker_name.lower()]
+            matched_r = df_chk[df_chk[lc].astype(str).str.strip().str.lower() == worker_name.lower()]
             if not matched_r.empty:
                 worker_current_pass = str(matched_r.iloc[0][pc]).strip()
                 break
@@ -656,10 +675,10 @@ def worker_password_dialog(worker_name):
                     xls = pd.ExcelFile(EXCEL_FILE)
                     for s in xls.sheet_names:
                         df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
-                        uc = find_username_column(df_s)
+                        lc = find_login_user_column(df_s)
                         pc = find_password_column(df_s)
-                        if uc in df_s.columns and pc in df_s.columns:
-                            mask = df_s[uc].astype(str).str.strip().str.lower() == worker_name.lower()
+                        if lc in df_s.columns and pc in df_s.columns:
+                            mask = df_s[lc].astype(str).str.strip().str.lower() == worker_name.lower()
                             if mask.any():
                                 df_s.loc[mask, pc] = new_wp.strip()
                         all_sheets_data[s] = df_s
@@ -678,10 +697,10 @@ def add_case_dialog(worker_name):
     
     selected_target_sheet = st.selectbox("Select Target Sheet for New Case", options=sheets, key="dlg_target_sheet")
     target_df = load_data(sheet_name=selected_target_sheet)
-    t_user_col = find_username_column(target_df)
+    t_login_col = find_login_user_column(target_df)
     t_pass_col = find_password_column(target_df)
     
-    available_usernames = sorted(list(set(target_df[t_user_col].astype(str).str.strip().tolist())))
+    available_usernames = sorted(list(set(target_df[t_login_col].astype(str).str.strip().tolist())))
     available_usernames = [u for u in available_usernames if u != ""]
     available_usernames.insert(0, "Not Assigned")
     if worker_name not in available_usernames and worker_name != "":
@@ -693,7 +712,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_user_col, t_pass_col, "Updated_By", "Updated_At"]]
+        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At"]]
         for col_name in cols:
             form_data[col_name] = st.text_input(f"{col_name}")
         
@@ -701,10 +720,10 @@ def add_case_dialog(worker_name):
             try:
                 new_row = {col: "" for col in target_df.columns}
                 final_assigned_user = "" if assigned_username == "Not Assigned" else assigned_username.strip()
-                new_row[t_user_col] = final_assigned_user
+                new_row[t_login_col] = final_assigned_user
                 
                 current_pass = "admin123"
-                matched_pass_rows = target_df[target_df[t_user_col].astype(str).str.strip().str.lower() == final_assigned_user.lower()]
+                matched_pass_rows = target_df[target_df[t_login_col].astype(str).str.strip().str.lower() == final_assigned_user.lower()]
                 if not matched_pass_rows.empty:
                     current_pass = str(matched_pass_rows.iloc[0][t_pass_col]).strip()
 
@@ -727,7 +746,7 @@ def search_data_dialog():
     selected_search_sheet = st.selectbox("Select Sheet to Search:", options=sheets, key="dlg_search_sheet")
     df_search = load_data(sheet_name=selected_search_sheet)
     if df_search is not None and not df_search.empty:
-        u_col = find_username_column(df_search)
+        display_c = find_display_username_column(df_search)
         p_col = find_password_column(df_search)
         
         search_query = st.text_input("Type any branch name or person name:", placeholder="e.g., ALLAGADDA, Adoni...", key="dlg_search_input").strip()
@@ -740,7 +759,7 @@ def search_data_dialog():
                 st.warning(f"No details found for '{search_query}'.")
             else:
                 st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
-                view_only_df = found_data.drop(columns=[u_col, p_col, "Updated_By", "Updated_At"], errors="ignore")
+                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At"], errors="ignore")
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
@@ -827,9 +846,9 @@ if not st.session_state["logged_in"]:
                             for s in sheets:
                                 df_check = load_data(sheet_name=s)
                                 if df_check is not None and not df_check.empty:
-                                    u_col = find_username_column(df_check)
+                                    login_c = find_login_user_column(df_check)
                                     p_col = find_password_column(df_check)
-                                    user_rows = df_check[(df_check[u_col].astype(str).str.strip().str.lower() == u_in.lower()) & 
+                                    user_rows = df_check[(df_check[login_c].astype(str).str.strip().str.lower() == u_in.lower()) & 
                                                          (df_check[p_col].astype(str).str.strip() == p_in)]
                                     if not user_rows.empty:
                                         logged_in_success = True
@@ -859,7 +878,8 @@ elif st.session_state["role"] == "admin":
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
-    u_col = find_username_column(df)
+    login_c = find_login_user_column(df)
+    display_c = find_display_username_column(df)
     p_col = find_password_column(df)
     
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
@@ -880,8 +900,8 @@ elif st.session_state["role"] == "admin":
 
     total_cases = len(df)
     updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
-    unassigned_cases = len(df[df[u_col].astype(str).str.strip() == ""])
-    active_workers = df[u_col].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
+    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
@@ -932,10 +952,10 @@ elif st.session_state["role"] == "admin":
         display_df = df
 
     st.markdown("---")
-    st.subheader("🔗 Click Username inside Table to View & Edit Case")
-    st.caption("క్రింద టేబుల్‌లో ఉన్న యూజర్‌నేమ్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
+    st.subheader("🔗 Click USERNAME inside Table to View & Edit Case")
+    st.caption("క్రింద టేబుల్‌లో ఉన్న **USERNAME** పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
 
-    render_clickable_table(display_df, u_col, p_col)
+    render_clickable_table(display_df, display_c, p_col)
                 
     if os.path.exists(EXCEL_FILE):
         with open(EXCEL_FILE, "rb") as f:
@@ -964,10 +984,11 @@ else:
     all_perms = load_permissions()
     worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
     
-    user_col = find_username_column(df)
-    pass_col = find_password_column(df)
+    login_c = find_login_user_column(df)
+    display_c = find_display_username_column(df)
+    p_col = find_password_column(df)
     
-    user_mask = df[user_col].astype(str).str.strip().str.lower() == current_user.lower()
+    user_mask = df[login_c].astype(str).str.strip().str.lower() == current_user.lower()
     user_rows = df[user_mask]
         
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
@@ -1048,8 +1069,8 @@ else:
                 for s in sheets:
                     df_s = load_data(sheet_name=s)
                     if df_s is not None and not df_s.empty:
-                        uc_s = find_username_column(df_s)
-                        u_rows_s = df_s[df_s[uc_s].astype(str).str.strip().str.lower() == current_user.lower()]
+                        login_cs = find_login_user_column(df_s)
+                        u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
                         if not u_rows_s.empty:
                             has_user_data = True
                             u_rows_s.to_excel(writer, sheet_name=s, index=False)
@@ -1083,10 +1104,10 @@ else:
     st.divider()
     
     st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-    st.subheader("🔗 Click Username inside Table to View & Edit Case")
+    st.subheader("🔗 Click USERNAME inside Table to View & Edit Case")
 
     if user_rows.empty:
         st.info("No cases assigned to you in this sheet.")
     else:
-        st.caption("క్రింద టేబుల్‌లో మీ యూజర్‌నేమ్ హైపర్‌లింక్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
-        render_clickable_table(user_rows, user_col, pass_col)
+        st.caption("క్రింద టేబుల్‌లో ఉన్న **USERNAME** హైపర్‌లింక్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
+        render_clickable_table(user_rows, display_c, p_col)
