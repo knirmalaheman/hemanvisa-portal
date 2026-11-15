@@ -32,6 +32,16 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
+# Handle Hyperlink Click from URL Query Params
+if "edit_row" in qp:
+    try:
+        r_val = int(qp["edit_row"])
+        st.session_state["selected_row_idx"] = r_val
+        st.session_state["open_dialog"] = "edit_case_popup"
+        del qp["edit_row"]
+    except:
+        pass
+
 if "active_sheet" not in st.session_state:
     def get_initial_sheets():
         if os.path.exists(EXCEL_FILE):
@@ -124,7 +134,7 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# 🎨 Modern Professional CSS with Pure Text Hyperlink Styling
+# 🎨 Modern Professional CSS
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -310,29 +320,16 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
-    /* Pure Text Hyperlink Style for Username Buttons */
-    div.stButton.text-link-btn button {
-        background: transparent !important;
-        background-color: transparent !important;
+    /* True Text Hyperlink CSS */
+    .username-hyperlink {
         color: #1d6fa5 !important;
-        box-shadow: none !important;
         text-decoration: underline !important;
-        padding: 0px !important;
-        margin: 0px !important;
-        min-height: unset !important;
-        height: auto !important;
-        width: auto !important;
-        text-align: left !important;
         font-weight: 700 !important;
-        border: none !important;
         font-size: 16px !important;
+        cursor: pointer !important;
     }
-    div.stButton.text-link-btn button:hover {
+    .username-hyperlink:hover {
         color: #0b3c65 !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        text-decoration: underline !important;
-        border: none !important;
     }
 
     div[data-testid="stExpander"] {
@@ -908,12 +905,7 @@ elif st.session_state["role"] == "admin":
             col_link, col_info = st.columns([2, 5])
             with col_link:
                 u_val = str(row[u_col]).strip() if str(row[u_col]).strip() != "" else "Not Assigned"
-                st.markdown('<div class="text-link-btn">', unsafe_allow_html=True)
-                if st.button(f"{u_val}", key=f"admin_link_{idx}", use_container_width=False):
-                    st.session_state["selected_row_idx"] = idx
-                    st.session_state["open_dialog"] = "edit_case_popup"
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown(f'<a href="?edit_row={idx}" target="_self" class="username-hyperlink">{u_val}</a>', unsafe_allow_html=True)
             with col_info:
                 preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [u_col, p_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
                 st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
@@ -1077,12 +1069,7 @@ else:
             col_link, col_info = st.columns([2, 5])
             with col_link:
                 u_val = str(row[user_col]).strip() if str(row[user_col]).strip() != "" else current_user
-                st.markdown('<div class="text-link-btn">', unsafe_allow_html=True)
-                if st.button(f"{u_val}", key=f"worker_link_{idx}", use_container_width=False):
-                    st.session_state["selected_row_idx"] = idx
-                    st.session_state["open_dialog"] = "edit_case_popup"
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown(f'<a href="?edit_row={idx}" target="_self" class="username-hyperlink">{u_val}</a>', unsafe_allow_html=True)
             with col_info:
                 preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [user_col, pass_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
                 st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
