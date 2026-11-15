@@ -32,18 +32,20 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
-# Handle Hyperlink Click from URL Query Params only if logged in
+# Handle Hyperlink Click from URL Query Params securely & clear it immediately
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
         st.session_state["is_editing_popup"] = False
-        qp.pop("edit_row", None)
+        if "edit_row" in st.query_params:
+            del st.query_params["edit_row"]
     except:
-        qp.pop("edit_row", None)
+        if "edit_row" in st.query_params:
+            del st.query_params["edit_row"]
 elif not st.session_state["logged_in"] and "edit_row" in qp:
-    qp.pop("edit_row", None)
+    st.query_params.clear()
 
 if "active_sheet" not in st.session_state:
     def get_initial_sheets():
@@ -837,6 +839,7 @@ if not st.session_state["logged_in"]:
                             st.session_state["logged_in"] = True
                             st.session_state["username"] = admin_u
                             st.session_state["role"] = "admin"
+                            st.query_params.clear()
                             st.query_params["logged_in"] = "true"
                             st.query_params["username"] = admin_u
                             st.query_params["role"] = "admin"
@@ -861,6 +864,7 @@ if not st.session_state["logged_in"]:
                                 st.session_state["username"] = u_in
                                 st.session_state["role"] = "worker"
                                 st.session_state["active_sheet"] = matched_sheet
+                                st.query_params.clear()
                                 st.query_params["logged_in"] = "true"
                                 st.query_params["username"] = u_in
                                 st.query_params["role"] = "worker"
