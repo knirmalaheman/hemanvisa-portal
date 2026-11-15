@@ -1018,24 +1018,23 @@ else:
     st.divider()
     
     st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-    
-    if not user_rows.empty:
-        worker_row_indices = list(user_rows.index)
-        col_wsel1, col_wsel2 = st.columns([3, 1])
-        with col_wsel1:
-            selected_worker_row = st.selectbox(
-                "Choose your case row to edit:",
-                options=worker_row_indices,
-                format_func=lambda idx: f"Row {idx+1} | " + " | ".join([f"{c}: {str(user_rows.loc[idx, c])}" for c in user_rows.columns[:2] if c not in [user_col, pass_col]]),
-                key="worker_case_selectbox",
-                label_visibility="collapsed"
-            )
-        with col_wsel2:
-            if st.button("✏️ Edit Selected Case", type="primary", use_container_width=True, key="worker_open_popup_btn"):
-                st.session_state["selected_row_idx"] = selected_worker_row
-                st.session_state["open_dialog"] = "edit_case_popup"
-                st.rerun()
+    st.caption("💡 క్రింద ఉన్న ప్రతి కేస్ వివరాల పక్కన ఉన్న **'✏️ Edit'** బటన్ మీద క్లిక్ చేసి నేరుగా పాప్-అప్‌లో ఎడిట్ చేసుకోవచ్చు.")
+
+    if user_rows.empty:
+        st.info("No cases assigned to you in this sheet.")
+    else:
+        for idx, row in user_rows.iterrows():
+            with st.container(border=True):
+                c_info, c_btn = st.columns([5, 1])
+                with c_info:
+                    summary_text = " &nbsp;|&nbsp; ".join([f"**{col}**: {val}" for col, val in row.items() if col not in [user_col, pass_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:4])
+                    st.markdown(f"🆔 **Row #{idx+1}** &nbsp;|&nbsp; {summary_text}", unsafe_allow_html=True)
+                with c_btn:
+                    if st.button("✏️ Edit", key=f"edit_worker_row_{idx}", use_container_width=True):
+                        st.session_state["selected_row_idx"] = idx
+                        st.session_state["open_dialog"] = "edit_case_popup"
+                        st.rerun()
 
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     display_worker_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
-    st.dataframe(display_worker_df, use_container_width=True, height=380, key="worker_full_table")
+    st.dataframe(display_worker_df, use_container_width=True, height=320, key="worker_full_table")
