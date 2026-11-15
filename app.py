@@ -300,8 +300,8 @@ st.markdown("""
         }
     }
 
-    /* 🎨 Default Action Buttons Style */
-    .stButton > button {
+    /* 🎨 Uniform Action Buttons & Download Button Style */
+    .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         border-radius: 8px !important;
         font-weight: 700 !important;
@@ -824,7 +824,7 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.rerun()
@@ -870,7 +870,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    # 4 బటన్‌లను ఒకే వరుసలో (Same Row) అమర్చడం (Change Password, Add New Case, Search Main Data, Download Excel)
+    # 4 బటన్‌లను ఖచ్చితంగా ఒకే వరుసలో (Same Row) సమాన వెడల్పుతో అమర్చడం
     col_w1, col_w2, col_w3, col_w4 = st.columns(4)
     with col_w1:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
