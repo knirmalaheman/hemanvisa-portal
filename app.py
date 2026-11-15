@@ -580,6 +580,22 @@ def search_data_dialog():
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
+@st.dialog("📋 Updated Cases & Editors History", width="large")
+def updated_cases_history_dialog():
+    sheets = get_sheet_names()
+    selected_sh = st.selectbox("Select Sheet:", options=sheets, key="dlg_hist_sheet")
+    df_h = load_data(sheet_name=selected_sh)
+    if df_h is not None and not df_h.empty:
+        if "Updated_By" in df_h.columns:
+            updated_rows = df_h[df_h["Updated_By"].astype(str).str.strip() != ""]
+            if updated_rows.empty:
+                st.warning("No cases have been updated yet in this sheet.")
+            else:
+                st.success(f"Found {len(updated_rows)} updated cases in '{selected_sh}':")
+                display_hist = updated_rows[["Updated_By", "Updated_At"] + [c for c in updated_rows.columns if c not in ["Updated_By", "Updated_At"]]]
+                display_hist.index = range(1, len(display_hist) + 1)
+                st.dataframe(display_hist, use_container_width=True)
+
 # 🌟 Handle Dialog Execution securely via Session State
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
@@ -595,6 +611,9 @@ elif st.session_state["open_dialog"] == "add_case":
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "search_data":
     search_data_dialog()
+    st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "updated_history":
+    updated_cases_history_dialog()
     st.session_state["open_dialog"] = None
 
 # 1. Login Screen
@@ -690,14 +709,18 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2 = st.columns(2)
+    col_btn_1, col_btn_2, col_btn_3 = st.columns(3)
     with col_btn_1:
-        if st.button("👥 Users, Passwords & Permissions (All Sheets)", use_container_width=True, key="admin_perm_btn"):
+        if st.button("👥 Users, Passwords & Permissions", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
     with col_btn_2:
         if st.button("🔑 Change Admin Password", use_container_width=True, key="admin_pw_btn"):
             st.session_state["open_dialog"] = "admin_password"
+            st.rerun()
+    with col_btn_3:
+        if st.button("📋 View Updated Cases & Editors", use_container_width=True, key="admin_upd_hist_btn"):
+            st.session_state["open_dialog"] = "updated_history"
             st.rerun()
 
     st.divider()
@@ -813,7 +836,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
+    col_w_btn1, col_w_btn2, col_w_btn3, col_w_btn4 = st.columns(4)
     with col_w_btn1:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
@@ -832,6 +855,10 @@ else:
                 st.rerun()
         else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
+    with col_w_btn4:
+        if st.button("📋 View Updated Cases", use_container_width=True, key="worker_upd_hist_btn"):
+            st.session_state["open_dialog"] = "updated_history"
+            st.rerun()
             
     st.divider()
 
