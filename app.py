@@ -38,6 +38,8 @@ if "edit_row" in qp:
         r_val = int(qp["edit_row"])
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
+        # Reset edit mode flag on new row click
+        st.session_state["is_editing_popup"] = False
         del qp["edit_row"]
     except:
         pass
@@ -427,11 +429,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[display_c]}**")
 
-    edit_state_key = f"dlg_editing_{row_idx}"
-    if edit_state_key not in st.session_state:
-        st.session_state[edit_state_key] = False
+    if "is_editing_popup" not in st.session_state:
+        st.session_state["is_editing_popup"] = False
 
-    if not st.session_state[edit_state_key]:
+    if not st.session_state["is_editing_popup"]:
         st.markdown("### 📄 Case Information")
         for col in df_full.columns:
             if col not in [p_col]:
@@ -441,8 +442,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         if role == "worker" and not can_update:
             st.warning("⚠️ View Only Mode: Admin has disabled update permissions for your account.")
         else:
-            if st.button("✏️ Edit Case Details", type="primary", use_container_width=True):
-                st.session_state[edit_state_key] = True
+            if st.button("✏️ Edit Case Details", type="primary", use_container_width=True, key="btn_trigger_edit"):
+                st.session_state["is_editing_popup"] = True
                 st.rerun()
     else:
         st.markdown("### ✏️ Edit Case Details")
@@ -454,7 +455,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             for i, col_name in enumerate(cols_to_show):
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
-                    updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]))
+                    updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col_save, col_back = st.columns(2)
@@ -478,18 +479,19 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         df_full.at[row_idx, "Updated_At"] = current_time
 
                     save_data(df_full, sheet_name=sheet_name)
-                    st.session_state[edit_state_key] = False
+                    st.session_state["is_editing_popup"] = False
                     st.session_state["selected_row_idx"] = None
+                    st.session_state["open_dialog"] = None
                     st.success("✅ Case details updated successfully!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
             
             if cancelled:
-                st.session_state[edit_state_key] = False
+                st.session_state["is_editing_popup"] = False
                 st.rerun()
 
-# 🌟 Helper function to render table with clickable USERNAME hyperlinks inside table cells (preserving session state)
+# 🌟 Helper function to render table with clickable USERNAME hyperlinks inside table cells
 def render_clickable_table(df, display_c, p_col):
     if df.empty:
         st.info("No cases found.")
@@ -497,7 +499,6 @@ def render_clickable_table(df, display_c, p_col):
 
     display_cols = [c for c in df.columns if c not in [p_col]]
     
-    # Preserve current auth query params so clicking link doesn't log out
     curr_logged = qp.get("logged_in", "true" if st.session_state.get("logged_in") else "false")
     curr_user = qp.get("username", st.session_state.get("username", ""))
     curr_role = qp.get("role", st.session_state.get("role", ""))
@@ -809,7 +810,7 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         perms = load_permissions()
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
-    st.session_state["open_dialog"] = None
+    # Note: Do not clear open_dialog here immediately so dialog persists during interaction
 
 # 1. Login Screen
 if not st.session_state["logged_in"]:
