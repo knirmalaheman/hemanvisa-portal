@@ -38,7 +38,6 @@ if "edit_row" in qp:
         r_val = int(qp["edit_row"])
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
-        # Reset edit mode flag on new row click
         st.session_state["is_editing_popup"] = False
         del qp["edit_row"]
     except:
@@ -810,7 +809,6 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         perms = load_permissions()
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
-    # Note: Do not clear open_dialog here immediately so dialog persists during interaction
 
 # 1. Login Screen
 if not st.session_state["logged_in"]:
@@ -954,7 +952,7 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("---")
     st.subheader("🔗 Click USERNAME inside Table to View & Edit Case")
-    st.caption("క్రింద టేబుల్‌లో ఉన్న **USERNAME** పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
+    st.caption("Click USERNAME inside the table to view and edit details.")
 
     render_clickable_table(display_df, display_c, p_col)
                 
@@ -1110,5 +1108,5 @@ else:
     if user_rows.empty:
         st.info("No cases assigned to you in this sheet.")
     else:
-        st.caption("క్రింద టేబుల్‌లో ఉన్న **USERNAME** హైపర్‌లింక్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
+        st.caption("Click USERNAME inside the table to view and edit details.")
         render_clickable_table(user_rows, display_c, p_col)
