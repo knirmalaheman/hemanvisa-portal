@@ -75,20 +75,21 @@ def load_data(sheet_name=0):
             target_sheet = sheet_name if sheet_name in xls.sheet_names else 0
             df = pd.read_excel(EXCEL_FILE, sheet_name=target_sheet, dtype=str)
             
-            df.columns = df.columns.str.strip()
-            df = df.fillna("")
-            if "Unnamed: 5" in df.columns:
-                df = df.rename(columns={"Unnamed: 5": "Category"})
-            
-            if "Updated_By" not in df.columns:
-                df["Updated_By"] = ""
-            if "Updated_At" not in df.columns:
-                df["Updated_At"] = ""
+            if df is not None and not df.empty:
+                df.columns = df.columns.str.strip()
+                df = df.fillna("")
+                if "Unnamed: 5" in df.columns:
+                    df = df.rename(columns={"Unnamed: 5": "Category"})
                 
-            return df
+                if "Updated_By" not in df.columns:
+                    df["Updated_By"] = ""
+                if "Updated_At" not in df.columns:
+                    df["Updated_At"] = ""
+                    
+                return df
         except Exception:
-            return None
-    return None
+            pass
+    return pd.DataFrame(columns=["Username", "Password", "Status"])
 
 def save_data(df_to_save, sheet_name=0):
     if "Category" in df_to_save.columns:
