@@ -393,6 +393,22 @@ def admin_password_dialog():
                 save_admin_creds(admin_u, new_p.strip())
                 st.success("✅ Admin password updated!")
 
+@st.dialog("📋 Updated Cases & Editors History", width="large")
+def updated_cases_history_dialog():
+    sheets = get_sheet_names()
+    selected_sh = st.selectbox("Select Sheet:", options=sheets, key="dlg_hist_sheet")
+    df_h = load_data(sheet_name=selected_sh)
+    if df_h is not None and not df_h.empty:
+        if "Updated_By" in df_h.columns:
+            updated_rows = df_h[df_h["Updated_By"].astype(str).str.strip() != ""]
+            if updated_rows.empty:
+                st.warning("No cases have been updated yet in this sheet.")
+            else:
+                st.success(f"Found {len(updated_rows)} updated cases in '{selected_sh}':")
+                display_hist = updated_rows[["Updated_By", "Updated_At"] + [c for c in updated_rows.columns if c not in ["Updated_By", "Updated_At"]]]
+                display_hist.index = range(1, len(display_hist) + 1)
+                st.dataframe(display_hist, use_container_width=True)
+
 @st.dialog("🔑 Change Password", width="medium")
 def worker_password_dialog(worker_name):
     sheets = get_sheet_names()
@@ -501,6 +517,9 @@ elif st.session_state["open_dialog"] == "add_case":
 elif st.session_state["open_dialog"] == "search_data":
     search_data_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "updated_history":
+    updated_cases_history_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "admin_sync":
     admin_sync_excel_dialog()
     st.session_state["open_dialog"] = None
@@ -571,7 +590,7 @@ elif st.session_state["role"] == "admin":
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Admin Action Buttons including Local-to-Cloud Sync Button
+    # 4 అడ్మిన్ బటన్‌లను ఒకే వరుసలో అమర్చడం
     ac1, ac2, ac3, ac4 = st.columns(4)
     with ac1:
         if st.button("👥 Permissions", use_container_width=True):
@@ -582,13 +601,25 @@ elif st.session_state["role"] == "admin":
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
     with ac3:
-        if st.button("🔄 Sync Local Excel", use_container_width=True, type="primary"):
+        if st.button("🔄 Sync Local Excel", use_container_width=True):
             st.session_state["open_dialog"] = "admin_sync"
             st.rerun()
     with ac4:
+        if st.button("📋 View Updated Cases", use_container_width=True):
+            st.session_state["open_dialog"] = "updated_history"
+            st.rerun()
+
+    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
+    # అడ్మిన్ కోసం సేవ్ మరియు డౌన్‌లోడ్ బటన్లు
+    col_save, col_dl = st.columns(2)
+    with col_save:
+        pass
+    with col_dl:
         if os.path.exists(EXCEL_FILE):
             with open(EXCEL_FILE, "rb") as f:
-                st.download_button("📥 Download Excel", data=f.read(), file_name=EXCEL_FILE, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+                excel_bytes = f.read()
+            st.download_button("📥 Download Complete Excel File (All Sheets)", data=excel_bytes, file_name=EXCEL_FILE, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
     st.divider()
     if sheets:
@@ -620,7 +651,7 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"): st.rerun()
     with top_col3:
