@@ -13,7 +13,7 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Session State & Query Params Initialization
+# 🌟 Session State & Query Params Initialization (F5 Refresh లో లాగౌట్ కాకుండా ఉండేందుకు)
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -28,19 +28,6 @@ if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
 
 if "open_dialog" not in st.session_state:
     st.session_state["open_dialog"] = None
-
-if "selected_row_idx" not in st.session_state:
-    st.session_state["selected_row_idx"] = None
-
-# Handle Hyperlink Click from URL Query Params
-if "edit_row" in qp:
-    try:
-        r_val = int(qp["edit_row"])
-        st.session_state["selected_row_idx"] = r_val
-        st.session_state["open_dialog"] = "edit_case_popup"
-        del qp["edit_row"]
-    except:
-        pass
 
 if "active_sheet" not in st.session_state:
     def get_initial_sheets():
@@ -134,31 +121,15 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-def find_login_user_column(df):
-    for col in df.columns:
-        if col.strip().lower() in ["ds-160 case worker", "case worker", "cases_worker", "username", "user"]:
-            return col
-    return df.columns[0]
-
-def find_display_username_column(df):
-    for col in df.columns:
-        if col.strip().lower() == "username":
-            return col
-    return find_login_user_column(df)
-
-def find_password_column(df):
-    for col in df.columns:
-        if col.strip().lower() in ["password", "pass"]:
-            return col
-    return df.columns[1] if len(df.columns) > 1 else df.columns[0]
-
-# 🎨 Modern Professional CSS
+# 🎨 Modern Professional CSS with Minimal Top Gap
 st.markdown("""
 <style>
+    /* Hide Streamlit default top header bar */
     [data-testid="stHeader"] {
         display: none !important;
     }
 
+    /* Fixed / Frozen Header Banner at the Very Top */
     .sticky-top-banner {
         position: fixed;
         top: 0;
@@ -241,11 +212,13 @@ st.markdown("""
         }
     }
 
+    /* Push main page content down minimally so top banner doesn't overlap */
     .block-container {
         padding-top: 105px !important;
         padding-bottom: 2rem;
     }
 
+    /* Make Welcome bar, Buttons and KPI cards sticky right below top banner with minimal gap */
     .sticky-control-panel {
         position: sticky;
         top: 98px;
@@ -263,6 +236,7 @@ st.markdown("""
         }
     }
 
+    /* Compact & Neat KPI Metric Cards - Uniform Equal Size */
     .kpi-card {
         background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%);
         color: white;
@@ -307,6 +281,7 @@ st.markdown("""
         line-height: 1.1;
     }
 
+    /* Section Header Pill */
     .section-banner {
         background-color: #eef5fc;
         border-left: 5px solid #0b3c65;
@@ -325,6 +300,7 @@ st.markdown("""
         }
     }
 
+    /* 🎨 Uniform Action Buttons & Download Button Style */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         border-radius: 8px !important;
@@ -336,18 +312,6 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(0,0,0,0.15);
         margin-top: 5px !important;
         margin-bottom: 10px !important;
-    }
-
-    /* True Text Hyperlink CSS */
-    .username-hyperlink {
-        color: #1d6fa5 !important;
-        text-decoration: underline !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        cursor: pointer !important;
-    }
-    .username-hyperlink:hover {
-        color: #0b3c65 !important;
     }
 
     div[data-testid="stExpander"] {
@@ -371,6 +335,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 🌟 Fixed Top Banner with Logo, Middle Text, and Contact/Socials on Right
 found_logo = next((f for f in LOGO_FILES if os.path.exists(f)), None)
 logo_html = ""
 if found_logo:
@@ -408,92 +373,28 @@ def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
     st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
-# 🌟 Case Details View & Edit Popup Dialog
-@st.dialog("📋 Case Details & Edit", width="large")
-def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
-    df_full = load_data(sheet_name=sheet_name)
-    if df_full is None or row_idx not in df_full.index:
-        st.error("Case data not found.")
-        return
+def find_username_column(df):
+    for col in df.columns:
+        if col.strip().lower() in ["username", "cases_worker", "user"]:
+            return col
+    return df.columns[0]
 
-    row_data = df_full.loc[row_idx]
-    u_col = find_display_username_column(df_full)
-    p_col = find_password_column(df_full)
+def find_password_column(df):
+    for col in df.columns:
+        if col.strip().lower() in ["password", "pass"]:
+            return col
+    return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[u_col]}**")
-
-    edit_state_key = f"dlg_editing_{row_idx}"
-    if edit_state_key not in st.session_state:
-        st.session_state[edit_state_key] = False
-
-    if not st.session_state[edit_state_key]:
-        st.markdown("### 📄 Case Information")
-        for col in df_full.columns:
-            if col not in [p_col]:
-                st.text(f"{col}: {row_data[col]}")
-        
-        st.markdown("---")
-        if role == "worker" and not can_update:
-            st.warning("⚠️ View Only Mode: Admin has disabled update permissions for your account.")
-        else:
-            if st.button("✏️ Edit Case Details", type="primary", use_container_width=True):
-                st.session_state[edit_state_key] = True
-                st.rerun()
-    else:
-        st.markdown("### ✏️ Edit Case Details")
-        with st.form(f"popup_edit_form_{row_idx}"):
-            updated_values = {}
-            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [u_col, p_col, "Updated_By", "Updated_At"]]
-            
-            f_col1, f_col2 = st.columns(2)
-            for i, col_name in enumerate(cols_to_show):
-                target_col = f_col1 if i % 2 == 0 else f_col2
-                with target_col:
-                    updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]))
-
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-            col_save, col_back = st.columns(2)
-            with col_save:
-                submitted = st.form_submit_button("💾 Save & Update", type="primary", use_container_width=True)
-            with col_back:
-                cancelled = st.form_submit_button("↩️ Cancel", use_container_width=True)
-
-            if submitted:
-                try:
-                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    changed = False
-                    for col_name, new_val in updated_values.items():
-                        old_val = str(df_full.at[row_idx, col_name]).strip()
-                        if old_val != str(new_val).strip():
-                            changed = True
-                        df_full.at[row_idx, col_name] = str(new_val).strip()
-
-                    if changed and role == "worker":
-                        df_full.at[row_idx, "Updated_By"] = current_user
-                        df_full.at[row_idx, "Updated_At"] = current_time
-
-                    save_data(df_full, sheet_name=sheet_name)
-                    st.session_state[edit_state_key] = False
-                    st.session_state["selected_row_idx"] = None
-                    st.success("✅ Case details updated successfully!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error updating case: {e}")
-            
-            if cancelled:
-                st.session_state[edit_state_key] = False
-                st.rerun()
-
-# 🌟 Other Modal Dialogs
+# 🌟 Modal Dialogs for Secure Popup Management
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
-    st.info("💡 Modify permissions for each case worker, then click the **💾 Save** button:")
+    st.info("💡 Modify **Password**, **Update**, **Add**, **Search**, **Download**, and **Sync** permissions for each case worker, then click the **💾 Update** button:")
     sheets = get_sheet_names()
     all_users_dict = {}
     for s in sheets:
         df_s = load_data(sheet_name=s)
         if df_s is not None and not df_s.empty:
-            u_col = find_display_username_column(df_s)
+            u_col = find_username_column(df_s)
             p_col = find_password_column(df_s)
             if u_col in df_s.columns and p_col in df_s.columns:
                 for _, r in df_s.iterrows():
@@ -534,7 +435,7 @@ def permissions_dialog():
                         xls = pd.ExcelFile(EXCEL_FILE)
                         for s in xls.sheet_names:
                             df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
-                            uc = find_display_username_column(df_s)
+                            uc = find_username_column(df_s)
                             pc = find_password_column(df_s)
                             if uc in df_s.columns and pc in df_s.columns:
                                 mask = df_s[uc].astype(str).str.strip().str.lower() == u_name.lower()
@@ -600,7 +501,7 @@ def worker_password_dialog(worker_name):
     for s in sheets:
         df_chk = load_data(sheet_name=s)
         if df_chk is not None and not df_chk.empty:
-            uc = find_display_username_column(df_chk)
+            uc = find_username_column(df_chk)
             pc = find_password_column(df_chk)
             matched_r = df_chk[df_chk[uc].astype(str).str.strip().str.lower() == worker_name.lower()]
             if not matched_r.empty:
@@ -625,7 +526,7 @@ def worker_password_dialog(worker_name):
                     xls = pd.ExcelFile(EXCEL_FILE)
                     for s in xls.sheet_names:
                         df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
-                        uc = find_display_username_column(df_s)
+                        uc = find_username_column(df_s)
                         pc = find_password_column(df_s)
                         if uc in df_s.columns and pc in df_s.columns:
                             mask = df_s[uc].astype(str).str.strip().str.lower() == worker_name.lower()
@@ -647,7 +548,7 @@ def add_case_dialog(worker_name):
     
     selected_target_sheet = st.selectbox("Select Target Sheet for New Case", options=sheets, key="dlg_target_sheet")
     target_df = load_data(sheet_name=selected_target_sheet)
-    t_user_col = find_display_username_column(target_df)
+    t_user_col = find_username_column(target_df)
     t_pass_col = find_password_column(target_df)
     
     available_usernames = sorted(list(set(target_df[t_user_col].astype(str).str.strip().tolist())))
@@ -696,7 +597,7 @@ def search_data_dialog():
     selected_search_sheet = st.selectbox("Select Sheet to Search:", options=sheets, key="dlg_search_sheet")
     df_search = load_data(sheet_name=selected_search_sheet)
     if df_search is not None and not df_search.empty:
-        u_col = find_display_username_column(df_search)
+        u_col = find_username_column(df_search)
         p_col = find_password_column(df_search)
         
         search_query = st.text_input("Type any branch name or person name:", placeholder="e.g., ALLAGADDA, Adoni...", key="dlg_search_input").strip()
@@ -751,15 +652,6 @@ elif st.session_state["open_dialog"] == "search_data":
 elif st.session_state["open_dialog"] == "updated_history":
     updated_cases_history_dialog()
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "edit_case_popup":
-    r_idx = st.session_state.get("selected_row_idx")
-    if r_idx is not None:
-        curr_role = st.session_state.get("role", "worker")
-        curr_u = st.session_state.get("username", "")
-        perms = load_permissions()
-        c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
-        view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
-    st.session_state["open_dialog"] = None
 
 # 1. Login Screen
 if not st.session_state["logged_in"]:
@@ -796,9 +688,9 @@ if not st.session_state["logged_in"]:
                             for s in sheets:
                                 df_check = load_data(sheet_name=s)
                                 if df_check is not None and not df_check.empty:
-                                    login_c = find_login_user_column(df_check)
+                                    u_col = find_username_column(df_check)
                                     p_col = find_password_column(df_check)
-                                    user_rows = df_check[(df_check[login_c].astype(str).str.strip().str.lower() == u_in.lower()) & 
+                                    user_rows = df_check[(df_check[u_col].astype(str).str.strip().str.lower() == u_in.lower()) & 
                                                          (df_check[p_col].astype(str).str.strip() == p_in)]
                                     if not user_rows.empty:
                                         logged_in_success = True
@@ -828,8 +720,7 @@ elif st.session_state["role"] == "admin":
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
-    login_c = find_login_user_column(df)
-    display_c = find_display_username_column(df)
+    u_col = find_username_column(df)
     p_col = find_password_column(df)
     
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
@@ -850,8 +741,8 @@ elif st.session_state["role"] == "admin":
 
     total_cases = len(df)
     updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
-    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
-    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+    unassigned_cases = len(df[df[u_col].astype(str).str.strip() == ""])
+    active_workers = df[u_col].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
@@ -901,36 +792,38 @@ elif st.session_state["role"] == "admin":
     else:
         display_df = df
 
-    st.markdown("---")
-    st.subheader("🔗 Click Username (Hyperlink) to View & Edit")
-
-    if display_df.empty:
-        st.info("No cases found.")
-    else:
-        st.caption("క్రింద యూజర్‌నేమ్ హైపర్‌లింక్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
-        for idx, row in display_df.iterrows():
-            col_link, col_info = st.columns([2, 5])
-            with col_link:
-                u_val = str(row[display_c]).strip() if str(row[display_c]).strip() != "" else "Not Assigned"
-                st.markdown(f'<a href="?edit_row={idx}" target="_self" class="username-hyperlink">{u_val}</a>', unsafe_allow_html=True)
-            with col_info:
-                preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [display_c, p_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
-                st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.dataframe(display_df, use_container_width=True, height=320, key="admin_full_table")
+    st.caption("💡 Updated_By and Updated_At will appear only on the specific row where changes occurred.")
+    
+    edited_full_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True, height=480, key="admin_full_editor")
+    
+    col_save, col_dl = st.columns(2)
+    with col_save:
+        if st.button("💾 Save All Changes to Excel", type="primary", use_container_width=True, key="admin_save_btn"):
+            try:
+                if admin_search != "":
+                    for idx in edited_full_df.index:
+                        df.loc[idx] = edited_full_df.loc[idx]
+                    df = df.loc[~df.index.isin(display_df.index) | df.index.isin(edited_full_df.index)]
+                    save_data(df, sheet_name=current_sheet)
+                else:
+                    save_data(edited_full_df, sheet_name=current_sheet)
+                st.success("✅ Data saved to Excel file!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
                 
-    if os.path.exists(EXCEL_FILE):
-        with open(EXCEL_FILE, "rb") as f:
-            excel_bytes = f.read()
-        st.download_button(
-            label="📥 Download Complete Excel File (All Sheets)", 
-            data=excel_bytes, 
-            file_name=EXCEL_FILE, 
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-            use_container_width=True, 
-            key="admin_dl_all_btn"
-        )
+    with col_dl:
+        if os.path.exists(EXCEL_FILE):
+            with open(EXCEL_FILE, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label="📥 Download Complete Excel File (All Sheets)", 
+                data=excel_bytes, 
+                file_name=EXCEL_FILE, 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="admin_dl_all_btn"
+            )
 
 # 3. CASE WORKER DASHBOARD
 else:
@@ -947,11 +840,10 @@ else:
     all_perms = load_permissions()
     worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
     
-    login_c = find_login_user_column(df)
-    display_c = find_display_username_column(df)
-    p_col = find_password_column(df)
+    user_col = find_username_column(df)
+    pass_col = find_password_column(df)
     
-    user_mask = df[login_c].astype(str).str.strip().str.lower() == current_user.lower()
+    user_mask = df[user_col].astype(str).str.strip().str.lower() == current_user.lower()
     user_rows = df[user_mask]
         
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
@@ -1003,6 +895,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
+    # Admin Sync పర్మిషన్ ఇస్తే 5 కాలమ్స్, ఇవ్వకపోతే 4 కాలమ్స్
     has_sync_perm = worker_perm.get("can_sync", False)
     w_cols = st.columns(5 if has_sync_perm else 4)
     
@@ -1032,8 +925,8 @@ else:
                 for s in sheets:
                     df_s = load_data(sheet_name=s)
                     if df_s is not None and not df_s.empty:
-                        login_cs = find_login_user_column(df_s)
-                        u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
+                        uc_s = find_username_column(df_s)
+                        u_rows_s = df_s[df_s[uc_s].astype(str).str.strip().str.lower() == current_user.lower()]
                         if not u_rows_s.empty:
                             has_user_data = True
                             u_rows_s.to_excel(writer, sheet_name=s, index=False)
@@ -1067,21 +960,65 @@ else:
     st.divider()
     
     st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-    st.subheader("🔗 Click Username (Hyperlink) to View & Edit")
+    
+    if worker_perm.get("can_update", True):
+        st.caption("💡 Your username and timestamp will be recorded only for the specific row you modify and save.")
+        
+        editable_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore").reset_index(drop=True)
+        edited_df = st.data_editor(editable_df, num_rows="dynamic", use_container_width=True, height=360, key="user_login_editor")
+        
+        if st.button("💾 Save My Changes to Excel", type="primary", key="worker_save_btn"):
+            try:
+                current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                orig_indices = user_rows.index.tolist()
+                df_updated = df.copy()
+                
+                for orig_idx in orig_indices:
+                    df_updated.at[orig_idx, "Updated_By"] = ""
+                    df_updated.at[orig_idx, "Updated_At"] = ""
 
-    if user_rows.empty:
-        st.info("No cases assigned to you in this sheet.")
+                for i, row in edited_df.iterrows():
+                    if i < len(orig_indices):
+                        orig_idx = orig_indices[i]
+                        data_cols = [c for c in edited_df.columns if c not in [user_col, pass_col]]
+                        
+                        orig_row = user_rows.loc[orig_idx]
+                        changed = False
+                        for c in data_cols:
+                            old_val = str(orig_row.get(c, "")).strip()
+                            new_val = str(row.get(c, "")).strip()
+                            if old_val != new_val:
+                                changed = True
+                                break
+                        
+                        for c in data_cols:
+                            df_updated.at[orig_idx, c] = row.get(c, "")
+                        
+                        if changed:
+                            df_updated.at[orig_idx, "Updated_By"] = current_user
+                            df_updated.at[orig_idx, "Updated_At"] = current_time
+                    else:
+                        new_row = {col: "" for col in df_updated.columns}
+                        new_row[user_col] = current_user
+                        
+                        curr_p_val = ""
+                        m_row = user_rows[user_rows[user_col].astype(str).str.strip().str.lower() == current_user.lower()]
+                        if not m_row.empty:
+                            curr_p_val = str(m_row.iloc[0][pass_col]).strip()
+                        new_row[pass_col] = curr_p_val
+
+                        for c in edited_df.columns:
+                            new_row[c] = row.get(c, "")
+                        new_row["Updated_By"], new_row["Updated_At"] = current_user, current_time
+                        df_updated = pd.concat([df_updated, pd.DataFrame([new_row])], ignore_index=True)
+                
+                save_data(df_updated, sheet_name=current_sheet)
+                st.success("✅ Changes saved successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
     else:
-        st.caption("క్రింద మీ యూజర్‌నేమ్ హైపర్‌లింక్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
-        for idx, row in user_rows.iterrows():
-            col_link, col_info = st.columns([2, 5])
-            with col_link:
-                u_val = str(row[display_c]).strip() if str(row[display_c]).strip() != "" else "Not Assigned"
-                st.markdown(f'<a href="?edit_row={idx}" target="_self" class="username-hyperlink">{u_val}</a>', unsafe_allow_html=True)
-            with col_info:
-                preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [display_c, p_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
-                st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    display_worker_df = user_rows.drop(columns=[display_c, p_col, "Updated_By", "Updated_At"], errors="ignore")
-    st.dataframe(display_worker_df, use_container_width=True, height=320, key="worker_full_table")
+        st.warning("⚠️ Update permission has been disabled by admin.")
+        view_only_user_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
+        view_only_user_df.index = range(1, len(view_only_user_df) + 1)
+        st.dataframe(view_only_user_df, use_container_width=True)
