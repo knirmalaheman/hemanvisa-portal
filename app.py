@@ -388,7 +388,7 @@ def find_password_column(df):
 # 🌟 Modal Dialogs for Secure Popup Management
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
-    st.info("💡 Modify **Password**, **Update**, **Add**, **Search**, and **Download** permissions for each case worker, then click the **💾 Update** button:")
+    st.info("💡 Modify **Password**, **Update**, **Add**, **Search**, **Download**, and **Sync** permissions for each case worker, then click the **💾 Update** button:")
     sheets = get_sheet_names()
     all_users_dict = {}
     for s in sheets:
@@ -410,24 +410,26 @@ def permissions_dialog():
         st.warning("No case workers found.")
     else:
         for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
-            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False})
+            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
             
-            col_u, col_p, col_upd, col_add, col_sch, col_dl, col_btn = st.columns([1.5, 1.5, 0.9, 0.9, 0.9, 0.9, 1.1])
+            col_u, col_p, col_upd, col_add, col_sch, col_dl, col_sync, col_btn = st.columns([1.4, 1.4, 0.85, 0.85, 0.85, 0.85, 0.85, 1.0])
             
             with col_u:
                 st.text_input("Username", value=u_name, disabled=True, key=f"dlg_u_{idx}", label_visibility="collapsed")
             with col_p:
                 new_pwd_val = st.text_input("Password", value=curr_pwd, type="default", key=f"dlg_p_{idx}", label_visibility="collapsed")
             with col_upd:
-                new_upd_val = st.checkbox("Can Update", value=w_perm.get("can_update", True), key=f"dlg_upd_{idx}")
+                new_upd_val = st.checkbox("Update", value=w_perm.get("can_update", True), key=f"dlg_upd_{idx}")
             with col_add:
-                new_add_val = st.checkbox("Can Add", value=w_perm.get("can_add", True), key=f"dlg_add_{idx}")
+                new_add_val = st.checkbox("Add", value=w_perm.get("can_add", True), key=f"dlg_add_{idx}")
             with col_sch:
-                new_sch_val = st.checkbox("Can Search", value=w_perm.get("can_search", True), key=f"dlg_sch_{idx}")
+                new_sch_val = st.checkbox("Search", value=w_perm.get("can_search", True), key=f"dlg_sch_{idx}")
             with col_dl:
-                new_dl_val = st.checkbox("Can Download", value=w_perm.get("can_download", False), key=f"dlg_dl_{idx}")
+                new_dl_val = st.checkbox("Download", value=w_perm.get("can_download", False), key=f"dlg_dl_{idx}")
+            with col_sync:
+                new_sync_val = st.checkbox("Sync", value=w_perm.get("can_sync", False), key=f"dlg_sync_{idx}")
             with col_btn:
-                if st.button("💾 Update", key=f"dlg_btn_{idx}", type="primary", use_container_width=True):
+                if st.button("💾 Save", key=f"dlg_btn_{idx}", type="primary", use_container_width=True):
                     try:
                         all_sheets_data = {}
                         xls = pd.ExcelFile(EXCEL_FILE)
@@ -449,7 +451,8 @@ def permissions_dialog():
                             "can_update": new_upd_val,
                             "can_add": new_add_val,
                             "can_search": new_sch_val,
-                            "can_download": new_dl_val
+                            "can_download": new_dl_val,
+                            "can_sync": new_sync_val
                         }
                         save_permissions(current_perms)
                         st.success(f"✅ Details updated for '{u_name}'!")
@@ -476,8 +479,8 @@ def admin_password_dialog():
                 save_admin_creds(admin_u, new_p.strip())
                 st.success("✅ Admin password updated successfully!")
 
-@st.dialog("📤 Sync Local Excel File to Cloud (Admin Only)", width="medium")
-def admin_sync_excel_dialog():
+@st.dialog("📤 Sync Local Excel File to Cloud", width="medium")
+def sync_excel_dialog():
     st.info("💡 మీ లోకల్ సిస్టమ్‌లో సవరించిన ఎక్సెల్ ఫైల్‌ను ఇక్కడ అప్‌లోడ్ చేస్తే, అది వెంటనే క్లౌడ్‌లో అప్‌డేట్ అవుతుంది.")
     uploaded_excel = st.file_uploader("Upload Updated Excel File (.xlsx)", type=["xlsx"])
     
@@ -634,8 +637,8 @@ if st.session_state["open_dialog"] == "permissions":
 elif st.session_state["open_dialog"] == "admin_password":
     admin_password_dialog()
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "admin_sync":
-    admin_sync_excel_dialog()
+elif st.session_state["open_dialog"] == "sync_excel":
+    sync_excel_dialog()
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
@@ -753,36 +756,23 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    # 5 అడ్మిన్ బటన్‌లను ఒకే వరుసలో (Same Row) అమర్చడం
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5 = st.columns(5)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4 = st.columns(4)
     with col_btn_1:
-        if st.button("👥 Permissions", use_container_width=True, key="admin_perm_btn"):
+        if st.button("👥 Users, Passwords & Permissions", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
     with col_btn_2:
-        if st.button("🔑 Admin Password", use_container_width=True, key="admin_pw_btn"):
+        if st.button("🔑 Change Admin Password", use_container_width=True, key="admin_pw_btn"):
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
     with col_btn_3:
         if st.button("🔄 Sync Local Excel", use_container_width=True, key="admin_sync_btn"):
-            st.session_state["open_dialog"] = "admin_sync"
+            st.session_state["open_dialog"] = "sync_excel"
             st.rerun()
     with col_btn_4:
         if st.button("📋 View Updated Cases", use_container_width=True, key="admin_upd_hist_btn"):
             st.session_state["open_dialog"] = "updated_history"
             st.rerun()
-    with col_btn_5:
-        if os.path.exists(EXCEL_FILE):
-            with open(EXCEL_FILE, "rb") as f:
-                excel_bytes = f.read()
-            st.download_button(
-                label="📥 Download Excel", 
-                data=excel_bytes, 
-                file_name=EXCEL_FILE, 
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                use_container_width=True, 
-                key="admin_dl_all_btn"
-            )
 
     st.divider()
     
@@ -806,19 +796,34 @@ elif st.session_state["role"] == "admin":
     
     edited_full_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True, height=480, key="admin_full_editor")
     
-    if st.button("💾 Save All Changes to Excel", type="primary", use_container_width=True, key="admin_save_btn"):
-        try:
-            if admin_search != "":
-                for idx in edited_full_df.index:
-                    df.loc[idx] = edited_full_df.loc[idx]
-                df = df.loc[~df.index.isin(display_df.index) | df.index.isin(edited_full_df.index)]
-                save_data(df, sheet_name=current_sheet)
-            else:
-                save_data(edited_full_df, sheet_name=current_sheet)
-            st.success("✅ Data saved to Excel file!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
+    col_save, col_dl = st.columns(2)
+    with col_save:
+        if st.button("💾 Save All Changes to Excel", type="primary", use_container_width=True, key="admin_save_btn"):
+            try:
+                if admin_search != "":
+                    for idx in edited_full_df.index:
+                        df.loc[idx] = edited_full_df.loc[idx]
+                    df = df.loc[~df.index.isin(display_df.index) | df.index.isin(edited_full_df.index)]
+                    save_data(df, sheet_name=current_sheet)
+                else:
+                    save_data(edited_full_df, sheet_name=current_sheet)
+                st.success("✅ Data saved to Excel file!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+                
+    with col_dl:
+        if os.path.exists(EXCEL_FILE):
+            with open(EXCEL_FILE, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label="📥 Download Complete Excel File (All Sheets)", 
+                data=excel_bytes, 
+                file_name=EXCEL_FILE, 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="admin_dl_all_btn"
+            )
 
 # 3. CASE WORKER DASHBOARD
 else:
@@ -833,7 +838,7 @@ else:
     current_user = st.session_state["username"].strip()
     
     all_perms = load_permissions()
-    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False})
+    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
     
     user_col = find_username_column(df)
     pass_col = find_password_column(df)
@@ -890,29 +895,30 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    # 4 బటన్‌లను ఒకే వరుసలో (Same Row) సమాన వెడల్పుతో అమర్చడం
-    col_w1, col_w2, col_w3, col_w4 = st.columns(4)
-    with col_w1:
+    # Admin Sync పర్మిషన్ ఇస్తే 5 కాలమ్స్, ఇవ్వకపోతే 4 కాలమ్స్
+    has_sync_perm = worker_perm.get("can_sync", False)
+    w_cols = st.columns(5 if has_sync_perm else 4)
+    
+    with w_cols[0]:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
-    with col_w2:
+    with w_cols[1]:
         if worker_perm.get("can_add", True):
             if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
             st.button("🚫 No Add Permission", disabled=True, use_container_width=True, key="worker_add_disabled")
-    with col_w3:
+    with w_cols[2]:
         if worker_perm.get("can_search", True):
             if st.button("🔍 Search Main Data", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
-    with col_w4:
+    with w_cols[3]:
         if worker_perm.get("can_download", False):
-            # అన్ని షీట్లలో లాగిన్ అయిన యూజర్ డేటాను ఫిల్టర్ చేసి మల్టీ-షీట్ ఎక్సెల్ ఫైల్‌గా తయారుచేయడం
             worker_buffer = io.BytesIO()
             with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
                 has_user_data = False
@@ -925,7 +931,6 @@ else:
                             has_user_data = True
                             u_rows_s.to_excel(writer, sheet_name=s, index=False)
                 
-                # ఒకవేళ ఏ షీట్‌లోనూ యూజర్ డేటా లేకపోతే కరెంట్ షీట్‌ని ఎంప్టీగా సేవ్ చేయి
                 if not has_user_data:
                     user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
             
@@ -939,6 +944,12 @@ else:
             )
         else:
             st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_disabled")
+            
+    if has_sync_perm:
+        with w_cols[4]:
+            if st.button("🔄 Sync Local Excel", use_container_width=True, key="worker_sync_btn"):
+                st.session_state["open_dialog"] = "sync_excel"
+                st.rerun()
             
     st.divider()
 
