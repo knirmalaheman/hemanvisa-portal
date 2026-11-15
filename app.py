@@ -13,11 +13,19 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Session State Initialization
+# 🌟 Session State & Query Params Initialization (F5 Refresh లో లాగౌట్ కాకుండా ఉండేందుకు)
+qp = st.query_params
+
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
     st.session_state["username"] = ""
     st.session_state["role"] = ""
+
+# URL లో లాగిన్ వివరాలు ఉంటే ఆటోమేటిక్‌గా రీస్టోర్ చేయి (F5 రెస్పాన్స్ కోసం)
+if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
+    st.session_state["logged_in"] = True
+    st.session_state["username"] = qp.get("username", "")
+    st.session_state["role"] = qp.get("role", "worker")
 
 if "open_dialog" not in st.session_state:
     st.session_state["open_dialog"] = None
@@ -32,7 +40,12 @@ if "active_sheet" not in st.session_state:
                 return ["Sheet1"]
         return ["Sheet1"]
     sheets_init = get_initial_sheets()
-    st.session_state["active_sheet"] = sheets_init[0] if sheets_init else "Sheet1"
+    # Query params లో షీట్ ఉంటే అదే సెట్ చేయి
+    saved_sheet = qp.get("active_sheet")
+    if saved_sheet in sheets_init:
+        st.session_state["active_sheet"] = saved_sheet
+    else:
+        st.session_state["active_sheet"] = sheets_init[0] if sheets_init else "Sheet1"
 
 def get_admin_creds():
     if os.path.exists(ADMIN_FILE):
@@ -356,9 +369,11 @@ st.markdown(f"""
 
 def update_admin_sheet():
     st.session_state["active_sheet"] = st.session_state["admin_sheet_radio"]
+    st.query_params["active_sheet"] = st.session_state["admin_sheet_radio"]
 
 def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
+    st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
 def find_username_column(df):
     for col in df.columns:
@@ -641,9 +656,14 @@ if not st.session_state["logged_in"]:
                             st.session_state["logged_in"] = True
                             st.session_state["username"] = admin_u
                             st.session_state["role"] = "admin"
+                            # Query params లో సెట్ చేయి (F5 రెస్పాన్స్ కోసం)
+                            st.query_params["logged_in"] = "true"
+                            st.query_params["username"] = admin_u
+                            st.query_params["role"] = "admin"
                             st.rerun()
                         else:
                             logged_in_success = False
+                            matched_sheet = ""
                             for s in sheets:
                                 df_check = load_data(sheet_name=s)
                                 if df_check is not None and not df_check.empty:
@@ -653,13 +673,19 @@ if not st.session_state["logged_in"]:
                                                          (df_check[p_col].astype(str).str.strip() == p_in)]
                                     if not user_rows.empty:
                                         logged_in_success = True
-                                        st.session_state["active_sheet"] = s
+                                        matched_sheet = s
                                         break
                             
                             if logged_in_success:
                                 st.session_state["logged_in"] = True
                                 st.session_state["username"] = u_in
                                 st.session_state["role"] = "worker"
+                                st.session_state["active_sheet"] = matched_sheet
+                                # Query params లో సెట్ చేయి
+                                st.query_params["logged_in"] = "true"
+                                st.query_params["username"] = u_in
+                                st.query_params["role"] = "worker"
+                                st.query_params["active_sheet"] = matched_sheet
                                 st.rerun()
                             else:
                                 st.error("❌ Incorrect Username or Password!")
@@ -686,6 +712,7 @@ elif st.session_state["role"] == "admin":
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="admin_logout"):
+            st.query_params.clear()
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
@@ -719,7 +746,7 @@ elif st.session_state["role"] == "admin":
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
     with col_btn_3:
-        if st.button("📋 View Updated Cases & Editors", use_container_width=True, key="admin_upd_hist_btn"):
+        if st.button("📋 View Updated Cases", use_container_width=True, key="admin_upd_hist_btn"):
             st.session_state["open_dialog"] = "updated_history"
             st.rerun()
 
@@ -797,6 +824,7 @@ else:
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="worker_logout"):
+            st.query_params.clear()
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
