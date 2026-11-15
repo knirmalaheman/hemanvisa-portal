@@ -372,7 +372,7 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 Modal Dialogs for Secure Popup Management
+# 🌟 Modal Dialogs for Secure Popup Management (Fixed Excel Saving Bug)
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
     st.info("💡 ప్రతి కేస్ వర్కర్ ఎదురుగా వారి **Password**, **Update**, **Add**, **Search** పర్మిషన్లు మార్చుకుని చివర్లో ఉన్న **💾 Update** బటన్ నొక్కండి:")
@@ -414,17 +414,21 @@ def permissions_dialog():
             with col_btn:
                 if st.button("💾 Update", key=f"dlg_btn_{idx}", type="primary", use_container_width=True):
                     try:
+                        all_sheets_data = {}
+                        xls = pd.ExcelFile(EXCEL_FILE)
+                        for s in xls.sheet_names:
+                            df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
+                            uc = find_username_column(df_s)
+                            pc = find_password_column(df_s)
+                            if uc in df_s.columns and pc in df_s.columns:
+                                mask = df_s[uc].astype(str).str.strip().str.lower() == u_name.lower()
+                                if mask.any():
+                                    df_s.loc[mask, pc] = new_pwd_val.strip()
+                            all_sheets_data[s] = df_s
+                        
                         with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
-                            for s in sheets:
-                                df_s = load_data(sheet_name=s)
-                                if df_s is not None and not df_s.empty:
-                                    uc = find_username_column(df_s)
-                                    pc = find_password_column(df_s)
-                                    if uc in df_s.columns and pc in df_s.columns:
-                                        mask = df_s[uc].astype(str).str.strip().str.lower() == u_name.lower()
-                                        if mask.any():
-                                            df_s.loc[mask, pc] = new_pwd_val.strip()
-                                df_s.to_excel(writer, sheet_name=str(s), index=False)
+                            for s, df_val in all_sheets_data.items():
+                                df_val.to_excel(writer, sheet_name=str(s), index=False)
                         
                         current_perms[u_name] = {
                             "can_update": new_upd_val,
@@ -484,17 +488,21 @@ def worker_password_dialog(worker_name):
                 st.error("❌ కొత్త పాస్‌వర్డ్‌లు రెండు సరిపోలడం లేదు!")
             else:
                 try:
+                    all_sheets_data = {}
+                    xls = pd.ExcelFile(EXCEL_FILE)
+                    for s in xls.sheet_names:
+                        df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
+                        uc = find_username_column(df_s)
+                        pc = find_password_column(df_s)
+                        if uc in df_s.columns and pc in df_s.columns:
+                            mask = df_s[uc].astype(str).str.strip().str.lower() == worker_name.lower()
+                            if mask.any():
+                                df_s.loc[mask, pc] = new_wp.strip()
+                        all_sheets_data[s] = df_s
+                    
                     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
-                        for s in sheets:
-                            df_s = load_data(sheet_name=s)
-                            if df_s is not None and not df_s.empty:
-                                uc = find_username_column(df_s)
-                                pc = find_password_column(df_s)
-                                if uc in df_s.columns and pc in df_s.columns:
-                                    mask = df_s[uc].astype(str).str.strip().str.lower() == worker_name.lower()
-                                    if mask.any():
-                                        df_s.loc[mask, pc] = new_wp.strip()
-                            df_s.to_excel(writer, sheet_name=str(s), index=False)
+                        for s, df_val in all_sheets_data.items():
+                            df_val.to_excel(writer, sheet_name=str(s), index=False)
                     st.success("✅ మీ పాస్‌వర్డ్ విజయవంతంగా మార్చబడింది!")
                 except Exception as e:
                     st.error(f"❌ సమస్య: {e}")
@@ -785,11 +793,7 @@ else:
     if visa_col and not user_rows.empty:
         for val in user_rows[visa_col].astype(str):
             v_clean = val.strip().upper()
-            # కేవలం నిర్దిష్టమైనవి లేదా ఎక్సెల్ లో ఉన్నవి మాత్రమే కౌంట్ అయ్యేలా (abcd లాంటి డమ్మీ ఉంటే జనరల్ లేదా స్కిప్)
-            if v_clean in ["H1B", "H4", "H1B H4", "H1B & H4", "H1B, H4"]:
-                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
-            elif v_clean != "":
-                # ఎక్సెల్ లో వేరే వాలిడ్ వీసా టైప్ ఏమున్నా అది ఆటోమేటిక్‌గా కార్డ్ లాగా వస్తుంది
+            if v_clean != "":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     total_metrics = 2 + len(visa_counts)
