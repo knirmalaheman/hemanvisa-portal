@@ -71,7 +71,10 @@ def get_sheet_names():
 def load_data(sheet_name=0):
     if os.path.exists(EXCEL_FILE):
         try:
-            df = pd.read_excel(EXCEL_FILE, sheet_name=sheet_name, dtype=str)
+            xls = pd.ExcelFile(EXCEL_FILE)
+            target_sheet = sheet_name if sheet_name in xls.sheet_names else 0
+            df = pd.read_excel(EXCEL_FILE, sheet_name=target_sheet, dtype=str)
+            
             df.columns = df.columns.str.strip()
             df = df.fillna("")
             if "Unnamed: 5" in df.columns:
