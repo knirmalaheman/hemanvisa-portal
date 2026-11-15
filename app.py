@@ -606,7 +606,7 @@ elif st.session_state["role"] == "admin":
             edited_full_df.to_excel(writer, index=False)
         st.download_button(label=f"📥 Download '{current_sheet}' Sheet", data=buffer.getvalue(), file_name=f"updated_{current_sheet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, key="admin_dl_btn")
 
-# 3. CASE WORKER DASHBOARD (First Image Layout: 5 KPI Cards + 3 Action Buttons)
+# 3. CASE WORKER DASHBOARD
 else:
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
@@ -646,21 +646,30 @@ else:
     total_my_cases = len(my_cases_df)
     updated_my_cases = len(my_cases_df[my_cases_df["Updated_By"].astype(str).str.strip().str.lower() == worker_name.lower()]) if "Updated_By" in my_cases_df.columns else 0
 
-    # Calculate Visa category counts dynamically from worker cases
+    # Find Visa Type column dynamically for exact counts
+    visa_col = None
+    for col in my_cases_df.columns:
+        if "visa" in col.strip().lower() or "type" in col.strip().lower():
+            visa_col = col
+            break
+
     h1b_count = 0
     h4_count = 0
     h1bh4_count = 0
+    
     if not my_cases_df.empty:
         for _, row in my_cases_df.iterrows():
-            row_str = " ".join(str(val).upper() for val in row.values)
-            if "H1B H4" in row_str or ("H1B" in row_str and "H4" in row_str):
+            val = str(row[visa_col]).strip().upper() if visa_col and visa_col in row else ""
+            
+            # Exact/Clean matching to avoid random strings
+            if val in ["H1B H4", "H1B & H4", "H1B, H4"]:
                 h1bh4_count += 1
-            elif "H1B" in row_str:
+            elif val == "H1B":
                 h1b_count += 1
-            elif "H4" in row_str:
+            elif val == "H4":
                 h4_count += 1
 
-    # 5 KPI Cards in one row matching First Image
+    # 5 KPI Cards in one row
     kc1, kc2, kc3, kc4, kc5 = st.columns(5)
     with kc1:
         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📂 నా కేసులు (MY CASES)</div><div class='kpi-value'>{total_my_cases}</div></div>", unsafe_allow_html=True)
@@ -675,7 +684,7 @@ else:
 
     st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
 
-    # 3 Action Buttons matching First Image bottom row
+    # 3 Action Buttons
     act_cols = st.columns(3)
     with act_cols[0]:
         if st.button("🔑 పాస్‌వర్డ్ మార్చుకోండి", use_container_width=True, key="worker_pw_btn"):
