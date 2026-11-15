@@ -13,7 +13,7 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Session State Initialization (లాగౌట్ సమస్య రాకుండా)
+# 🌟 Session State Initialization
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
     st.session_state["username"] = ""
@@ -68,7 +68,6 @@ def get_sheet_names():
             return ["Sheet1"]
     return ["Sheet1"]
 
-# 🔒 Robust load_data with strict sheet matching & whitespace stripping
 def load_data(sheet_name=0):
     if os.path.exists(EXCEL_FILE):
         try:
@@ -169,6 +168,7 @@ st.markdown("""
     .kpi-card.gold { background: linear-gradient(135deg, #d35400 0%, #f39c12 100%); border-left: 4px solid #0b3c65; }
     .kpi-card.green { background: linear-gradient(135deg, #117a65 0%, #1abc9c 100%); border-left: 4px solid #f1c40f; }
     .kpi-card.purple { background: linear-gradient(135deg, #4a235a 0%, #8e44ad 100%); border-left: 4px solid #f39c12; }
+    .kpi-card.teal { background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%); border-left: 4px solid #f1c40f; }
     .kpi-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95; margin-bottom: 4px; line-height: 1.2; }
     .kpi-value { font-size: 20px; font-weight: 800; margin: 0; line-height: 1.1; }
 
@@ -441,7 +441,7 @@ def search_data_dialog():
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
-# 🌟 Dialog Handler via Session State
+# 🌟 Dialog Handler
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -606,7 +606,7 @@ elif st.session_state["role"] == "admin":
             edited_full_df.to_excel(writer, index=False)
         st.download_button(label=f"📥 Download '{current_sheet}' Sheet", data=buffer.getvalue(), file_name=f"updated_{current_sheet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, key="admin_dl_btn")
 
-# 3. CASE WORKER DASHBOARD
+# 3. CASE WORKER DASHBOARD (First Image Layout: 5 KPI Cards + 3 Action Buttons)
 else:
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
@@ -626,10 +626,9 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     tc1, tc2, tc3 = st.columns([5, 1.2, 1.2], gap="small")
     with tc1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👨‍💻 Case Worker Portal — {worker_name} ({current_sheet})</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 స్వాగతం, {worker_name} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with tc2:
-        if st.button("🔑 Change Password", key="worker_pw_btn_top"):
-            st.session_state["open_dialog"] = "worker_password"
+        if st.button("🔄 Refresh", key="worker_refresh_btn"):
             st.rerun()
     with tc3:
         if st.button("🚪 Logout", key="worker_logout"):
@@ -647,36 +646,55 @@ else:
     total_my_cases = len(my_cases_df)
     updated_my_cases = len(my_cases_df[my_cases_df["Updated_By"].astype(str).str.strip().str.lower() == worker_name.lower()]) if "Updated_By" in my_cases_df.columns else 0
 
-    kc1, kc2, kc3 = st.columns(3)
+    # Calculate Visa category counts dynamically from worker cases
+    h1b_count = 0
+    h4_count = 0
+    h1bh4_count = 0
+    if not my_cases_df.empty:
+        for _, row in my_cases_df.iterrows():
+            row_str = " ".join(str(val).upper() for val in row.values)
+            if "H1B H4" in row_str or ("H1B" in row_str and "H4" in row_str):
+                h1bh4_count += 1
+            elif "H1B" in row_str:
+                h1b_count += 1
+            elif "H4" in row_str:
+                h4_count += 1
+
+    # 5 KPI Cards in one row matching First Image
+    kc1, kc2, kc3, kc4, kc5 = st.columns(5)
     with kc1:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 నాకు కేటాయించిన కేసులు (My Cases)</div><div class='kpi-value'>{total_my_cases}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📂 నా కేసులు (MY CASES)</div><div class='kpi-value'>{total_my_cases}</div></div>", unsafe_allow_html=True)
     with kc2:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ నేను అప్‌డేట్ చేసినవి (Updated)</div><div class='kpi-value'>{updated_my_cases}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ నేను అప్‌డేట్ చేసినవి</div><div class='kpi-value'>{updated_my_cases}</div></div>", unsafe_allow_html=True)
     with kc3:
-        st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>📑 ప్రస్తుత షీట్ (Current Sheet)</div><div class='kpi-value' style='font-size:15px; font-weight:700;'>{current_sheet}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>✈️ H1B</div><div class='kpi-value'>{h1b_count}</div></div>", unsafe_allow_html=True)
+    with kc4:
+        st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>✈️ H4</div><div class='kpi-value'>{h4_count}</div></div>", unsafe_allow_html=True)
+    with kc5:
+        st.markdown(f"<div class='kpi-card teal'><div class='kpi-title'>✈️ H1B H4</div><div class='kpi-value'>{h1bh4_count}</div></div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
 
+    # 3 Action Buttons matching First Image bottom row
     act_cols = st.columns(3)
     with act_cols[0]:
+        if st.button("🔑 పాస్‌వర్డ్ మార్చుకోండి", use_container_width=True, key="worker_pw_btn"):
+            st.session_state["open_dialog"] = "worker_password"
+            st.rerun()
+    with act_cols[1]:
         if worker_perm.get("can_add", True):
-            if st.button("➕ కొత్త కేసును జోడించండి (Add Case)", use_container_width=True, key="worker_add_case_btn"):
+            if st.button("➕ కొత్త కేసును జోడించండి", use_container_width=True, key="worker_add_case_btn"):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
-            st.button("➕ Add Case (Disabled)", disabled=True, use_container_width=True)
-    with act_cols[1]:
+            st.button("➕ కొత్త కేసును జోడించండి (Disabled)", disabled=True, use_container_width=True)
+    with act_cols[2]:
         if worker_perm.get("can_search", True):
-            if st.button("🔍 డేటాలో వెతకండి (Search Data)", use_container_width=True, key="worker_search_btn"):
+            if st.button("🔍 Main Data వెతకండి", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
-            st.button("🔍 Search (Disabled)", disabled=True, use_container_width=True)
-    with act_cols[2]:
-        if worker_perm.get("can_update", True):
-            st.info("💡 కింద మీ కేసులను ఎడిట్ చేయవచ్చు.")
-        else:
-            st.warning("⚠️ అప్‌డేట్ పర్మిషన్ తాత్కాలికంగా నిలిపివేయబడింది.")
+            st.button("🔍 Main Data వెతకండి (Disabled)", disabled=True, use_container_width=True)
 
     st.divider()
 
