@@ -476,6 +476,21 @@ def admin_password_dialog():
                 save_admin_creds(admin_u, new_p.strip())
                 st.success("✅ Admin password updated successfully!")
 
+@st.dialog("📤 Sync Local Excel File to Cloud (Admin Only)", width="medium")
+def admin_sync_excel_dialog():
+    st.info("💡 మీ లోకల్ సిస్టమ్‌లో సవరించిన ఎక్సెల్ ఫైల్‌ను ఇక్కడ అప్‌లోడ్ చేస్తే, అది వెంటనే క్లౌడ్‌లో అప్‌డేట్ అవుతుంది.")
+    uploaded_excel = st.file_uploader("Upload Updated Excel File (.xlsx)", type=["xlsx"])
+    
+    if uploaded_excel is not None:
+        if st.button("🚀 Confirm & Sync to Cloud", type="primary", use_container_width=True):
+            try:
+                with open(EXCEL_FILE, "wb") as f:
+                    f.write(uploaded_excel.getbuffer())
+                st.success("✅ క్లౌడ్ డేటా విజయవంతంగా అప్‌డేట్ చేయబడింది!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
 @st.dialog("🔑 Change Password", width="medium")
 def worker_password_dialog(worker_name):
     sheets = get_sheet_names()
@@ -619,6 +634,9 @@ if st.session_state["open_dialog"] == "permissions":
 elif st.session_state["open_dialog"] == "admin_password":
     admin_password_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_sync":
+    admin_sync_excel_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
     st.session_state["open_dialog"] = None
@@ -735,19 +753,36 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3 = st.columns(3)
+    # 5 అడ్మిన్ బటన్‌లను ఒకే వరుసలో (Same Row) అమర్చడం
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5 = st.columns(5)
     with col_btn_1:
-        if st.button("👥 Users, Passwords & Permissions", use_container_width=True, key="admin_perm_btn"):
+        if st.button("👥 Permissions", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
     with col_btn_2:
-        if st.button("🔑 Change Admin Password", use_container_width=True, key="admin_pw_btn"):
+        if st.button("🔑 Admin Password", use_container_width=True, key="admin_pw_btn"):
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
     with col_btn_3:
+        if st.button("🔄 Sync Local Excel", use_container_width=True, key="admin_sync_btn"):
+            st.session_state["open_dialog"] = "admin_sync"
+            st.rerun()
+    with col_btn_4:
         if st.button("📋 View Updated Cases", use_container_width=True, key="admin_upd_hist_btn"):
             st.session_state["open_dialog"] = "updated_history"
             st.rerun()
+    with col_btn_5:
+        if os.path.exists(EXCEL_FILE):
+            with open(EXCEL_FILE, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label="📥 Download Excel", 
+                data=excel_bytes, 
+                file_name=EXCEL_FILE, 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="admin_dl_all_btn"
+            )
 
     st.divider()
     
@@ -771,34 +806,19 @@ elif st.session_state["role"] == "admin":
     
     edited_full_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True, height=480, key="admin_full_editor")
     
-    col_save, col_dl = st.columns(2)
-    with col_save:
-        if st.button("💾 Save All Changes to Excel", type="primary", use_container_width=True, key="admin_save_btn"):
-            try:
-                if admin_search != "":
-                    for idx in edited_full_df.index:
-                        df.loc[idx] = edited_full_df.loc[idx]
-                    df = df.loc[~df.index.isin(display_df.index) | df.index.isin(edited_full_df.index)]
-                    save_data(df, sheet_name=current_sheet)
-                else:
-                    save_data(edited_full_df, sheet_name=current_sheet)
-                st.success("✅ Data saved to Excel file!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
-                
-    with col_dl:
-        if os.path.exists(EXCEL_FILE):
-            with open(EXCEL_FILE, "rb") as f:
-                excel_bytes = f.read()
-            st.download_button(
-                label="📥 Download Complete Excel File (All Sheets)", 
-                data=excel_bytes, 
-                file_name=EXCEL_FILE, 
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                use_container_width=True, 
-                key="admin_dl_all_btn"
-            )
+    if st.button("💾 Save All Changes to Excel", type="primary", use_container_width=True, key="admin_save_btn"):
+        try:
+            if admin_search != "":
+                for idx in edited_full_df.index:
+                    df.loc[idx] = edited_full_df.loc[idx]
+                df = df.loc[~df.index.isin(display_df.index) | df.index.isin(edited_full_df.index)]
+                save_data(df, sheet_name=current_sheet)
+            else:
+                save_data(edited_full_df, sheet_name=current_sheet)
+            st.success("✅ Data saved to Excel file!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
 
 # 3. CASE WORKER DASHBOARD
 else:
@@ -892,7 +912,7 @@ else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
     with col_w4:
         if worker_perm.get("can_download", False):
-            # అన్ని షీట్లలో లాగిನ್ అయిన యూజర్ డేటాను ఫిల్టర్ చేసి మల్టీ-షీట్ ఎక్సెల్ ఫైల్‌గా తయారుచేయడం
+            # అన్ని షీట్లలో లాగిన్ అయిన యూజర్ డేటాను ఫిల్టర్ చేసి మల్టీ-షీట్ ఎక్సెల్ ఫైల్‌గా తయారుచేయడం
             worker_buffer = io.BytesIO()
             with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
                 has_user_data = False
