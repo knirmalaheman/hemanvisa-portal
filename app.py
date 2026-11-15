@@ -870,37 +870,27 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
-    with col_w_btn1:
+    # 4 బటన్‌లను ఒకే వరుసలో (Same Row) అమర్చడం (Change Password, Add New Case, Search Main Data, Download Excel)
+    col_w1, col_w2, col_w3, col_w4 = st.columns(4)
+    with col_w1:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
-    with col_w_btn2:
+    with col_w2:
         if worker_perm.get("can_add", True):
             if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
             st.button("🚫 No Add Permission", disabled=True, use_container_width=True, key="worker_add_disabled")
-    with col_w_btn3:
+    with col_w3:
         if worker_perm.get("can_search", True):
             if st.button("🔍 Search Main Data", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
-
-    # Search Main Data మరియు Download Excel బటన్‌లను ఒకే వరుసలో (Same Row) అమర్చడం
-    col_w_sch_row, col_w_dl_row = st.columns(2)
-    with col_w_sch_row:
-        if worker_perm.get("can_search", True):
-            if st.button("🔍 Search Main Data", use_container_width=True, key="worker_search_row_btn"):
-                st.session_state["open_dialog"] = "search_data"
-                st.rerun()
-        else:
-            st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_row_disabled")
-            
-    with col_w_dl_row:
+    with col_w4:
         if worker_perm.get("can_download", False):
             worker_buffer = io.BytesIO()
             with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
@@ -912,10 +902,10 @@ else:
                 file_name=f"{current_user}_cases.xlsx", 
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                 use_container_width=True, 
-                key="worker_dl_row_btn"
+                key="worker_dl_btn"
             )
         else:
-            st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_row_disabled")
+            st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_disabled")
             
     st.divider()
 
