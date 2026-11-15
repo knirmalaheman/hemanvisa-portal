@@ -870,7 +870,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    # 4 బటన్‌లను ఖచ్చితంగా ఒకే వరుసలో (Same Row) సమాన వెడల్పుతో అమర్చడం
+    # 4 బటన్‌లను ఒకే వరుసలో (Same Row) సమాన వెడల్పుతో అమర్చడం
     col_w1, col_w2, col_w3, col_w4 = st.columns(4)
     with col_w1:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
@@ -892,14 +892,27 @@ else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
     with col_w4:
         if worker_perm.get("can_download", False):
+            # అన్ని షీట్లలో లాగిನ್ అయిన యూజర్ డేటాను ఫిల్టర్ చేసి మల్టీ-షీట్ ఎక్సెల్ ఫైల్‌గా తయారుచేయడం
             worker_buffer = io.BytesIO()
             with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
-                user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
+                has_user_data = False
+                for s in sheets:
+                    df_s = load_data(sheet_name=s)
+                    if df_s is not None and not df_s.empty:
+                        uc_s = find_username_column(df_s)
+                        u_rows_s = df_s[df_s[uc_s].astype(str).str.strip().str.lower() == current_user.lower()]
+                        if not u_rows_s.empty:
+                            has_user_data = True
+                            u_rows_s.to_excel(writer, sheet_name=s, index=False)
+                
+                # ఒకవేళ ఏ షీట్‌లోనూ యూజర్ డేటా లేకపోతే కరెంట్ షీట్‌ని ఎంప్టీగా సేవ్ చేయి
+                if not has_user_data:
+                    user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
             
             st.download_button(
                 label="📥 Download Excel", 
                 data=worker_buffer.getvalue(), 
-                file_name=f"{current_user}_cases.xlsx", 
+                file_name=f"{current_user}_all_sheets_cases.xlsx", 
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                 use_container_width=True, 
                 key="worker_dl_btn"
