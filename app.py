@@ -68,6 +68,7 @@ def get_sheet_names():
             return ["Sheet1"]
     return ["Sheet1"]
 
+# 🔒 Permanent Robust load_data to prevent KeyError completely
 def load_data(sheet_name=0):
     if os.path.exists(EXCEL_FILE):
         try:
@@ -75,12 +76,13 @@ def load_data(sheet_name=0):
             target_sheet = sheet_name if sheet_name in xls.sheet_names else 0
             df = pd.read_excel(EXCEL_FILE, sheet_name=target_sheet, dtype=str)
             
-            if df is not None and not df.empty:
+            if df is not None:
                 df.columns = df.columns.str.strip()
                 df = df.fillna("")
                 if "Unnamed: 5" in df.columns:
                     df = df.rename(columns={"Unnamed: 5": "Category"})
                 
+                # Ensure Updated_By and Updated_At always exist to prevent KeyError
                 if "Updated_By" not in df.columns:
                     df["Updated_By"] = ""
                 if "Updated_At" not in df.columns:
@@ -89,7 +91,9 @@ def load_data(sheet_name=0):
                 return df
         except Exception:
             pass
-    return pd.DataFrame(columns=["Username", "Password", "Status"])
+            
+    # Fallback DataFrame with mandatory tracking columns
+    return pd.DataFrame(columns=["Username", "Password", "Status", "Updated_By", "Updated_At"])
 
 def save_data(df_to_save, sheet_name=0):
     if "Category" in df_to_save.columns:
