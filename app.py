@@ -951,7 +951,6 @@ elif st.session_state["role"] == "admin":
         display_df = df
 
     st.markdown("---")
-    st.subheader("🔗 Click USERNAME inside Table to View & Edit Case")
     st.caption("Click USERNAME inside the table to view and edit details.")
 
     render_clickable_table(display_df, display_c, p_col)
@@ -1103,7 +1102,6 @@ else:
     st.divider()
     
     st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-    st.subheader("🔗 Click USERNAME inside Table to View & Edit Case")
 
     if user_rows.empty:
         st.info("No cases assigned to you in this sheet.")
