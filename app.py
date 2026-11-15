@@ -13,7 +13,7 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Session State & Query Params Initialization (F5 Refresh లో లాగౌట్ కాకుండా ఉండేందుకు)
+# 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -121,15 +121,12 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# 🎨 Modern Professional CSS with Minimal Top Gap
+# 🎨 Modern Professional CSS
 st.markdown("""
 <style>
-    /* Hide Streamlit default top header bar */
     [data-testid="stHeader"] {
         display: none !important;
     }
-
-    /* Fixed / Frozen Header Banner at the Very Top */
     .sticky-top-banner {
         position: fixed;
         top: 0;
@@ -195,30 +192,10 @@ st.markdown("""
         border-radius: 4px;
         max-height: 22px !important;
     }
-
-    @media (prefers-color-scheme: dark) {
-        .sticky-top-banner {
-            background-color: #0e1117;
-            border-bottom: 3px solid #4da6ff;
-        }
-        .world-map-title {
-            color: #ffffff;
-        }
-        .banner-info {
-            color: #e6edf3;
-        }
-        .banner-info a {
-            color: #e6edf3;
-        }
-    }
-
-    /* Push main page content down minimally so top banner doesn't overlap */
     .block-container {
         padding-top: 105px !important;
         padding-bottom: 2rem;
     }
-
-    /* Make Welcome bar, Buttons and KPI cards sticky right below top banner with minimal gap */
     .sticky-control-panel {
         position: sticky;
         top: 98px;
@@ -229,14 +206,6 @@ st.markdown("""
         border-bottom: 2px solid #e1e4e8;
         margin-bottom: 10px;
     }
-    @media (prefers-color-scheme: dark) {
-        .sticky-control-panel {
-            background-color: #0e1117;
-            border-bottom: 2px solid #30363d;
-        }
-    }
-
-    /* Compact & Neat KPI Metric Cards - Uniform Equal Size */
     .kpi-card {
         background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%);
         color: white;
@@ -280,8 +249,6 @@ st.markdown("""
         margin: 0;
         line-height: 1.1;
     }
-
-    /* Section Header Pill */
     .section-banner {
         background-color: #eef5fc;
         border-left: 5px solid #0b3c65;
@@ -292,15 +259,6 @@ st.markdown("""
         color: #0b3c65;
         font-size: 18px;
     }
-    @media (prefers-color-scheme: dark) {
-        .section-banner {
-            background-color: #1c2530;
-            border-left: 5px solid #4da6ff;
-            color: #e6edf3;
-        }
-    }
-
-    /* 🎨 Uniform Action Buttons & Download Button Style */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         border-radius: 8px !important;
@@ -313,7 +271,6 @@ st.markdown("""
         margin-top: 5px !important;
         margin-bottom: 10px !important;
     }
-
     div[data-testid="stExpander"] {
         width: 100% !important;
         max-width: 950px !important;
@@ -325,26 +282,11 @@ st.markdown("""
         padding: 8px 14px;
         border-radius: 8px;
     }
-    [data-testid="stVerticalBlock"] {
-        gap: 0.3rem !important;
-    }
-    hr {
-        margin-top: 0.8rem !important;
-        margin-bottom: 0.8rem !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# 🌟 Fixed Top Banner with Logo, Middle Text, and Contact/Socials on Right
 found_logo = next((f for f in LOGO_FILES if os.path.exists(f)), None)
-logo_html = ""
-if found_logo:
-    ext = found_logo.split(".")[-1].lower()
-    mime_type = "image/png" if ext == "png" else "image/jpeg"
-    img_b64 = get_base64_image(found_logo)
-    logo_html = f'<img src="data:{mime_type};base64,{img_b64}" alt="HemanVisa Logo">'
-else:
-    logo_html = '<h2 style="margin:0; color:#0b3c65;">HemanVisa</h2>'
+logo_html = f'<img src="data:image/png;base64,{get_base64_image(found_logo)}">' if found_logo else '<h2 style="margin:0; color:#0b3c65;">HemanVisa</h2>'
 
 st.markdown(f"""
     <div class="sticky-top-banner">
@@ -356,11 +298,6 @@ st.markdown(f"""
         <div class="banner-info">
             <div>✉️ <a href="mailto:services@hemanvisa.com">services@hemanvisa.com</a></div>
             <div>📞 <a href="tel:+919533840632">+91 95338 40632</a></div>
-            <div class="social-icons">
-                <a href="https://facebook.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="FB"></a>
-                <a href="https://instagram.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733558.png" alt="IG"></a>
-                <a href="https://youtube.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YT"></a>
-            </div>
         </div>
     </div>
 """, unsafe_allow_html=True)
@@ -385,10 +322,25 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 Modal Dialogs for Secure Popup Management
+# Dialogs
+@st.dialog("📤 Sync Local Excel File to Cloud (Admin Only)", width="medium")
+def admin_sync_excel_dialog():
+    st.info("💡 మీ లోకల్ సిస్టమ్‌లో సవరించిన ఎక్సెల్ ఫైల్‌ను ఇక్కడ అప్‌లోడ్ చేస్తే, అది వెంటనే క్లౌడ్‌లో అప్‌డేట్ అవుతుంది.")
+    uploaded_excel = st.file_uploader("Upload Updated Excel File (.xlsx)", type=["xlsx"])
+    
+    if uploaded_excel is not None:
+        if st.button("🚀 Confirm & Sync to Cloud", type="primary", use_container_width=True):
+            try:
+                with open(EXCEL_FILE, "wb") as f:
+                    f.write(uploaded_excel.getbuffer())
+                st.success("✅ క్లౌడ్ డేటా విజయవంతంగా అప్‌డేట్ చేయబడింది!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
-    st.info("💡 Modify **Password**, **Update**, **Add**, **Search**, and **Download** permissions for each case worker, then click the **💾 Update** button:")
+    st.info("💡 Modify permissions and passwords:")
     sheets = get_sheet_names()
     all_users_dict = {}
     for s in sheets:
@@ -396,66 +348,34 @@ def permissions_dialog():
         if df_s is not None and not df_s.empty:
             u_col = find_username_column(df_s)
             p_col = find_password_column(df_s)
-            if u_col in df_s.columns and p_col in df_s.columns:
-                for _, r in df_s.iterrows():
-                    u_name = str(r[u_col]).strip()
-                    pwd = str(r[p_col]).strip()
-                    if u_name != "" and u_name.lower() != "admin":
-                        if u_name not in all_users_dict:
-                            all_users_dict[u_name] = pwd
+            for _, r in df_s.iterrows():
+                u_name = str(r[u_col]).strip()
+                pwd = str(r[p_col]).strip()
+                if u_name != "" and u_name.lower() != "admin":
+                    if u_name not in all_users_dict:
+                        all_users_dict[u_name] = pwd
 
     current_perms = load_permissions()
-    
-    if not all_users_dict:
-        st.warning("No case workers found.")
-    else:
-        for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
-            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False})
-            
-            col_u, col_p, col_upd, col_add, col_sch, col_dl, col_btn = st.columns([1.5, 1.5, 0.9, 0.9, 0.9, 0.9, 1.1])
-            
-            with col_u:
-                st.text_input("Username", value=u_name, disabled=True, key=f"dlg_u_{idx}", label_visibility="collapsed")
-            with col_p:
-                new_pwd_val = st.text_input("Password", value=curr_pwd, type="default", key=f"dlg_p_{idx}", label_visibility="collapsed")
-            with col_upd:
-                new_upd_val = st.checkbox("Can Update", value=w_perm.get("can_update", True), key=f"dlg_upd_{idx}")
-            with col_add:
-                new_add_val = st.checkbox("Can Add", value=w_perm.get("can_add", True), key=f"dlg_add_{idx}")
-            with col_sch:
-                new_sch_val = st.checkbox("Can Search", value=w_perm.get("can_search", True), key=f"dlg_sch_{idx}")
-            with col_dl:
-                new_dl_val = st.checkbox("Can Download", value=w_perm.get("can_download", False), key=f"dlg_dl_{idx}")
-            with col_btn:
-                if st.button("💾 Update", key=f"dlg_btn_{idx}", type="primary", use_container_width=True):
-                    try:
-                        all_sheets_data = {}
-                        xls = pd.ExcelFile(EXCEL_FILE)
-                        for s in xls.sheet_names:
-                            df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
-                            uc = find_username_column(df_s)
-                            pc = find_password_column(df_s)
-                            if uc in df_s.columns and pc in df_s.columns:
-                                mask = df_s[uc].astype(str).str.strip().str.lower() == u_name.lower()
-                                if mask.any():
-                                    df_s.loc[mask, pc] = new_pwd_val.strip()
-                            all_sheets_data[s] = df_s
-                        
-                        with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
-                            for s, df_val in all_sheets_data.items():
-                                df_val.to_excel(writer, sheet_name=str(s), index=False)
-                        
-                        current_perms[u_name] = {
-                            "can_update": new_upd_val,
-                            "can_add": new_add_val,
-                            "can_search": new_sch_val,
-                            "can_download": new_dl_val
-                        }
-                        save_permissions(current_perms)
-                        st.success(f"✅ Details updated for '{u_name}'!")
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-            st.write("")
+    for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
+        w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False})
+        col_u, col_p, col_upd, col_add, col_sch, col_dl, col_btn = st.columns([1.5, 1.5, 0.9, 0.9, 0.9, 0.9, 1.1])
+        with col_u:
+            st.text_input("Username", value=u_name, disabled=True, key=f"dlg_u_{idx}", label_visibility="collapsed")
+        with col_p:
+            new_pwd_val = st.text_input("Password", value=curr_pwd, key=f"dlg_p_{idx}", label_visibility="collapsed")
+        with col_upd:
+            new_upd_val = st.checkbox("Can Update", value=w_perm.get("can_update", True), key=f"dlg_upd_{idx}")
+        with col_add:
+            new_add_val = st.checkbox("Can Add", value=w_perm.get("can_add", True), key=f"dlg_add_{idx}")
+        with col_sch:
+            new_sch_val = st.checkbox("Can Search", value=w_perm.get("can_search", True), key=f"dlg_sch_{idx}")
+        with col_dl:
+            new_dl_val = st.checkbox("Can Download", value=w_perm.get("can_download", False), key=f"dlg_dl_{idx}")
+        with col_btn:
+            if st.button("💾 Update", key=f"dlg_btn_{idx}", type="primary", use_container_width=True):
+                current_perms[u_name] = {"can_update": new_upd_val, "can_add": new_add_val, "can_search": new_sch_val, "can_download": new_dl_val}
+                save_permissions(current_perms)
+                st.success(f"✅ Updated for {u_name}!")
 
 @st.dialog("🔑 Change Admin Password", width="medium")
 def admin_password_dialog():
@@ -463,18 +383,15 @@ def admin_password_dialog():
         curr_p = st.text_input("Current Password", type="password")
         new_p = st.text_input("New Password", type="password")
         conf_p = st.text_input("Confirm Password", type="password")
-        
         if st.form_submit_button("Update Admin Password", type="primary", use_container_width=True):
             admin_u, admin_p = get_admin_creds()
             if curr_p != admin_p:
                 st.error("❌ Incorrect current password!")
-            elif new_p.strip() == "":
-                st.warning("⚠️ New password cannot be empty.")
             elif new_p != conf_p:
-                st.error("❌ New passwords do not match!")
+                st.error("❌ Passwords do not match!")
             else:
                 save_admin_creds(admin_u, new_p.strip())
-                st.success("✅ Admin password updated successfully!")
+                st.success("✅ Admin password updated!")
 
 @st.dialog("🔑 Change Password", width="medium")
 def worker_password_dialog(worker_name):
@@ -494,14 +411,11 @@ def worker_password_dialog(worker_name):
         curr_wp = st.text_input("Current Password", type="password")
         new_wp = st.text_input("New Password", type="password")
         conf_wp = st.text_input("Confirm Password", type="password")
-        
         if st.form_submit_button("Update Password", type="primary", use_container_width=True):
             if curr_wp.strip() != worker_current_pass:
-                st.error("❌ Incorrect current password!")
-            elif new_wp.strip() == "":
-                st.warning("⚠️ New password cannot be empty.")
+                st.error("❌ Incorrect password!")
             elif new_wp != conf_wp:
-                st.error("❌ New passwords do not match!")
+                st.error("❌ Passwords do not match!")
             else:
                 try:
                     all_sheets_data = {}
@@ -510,25 +424,21 @@ def worker_password_dialog(worker_name):
                         df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
                         uc = find_username_column(df_s)
                         pc = find_password_column(df_s)
-                        if uc in df_s.columns and pc in df_s.columns:
-                            mask = df_s[uc].astype(str).str.strip().str.lower() == worker_name.lower()
-                            if mask.any():
-                                df_s.loc[mask, pc] = new_wp.strip()
+                        mask = df_s[uc].astype(str).str.strip().str.lower() == worker_name.lower()
+                        if mask.any():
+                            df_s.loc[mask, pc] = new_wp.strip()
                         all_sheets_data[s] = df_s
-                    
                     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                         for s, df_val in all_sheets_data.items():
                             df_val.to_excel(writer, sheet_name=str(s), index=False)
-                    st.success("✅ Password updated successfully!")
+                    st.success("✅ Password updated!")
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
 
 @st.dialog("➕ Add New Case", width="large")
 def add_case_dialog(worker_name):
     sheets = get_sheet_names()
-    st.info("💡 Select the sheet where you want to add a new case:")
-    
-    selected_target_sheet = st.selectbox("Select Target Sheet for New Case", options=sheets, key="dlg_target_sheet")
+    selected_target_sheet = st.selectbox("Select Target Sheet", options=sheets, key="dlg_target_sheet")
     target_df = load_data(sheet_name=selected_target_sheet)
     t_user_col = find_username_column(target_df)
     t_pass_col = find_password_column(target_df)
@@ -540,38 +450,23 @@ def add_case_dialog(worker_name):
         available_usernames.insert(1, worker_name)
     
     with st.form("dlg_new_case_form", clear_on_submit=True):
-        assigned_username = st.selectbox("Assign Username", options=available_usernames, index=available_usernames.index(worker_name) if worker_name in available_usernames else 0)
-        st.divider()
-        st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
-        
+        assigned_username = st.selectbox("Assign Username", options=available_usernames)
         form_data = {}
         cols = [c for c in target_df.columns if c not in [t_user_col, t_pass_col, "Updated_By", "Updated_At"]]
         for col_name in cols:
             form_data[col_name] = st.text_input(f"{col_name}")
         
         if st.form_submit_button("🚀 Submit New Case", type="primary", use_container_width=True):
-            try:
-                new_row = {col: "" for col in target_df.columns}
-                final_assigned_user = "" if assigned_username == "Not Assigned" else assigned_username.strip()
-                new_row[t_user_col] = final_assigned_user
-                
-                current_pass = "admin123"
-                matched_pass_rows = target_df[target_df[t_user_col].astype(str).str.strip().str.lower() == final_assigned_user.lower()]
-                if not matched_pass_rows.empty:
-                    current_pass = str(matched_pass_rows.iloc[0][t_pass_col]).strip()
-
-                new_row[t_pass_col] = current_pass if final_assigned_user != "" else "admin123"
-                new_row["Updated_By"] = worker_name
-                new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                for k, v in form_data.items():
-                    new_row[k] = v
-                    
-                updated_target_df = pd.concat([target_df, pd.DataFrame([new_row])], ignore_index=True)
-                save_data(updated_target_df, sheet_name=selected_target_sheet)
-                st.success("✅ New case added successfully!")
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
+            new_row = {col: "" for col in target_df.columns}
+            final_assigned_user = "" if assigned_username == "Not Assigned" else assigned_username.strip()
+            new_row[t_user_col] = final_assigned_user
+            new_row["Updated_By"] = worker_name
+            new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for k, v in form_data.items():
+                new_row[k] = v
+            updated_target_df = pd.concat([target_df, pd.DataFrame([new_row])], ignore_index=True)
+            save_data(updated_target_df, sheet_name=selected_target_sheet)
+            st.success("✅ Case added successfully!")
 
 @st.dialog("🔍 Search Main Data", width="large")
 def search_data_dialog():
@@ -581,38 +476,16 @@ def search_data_dialog():
     if df_search is not None and not df_search.empty:
         u_col = find_username_column(df_search)
         p_col = find_password_column(df_search)
-        
-        search_query = st.text_input("Type any branch name or person name:", placeholder="e.g., ALLAGADDA, Adoni...", key="dlg_search_input").strip()
-        
+        search_query = st.text_input("Type branch or person name:", key="dlg_search_input").strip()
         if search_query != "":
-            main_search_mask = df_search.apply(lambda row: row.astype(str).str.contains(search_query, case=False, na=False).any(), axis=1)
-            found_data = df_search[main_search_mask]
-            
+            mask = df_search.apply(lambda row: row.astype(str).str.contains(search_query, case=False, na=False).any(), axis=1)
+            found_data = df_search[mask]
             if found_data.empty:
-                st.warning(f"No details found for '{search_query}'.")
+                st.warning("No details found.")
             else:
-                st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
-                view_only_df = found_data.drop(columns=[u_col, p_col, "Updated_By", "Updated_At"], errors="ignore")
-                view_only_df.index = range(1, len(view_only_df) + 1)
-                st.dataframe(view_only_df, use_container_width=True)
+                st.dataframe(found_data.drop(columns=[u_col, p_col, "Updated_By", "Updated_At"], errors="ignore"), use_container_width=True)
 
-@st.dialog("📋 Updated Cases & Editors History", width="large")
-def updated_cases_history_dialog():
-    sheets = get_sheet_names()
-    selected_sh = st.selectbox("Select Sheet:", options=sheets, key="dlg_hist_sheet")
-    df_h = load_data(sheet_name=selected_sh)
-    if df_h is not None and not df_h.empty:
-        if "Updated_By" in df_h.columns:
-            updated_rows = df_h[df_h["Updated_By"].astype(str).str.strip() != ""]
-            if updated_rows.empty:
-                st.warning("No cases have been updated yet in this sheet.")
-            else:
-                st.success(f"Found {len(updated_rows)} updated cases in '{selected_sh}':")
-                display_hist = updated_rows[["Updated_By", "Updated_At"] + [c for c in updated_rows.columns if c not in ["Updated_By", "Updated_At"]]]
-                display_hist.index = range(1, len(display_hist) + 1)
-                st.dataframe(display_hist, use_container_width=True)
-
-# 🌟 Handle Dialog Execution securely via Session State
+# Dialog State Handlers
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -628,271 +501,156 @@ elif st.session_state["open_dialog"] == "add_case":
 elif st.session_state["open_dialog"] == "search_data":
     search_data_dialog()
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "updated_history":
-    updated_cases_history_dialog()
+elif st.session_state["open_dialog"] == "admin_sync":
+    admin_sync_excel_dialog()
     st.session_state["open_dialog"] = None
 
-# 1. Login Screen
+# Login Screen
 if not st.session_state["logged_in"]:
     col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
     with col_l2:
         with st.container(border=True):
             st.markdown("<h3 style='text-align:center; color:#0b3c65;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
-            sheets = get_sheet_names()
-            if not sheets:
-                st.error(f"'{EXCEL_FILE}' file not found.")
-            else:
-                with st.form("login_form"):
-                    username_input = st.text_input("👤 Username", placeholder="Type your username")
-                    password_input = st.text_input("🔑 Password", type="password", placeholder="Type your password")
-                    submit_btn = st.form_submit_button("🚀 Login to Portal", type="primary", use_container_width=True)
-                    
-                    if submit_btn:
-                        u_in = username_input.strip()
-                        p_in = password_input.strip()
-                        admin_u, admin_p = get_admin_creds()
-                        
-                        if u_in == admin_u and p_in == admin_p:
+            with st.form("login_form"):
+                username_input = st.text_input("👤 Username")
+                password_input = st.text_input("🔑 Password", type="password")
+                if st.form_submit_button("🚀 Login to Portal", type="primary", use_container_width=True):
+                    u_in, p_in = username_input.strip(), password_input.strip()
+                    admin_u, admin_p = get_admin_creds()
+                    if u_in == admin_u and p_in == admin_p:
+                        st.session_state["logged_in"] = True
+                        st.session_state["username"] = admin_u
+                        st.session_state["role"] = "admin"
+                        st.query_params["logged_in"] = "true"
+                        st.query_params["username"] = admin_u
+                        st.query_params["role"] = "admin"
+                        st.rerun()
+                    else:
+                        logged_in_success, matched_sheet = False, ""
+                        for s in get_sheet_names():
+                            df_check = load_data(sheet_name=s)
+                            if df_check is not None and not df_check.empty:
+                                uc, pc = find_username_column(df_check), find_password_column(df_check)
+                                if not df_check[(df_check[uc].astype(str).str.strip().str.lower() == u_in.lower()) & (df_check[pc].astype(str).str.strip() == p_in)].empty:
+                                    logged_in_success, matched_sheet = True, s
+                                    break
+                        if logged_in_success:
                             st.session_state["logged_in"] = True
-                            st.session_state["username"] = admin_u
-                            st.session_state["role"] = "admin"
+                            st.session_state["username"] = u_in
+                            st.session_state["role"] = "worker"
+                            st.session_state["active_sheet"] = matched_sheet
                             st.query_params["logged_in"] = "true"
-                            st.query_params["username"] = admin_u
-                            st.query_params["role"] = "admin"
+                            st.query_params["username"] = u_in
+                            st.query_params["role"] = "worker"
+                            st.query_params["active_sheet"] = matched_sheet
                             st.rerun()
                         else:
-                            logged_in_success = False
-                            matched_sheet = ""
-                            for s in sheets:
-                                df_check = load_data(sheet_name=s)
-                                if df_check is not None and not df_check.empty:
-                                    u_col = find_username_column(df_check)
-                                    p_col = find_password_column(df_check)
-                                    user_rows = df_check[(df_check[u_col].astype(str).str.strip().str.lower() == u_in.lower()) & 
-                                                         (df_check[p_col].astype(str).str.strip() == p_in)]
-                                    if not user_rows.empty:
-                                        logged_in_success = True
-                                        matched_sheet = s
-                                        break
-                            
-                            if logged_in_success:
-                                st.session_state["logged_in"] = True
-                                st.session_state["username"] = u_in
-                                st.session_state["role"] = "worker"
-                                st.session_state["active_sheet"] = matched_sheet
-                                st.query_params["logged_in"] = "true"
-                                st.query_params["username"] = u_in
-                                st.query_params["role"] = "worker"
-                                st.query_params["active_sheet"] = matched_sheet
-                                st.rerun()
-                            else:
-                                st.error("❌ Incorrect Username or Password!")
+                            st.error("❌ Incorrect Username or Password!")
 
-# 2. ADMIN DASHBOARD
+# ADMIN DASHBOARD
 elif st.session_state["role"] == "admin":
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
-    
     if current_sheet not in sheets:
         current_sheet = sheets[0]
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
     u_col = find_username_column(df)
-    p_col = find_password_column(df)
     
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
     with top_col1:
         st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
     with top_col2:
-        if st.button("🔄 Refresh", key="admin_refresh"):
-            st.rerun()
+        if st.button("🔄 Refresh", key="admin_refresh"): st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="admin_logout"):
             st.query_params.clear()
             st.session_state["logged_in"] = False
-            st.session_state["username"] = ""
-            st.session_state["role"] = ""
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    total_cases = len(df)
-    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
-    unassigned_cases = len(df[df[u_col].astype(str).str.strip() == ""])
-    active_workers = df[u_col].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
-
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
-    with k2:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated Cases</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
-    with k3:
-        st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned Cases</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
-    with k4:
-        st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Case Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-
-    col_btn_1, col_btn_2, col_btn_3 = st.columns(3)
-    with col_btn_1:
-        if st.button("👥 Users, Passwords & Permissions", use_container_width=True, key="admin_perm_btn"):
+    # Admin Action Buttons including Local-to-Cloud Sync Button
+    ac1, ac2, ac3, ac4 = st.columns(4)
+    with ac1:
+        if st.button("👥 Permissions", use_container_width=True):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
-    with col_btn_2:
-        if st.button("🔑 Change Admin Password", use_container_width=True, key="admin_pw_btn"):
+    with ac2:
+        if st.button("🔑 Admin Password", use_container_width=True):
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
-    with col_btn_3:
-        if st.button("📋 View Updated Cases", use_container_width=True, key="admin_upd_hist_btn"):
-            st.session_state["open_dialog"] = "updated_history"
+    with ac3:
+        if st.button("🔄 Sync Local Excel", use_container_width=True, type="primary"):
+            st.session_state["open_dialog"] = "admin_sync"
             st.rerun()
-
-    st.divider()
-    
-    st.markdown(f"<div class='section-banner'>🔍 Admin Search & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
-    col_s1, col_s2 = st.columns([2, 1])
-    with col_s1:
-        admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
-    with col_s2:
-        if sheets:
-            st.write("📑 **Sheets Switch:**")
-            st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
-    
-    if admin_search != "":
-        admin_search_mask = df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
-        display_df = df[admin_search_mask]
-        st.info(f"Results for '{admin_search}' ({len(display_df)} rows):")
-    else:
-        display_df = df
-
-    st.caption("💡 Updated_By and Updated_At will appear only on the specific row where changes occurred.")
-    
-    edited_full_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True, height=480, key="admin_full_editor")
-    
-    col_save, col_dl = st.columns(2)
-    with col_save:
-        if st.button("💾 Save All Changes to Excel", type="primary", use_container_width=True, key="admin_save_btn"):
-            try:
-                if admin_search != "":
-                    for idx in edited_full_df.index:
-                        df.loc[idx] = edited_full_df.loc[idx]
-                    df = df.loc[~df.index.isin(display_df.index) | df.index.isin(edited_full_df.index)]
-                    save_data(df, sheet_name=current_sheet)
-                else:
-                    save_data(edited_full_df, sheet_name=current_sheet)
-                st.success("✅ Data saved to Excel file!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
-                
-    with col_dl:
+    with ac4:
         if os.path.exists(EXCEL_FILE):
             with open(EXCEL_FILE, "rb") as f:
-                excel_bytes = f.read()
-            st.download_button(
-                label="📥 Download Complete Excel File (All Sheets)", 
-                data=excel_bytes, 
-                file_name=EXCEL_FILE, 
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                use_container_width=True, 
-                key="admin_dl_all_btn"
-            )
+                st.download_button("📥 Download Excel", data=f.read(), file_name=EXCEL_FILE, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
-# 3. CASE WORKER DASHBOARD
+    st.divider()
+    if sheets:
+        st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, key="admin_sheet_radio", on_change=update_admin_sheet)
+        
+    edited_full_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, height=480, key="admin_full_editor")
+    if st.button("💾 Save All Changes to Excel", type="primary"):
+        save_data(edited_full_df, sheet_name=current_sheet)
+        st.success("✅ Saved successfully!")
+        st.rerun()
+
+# CASE WORKER DASHBOARD
 else:
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
-    
     if current_sheet not in sheets:
         current_sheet = sheets[0]
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
     current_user = st.session_state["username"].strip()
-    
     all_perms = load_permissions()
     worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False})
     
     user_col = find_username_column(df)
     pass_col = find_password_column(df)
-    
-    user_mask = df[user_col].astype(str).str.strip().str.lower() == current_user.lower()
-    user_rows = df[user_mask]
+    user_rows = df[df[user_col].astype(str).str.strip().str.lower() == current_user.lower()]
         
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
-        if st.button("🔄 Refresh", key="worker_refresh"):
-            st.rerun()
+        if st.button("🔄 Refresh", key="worker_refresh"): st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="worker_logout"):
             st.query_params.clear()
             st.session_state["logged_in"] = False
-            st.session_state["username"] = ""
-            st.session_state["role"] = ""
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    my_total = len(user_rows)
-    my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
-
-    visa_col = None
-    for c in user_rows.columns:
-        if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
-            visa_col = c
-            break
-
-    visa_counts = {}
-    if visa_col and not user_rows.empty:
-        for val in user_rows[visa_col].astype(str):
-            v_clean = val.strip().upper()
-            if v_clean != "":
-                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
-
-    total_metrics = 2 + len(visa_counts)
-    kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2)
-
-    with kpi_cols[0]:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
-    with kpi_cols[1]:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
-
-    colors_list = ["gold", "purple", "green", "blue"]
-    for idx, (v_name, v_count) in enumerate(visa_counts.items()):
-        c_class = colors_list[idx % len(colors_list)]
-        with kpi_cols[2 + idx]:
-            st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-
-    # 4 బటన్‌లను ఒకే వరుసలో (Same Row) సమాన వెడల్పుతో అమర్చడం
     col_w1, col_w2, col_w3, col_w4 = st.columns(4)
     with col_w1:
-        if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
+        if st.button("🔑 Change Password", use_container_width=True):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
     with col_w2:
         if worker_perm.get("can_add", True):
-            if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
+            if st.button("➕ Add New Case", use_container_width=True):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
-            st.button("🚫 No Add Permission", disabled=True, use_container_width=True, key="worker_add_disabled")
+            st.button("🚫 No Add Permission", disabled=True, use_container_width=True)
     with col_w3:
         if worker_perm.get("can_search", True):
-            if st.button("🔍 Search Main Data", use_container_width=True, key="worker_search_btn"):
+            if st.button("🔍 Search Main Data", use_container_width=True):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
-            st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
+            st.button("🚫 No Search Permission", disabled=True, use_container_width=True)
     with col_w4:
         if worker_perm.get("can_download", False):
-            # అన్ని షీట్లలో లాగిನ್ అయిన యూజర్ డేటాను ఫిల్టర్ చేసి మల్టీ-షీట్ ఎక్సెల్ ఫైల్‌గా తయారుచేయడం
             worker_buffer = io.BytesIO()
             with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
                 has_user_data = False
@@ -904,44 +662,28 @@ else:
                         if not u_rows_s.empty:
                             has_user_data = True
                             u_rows_s.to_excel(writer, sheet_name=s, index=False)
-                
-                # ఒకవేళ ఏ షీట్‌లోనూ యూజర్ డేటా లేకపోతే కరెంట్ షీట్‌ని ఎంప్టీగా సేవ్ చేయి
                 if not has_user_data:
                     user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
-            
-            st.download_button(
-                label="📥 Download Excel", 
-                data=worker_buffer.getvalue(), 
-                file_name=f"{current_user}_all_sheets_cases.xlsx", 
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                use_container_width=True, 
-                key="worker_dl_btn"
-            )
+            st.download_button(label="📥 Download Excel", data=worker_buffer.getvalue(), file_name=f"{current_user}_all_sheets_cases.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         else:
-            st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_disabled")
+            st.button("🚫 No Download Permission", disabled=True, use_container_width=True)
             
     st.divider()
-
     if sheets:
-        st.write("📑 **Sheets Switch:**")
-        st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
+        st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, key="worker_sheet_radio", on_change=update_worker_sheet)
             
     st.divider()
-    
     st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
     
     if worker_perm.get("can_update", True):
-        st.caption("💡 Your username and timestamp will be recorded only for the specific row you modify and save.")
-        
         editable_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore").reset_index(drop=True)
         edited_df = st.data_editor(editable_df, num_rows="dynamic", use_container_width=True, height=360, key="user_login_editor")
         
-        if st.button("💾 Save My Changes to Excel", type="primary", key="worker_save_btn"):
+        if st.button("💾 Save My Changes to Excel", type="primary"):
             try:
                 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 orig_indices = user_rows.index.tolist()
                 df_updated = df.copy()
-                
                 for orig_idx in orig_indices:
                     df_updated.at[orig_idx, "Updated_By"] = ""
                     df_updated.at[orig_idx, "Updated_At"] = ""
@@ -950,32 +692,18 @@ else:
                     if i < len(orig_indices):
                         orig_idx = orig_indices[i]
                         data_cols = [c for c in edited_df.columns if c not in [user_col, pass_col]]
-                        
                         orig_row = user_rows.loc[orig_idx]
-                        changed = False
-                        for c in data_cols:
-                            old_val = str(orig_row.get(c, "")).strip()
-                            new_val = str(row.get(c, "")).strip()
-                            if old_val != new_val:
-                                changed = True
-                                break
-                        
+                        changed = any(str(orig_row.get(c, "")).strip() != str(row.get(c, "")).strip() for c in data_cols)
                         for c in data_cols:
                             df_updated.at[orig_idx, c] = row.get(c, "")
-                        
                         if changed:
                             df_updated.at[orig_idx, "Updated_By"] = current_user
                             df_updated.at[orig_idx, "Updated_At"] = current_time
                     else:
                         new_row = {col: "" for col in df_updated.columns}
                         new_row[user_col] = current_user
-                        
-                        curr_p_val = ""
-                        m_row = user_rows[user_rows[user_col].astype(str).str.strip().str.lower() == current_user.lower()]
-                        if not m_row.empty:
-                            curr_p_val = str(m_row.iloc[0][pass_col]).strip()
+                        curr_p_val = str(user_rows.iloc[0][pass_col]).strip() if not user_rows.empty else "admin123"
                         new_row[pass_col] = curr_p_val
-
                         for c in edited_df.columns:
                             new_row[c] = row.get(c, "")
                         new_row["Updated_By"], new_row["Updated_At"] = current_user, current_time
@@ -988,6 +716,4 @@ else:
                 st.error(f"❌ Error: {e}")
     else:
         st.warning("⚠️ Update permission has been disabled by admin.")
-        view_only_user_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
-        view_only_user_df.index = range(1, len(view_only_user_df) + 1)
-        st.dataframe(view_only_user_df, use_container_width=True)
+        st.dataframe(user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore"), use_container_width=True)
