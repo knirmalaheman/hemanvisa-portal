@@ -32,7 +32,7 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
-# Handle Hyperlink Click from URL Query Params securely & clear it immediately
+# Handle Hyperlink Click from URL Query Params securely
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
@@ -45,7 +45,7 @@ if st.session_state["logged_in"] and "edit_row" in qp:
         if "edit_row" in st.query_params:
             del st.query_params["edit_row"]
 elif not st.session_state["logged_in"] and "edit_row" in qp:
-    st.query_params.clear()
+    qp.clear()
 
 if "active_sheet" not in st.session_state:
     def get_initial_sheets():
@@ -492,6 +492,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             
             if cancelled:
                 st.session_state["is_editing_popup"] = False
+                st.session_state["selected_row_idx"] = None
+                st.session_state["open_dialog"] = None
                 st.rerun()
 
 # 🌟 Helper function to render table with clickable USERNAME hyperlinks inside table cells
@@ -783,7 +785,7 @@ def updated_cases_history_dialog():
                 display_hist.index = range(1, len(display_hist) + 1)
                 st.dataframe(display_hist, use_container_width=True)
 
-# 🌟 Handle Dialog Execution securely via Session State
+# 🌟 Handle Dialog Execution securely via Session State and clear it immediately
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -813,6 +815,7 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         perms = load_permissions()
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
+    st.session_state["open_dialog"] = None
 
 # 1. Login Screen
 if not st.session_state["logged_in"]:
@@ -839,6 +842,8 @@ if not st.session_state["logged_in"]:
                             st.session_state["logged_in"] = True
                             st.session_state["username"] = admin_u
                             st.session_state["role"] = "admin"
+                            st.session_state["open_dialog"] = None
+                            st.session_state["selected_row_idx"] = None
                             st.query_params.clear()
                             st.query_params["logged_in"] = "true"
                             st.query_params["username"] = admin_u
@@ -864,6 +869,8 @@ if not st.session_state["logged_in"]:
                                 st.session_state["username"] = u_in
                                 st.session_state["role"] = "worker"
                                 st.session_state["active_sheet"] = matched_sheet
+                                st.session_state["open_dialog"] = None
+                                st.session_state["selected_row_idx"] = None
                                 st.query_params.clear()
                                 st.query_params["logged_in"] = "true"
                                 st.query_params["username"] = u_in
@@ -893,6 +900,8 @@ elif st.session_state["role"] == "admin":
         st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="admin_logout"):
@@ -900,6 +909,8 @@ elif st.session_state["role"] == "admin":
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1001,6 +1012,8 @@ else:
         st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="worker_logout"):
@@ -1008,6 +1021,8 @@ else:
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
