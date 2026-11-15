@@ -21,7 +21,6 @@ if "logged_in" not in st.session_state:
     st.session_state["username"] = ""
     st.session_state["role"] = ""
 
-# URL లో లాగిన్ వివరాలు ఉంటే ఆటోమేటిక్‌గా రీస్టోర్ చేయి (F5 రెస్పాన్స్ కోసం)
 if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
     st.session_state["logged_in"] = True
     st.session_state["username"] = qp.get("username", "")
@@ -40,7 +39,6 @@ if "active_sheet" not in st.session_state:
                 return ["Sheet1"]
         return ["Sheet1"]
     sheets_init = get_initial_sheets()
-    # Query params లో షీట్ ఉంటే అదే సెట్ చేయి
     saved_sheet = qp.get("active_sheet")
     if saved_sheet in sheets_init:
         st.session_state["active_sheet"] = saved_sheet
@@ -390,7 +388,7 @@ def find_password_column(df):
 # 🌟 Modal Dialogs for Secure Popup Management
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
-    st.info("💡 Modify **Password**, **Update**, **Add**, and **Search** permissions for each case worker, then click the **💾 Update** button:")
+    st.info("💡 Modify **Password**, **Update**, **Add**, **Search**, and **Download** permissions for each case worker, then click the **💾 Update** button:")
     sheets = get_sheet_names()
     all_users_dict = {}
     for s in sheets:
@@ -412,9 +410,9 @@ def permissions_dialog():
         st.warning("No case workers found.")
     else:
         for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
-            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True})
+            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False})
             
-            col_u, col_p, col_upd, col_add, col_sch, col_btn = st.columns([1.8, 1.8, 1, 1, 1, 1.2])
+            col_u, col_p, col_upd, col_add, col_sch, col_dl, col_btn = st.columns([1.5, 1.5, 0.9, 0.9, 0.9, 0.9, 1.1])
             
             with col_u:
                 st.text_input("Username", value=u_name, disabled=True, key=f"dlg_u_{idx}", label_visibility="collapsed")
@@ -426,6 +424,8 @@ def permissions_dialog():
                 new_add_val = st.checkbox("Can Add", value=w_perm.get("can_add", True), key=f"dlg_add_{idx}")
             with col_sch:
                 new_sch_val = st.checkbox("Can Search", value=w_perm.get("can_search", True), key=f"dlg_sch_{idx}")
+            with col_dl:
+                new_dl_val = st.checkbox("Can Download", value=w_perm.get("can_download", False), key=f"dlg_dl_{idx}")
             with col_btn:
                 if st.button("💾 Update", key=f"dlg_btn_{idx}", type="primary", use_container_width=True):
                     try:
@@ -448,7 +448,8 @@ def permissions_dialog():
                         current_perms[u_name] = {
                             "can_update": new_upd_val,
                             "can_add": new_add_val,
-                            "can_search": new_sch_val
+                            "can_search": new_sch_val,
+                            "can_download": new_dl_val
                         }
                         save_permissions(current_perms)
                         st.success(f"✅ Details updated for '{u_name}'!")
@@ -656,7 +657,6 @@ if not st.session_state["logged_in"]:
                             st.session_state["logged_in"] = True
                             st.session_state["username"] = admin_u
                             st.session_state["role"] = "admin"
-                            # Query params లో సెట్ చేయి (F5 రెస్పాన్స్ కోసం)
                             st.query_params["logged_in"] = "true"
                             st.query_params["username"] = admin_u
                             st.query_params["role"] = "admin"
@@ -681,7 +681,6 @@ if not st.session_state["logged_in"]:
                                 st.session_state["username"] = u_in
                                 st.session_state["role"] = "worker"
                                 st.session_state["active_sheet"] = matched_sheet
-                                # Query params లో సెట్ చేయి
                                 st.query_params["logged_in"] = "true"
                                 st.query_params["username"] = u_in
                                 st.query_params["role"] = "worker"
@@ -789,10 +788,17 @@ elif st.session_state["role"] == "admin":
                 st.error(f"❌ Error: {e}")
                 
     with col_dl:
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            edited_full_df.to_excel(writer, index=False)
-        st.download_button(label=f"📥 Download '{current_sheet}' Sheet", data=buffer.getvalue(), file_name=f"updated_{current_sheet}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, key="admin_dl_btn")
+        if os.path.exists(EXCEL_FILE):
+            with open(EXCEL_FILE, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label="📥 Download Complete Excel File (All Sheets)", 
+                data=excel_bytes, 
+                file_name=EXCEL_FILE, 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="admin_dl_all_btn"
+            )
 
 # 3. CASE WORKER DASHBOARD
 else:
@@ -807,7 +813,7 @@ else:
     current_user = st.session_state["username"].strip()
     
     all_perms = load_permissions()
-    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True})
+    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False})
     
     user_col = find_username_column(df)
     pass_col = find_password_column(df)
@@ -864,7 +870,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
+    col_w_btn1, col_w_btn2, col_w_btn3, col_w_btn4 = st.columns(4)
     with col_w_btn1:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
@@ -883,6 +889,21 @@ else:
                 st.rerun()
         else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
+    with col_w_btn4:
+        if worker_perm.get("can_download", False):
+            if os.path.exists(EXCEL_FILE):
+                with open(EXCEL_FILE, "rb") as f:
+                    excel_bytes = f.read()
+                st.download_button(
+                    label="📥 Download Excel", 
+                    data=excel_bytes, 
+                    file_name=EXCEL_FILE, 
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                    use_container_width=True, 
+                    key="worker_dl_all_btn"
+                )
+        else:
+            st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_disabled")
             
     st.divider()
 
