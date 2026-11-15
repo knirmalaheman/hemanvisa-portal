@@ -124,7 +124,7 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# 🎨 Modern Professional CSS with Hyperlink Button Styling
+# 🎨 Modern Professional CSS with Pure Text Hyperlink Styling
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -310,21 +310,29 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
-    /* Hyperlink style button for Username */
-    div.stButton.hyperlink-btn > button {
+    /* Pure Text Hyperlink Style for Username Buttons */
+    div.stButton.text-link-btn button {
         background: transparent !important;
+        background-color: transparent !important;
         color: #1d6fa5 !important;
         box-shadow: none !important;
         text-decoration: underline !important;
-        padding: 2px 0px !important;
+        padding: 0px !important;
         margin: 0px !important;
+        min-height: unset !important;
+        height: auto !important;
+        width: auto !important;
         text-align: left !important;
         font-weight: 700 !important;
         border: none !important;
+        font-size: 16px !important;
     }
-    div.stButton.hyperlink-btn > button:hover {
+    div.stButton.text-link-btn button:hover {
         color: #0b3c65 !important;
-        background: rgba(29, 111, 165, 0.05) !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        text-decoration: underline !important;
+        border: none !important;
     }
 
     div[data-testid="stExpander"] {
@@ -397,7 +405,7 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 Case Details View & Edit Popup Dialog (Popup with Details & Edit Option Button)
+# 🌟 Case Details View & Edit Popup Dialog
 @st.dialog("📋 Case Details & Edit", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -416,7 +424,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         st.session_state[edit_state_key] = False
 
     if not st.session_state[edit_state_key]:
-        # View Mode inside Popup
         st.markdown("### 📄 Case Information")
         for col in df_full.columns:
             if col not in [p_col]:
@@ -430,7 +437,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state[edit_state_key] = True
                 st.rerun()
     else:
-        # Edit Mode inside Popup
         st.markdown("### ✏️ Edit Case Details")
         with st.form(f"popup_edit_form_{row_idx}"):
             updated_values = {}
@@ -902,13 +908,12 @@ elif st.session_state["role"] == "admin":
             col_link, col_info = st.columns([2, 5])
             with col_link:
                 u_val = str(row[u_col]).strip() if str(row[u_col]).strip() != "" else "Not Assigned"
-                with st.container():
-                    st.markdown('<div class="hyperlink-btn">', unsafe_allow_html=True)
-                    if st.button(f"{u_val}", key=f"admin_link_{idx}", use_container_width=True):
-                        st.session_state["selected_row_idx"] = idx
-                        st.session_state["open_dialog"] = "edit_case_popup"
-                        st.rerun()
-                    st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('<div class="text-link-btn">', unsafe_allow_html=True)
+                if st.button(f"{u_val}", key=f"admin_link_{idx}", use_container_width=False):
+                    st.session_state["selected_row_idx"] = idx
+                    st.session_state["open_dialog"] = "edit_case_popup"
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
             with col_info:
                 preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [u_col, p_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
                 st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
@@ -1071,8 +1076,9 @@ else:
         for idx, row in user_rows.iterrows():
             col_link, col_info = st.columns([2, 5])
             with col_link:
-                st.markdown('<div class="hyperlink-btn">', unsafe_allow_html=True)
-                if st.button(f"{current_user}", key=f"worker_link_{idx}", use_container_width=True):
+                u_val = str(row[user_col]).strip() if str(row[user_col]).strip() != "" else current_user
+                st.markdown('<div class="text-link-btn">', unsafe_allow_html=True)
+                if st.button(f"{u_val}", key=f"worker_link_{idx}", use_container_width=False):
                     st.session_state["selected_row_idx"] = idx
                     st.session_state["open_dialog"] = "edit_case_popup"
                     st.rerun()
