@@ -13,7 +13,7 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Session State Initialization
+# 🌟 Session State Initialization (లాగౌట్ సమస్య రాకుండా)
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
     st.session_state["username"] = ""
@@ -27,7 +27,7 @@ if "active_sheet" not in st.session_state:
         if os.path.exists(EXCEL_FILE):
             try:
                 xls = pd.ExcelFile(EXCEL_FILE)
-                return [str(s).strip() for s in xls.sheet_names]
+                return xls.sheet_names
             except Exception:
                 return ["Sheet1"]
         return ["Sheet1"]
@@ -63,7 +63,7 @@ def get_sheet_names():
     if os.path.exists(EXCEL_FILE):
         try:
             xls = pd.ExcelFile(EXCEL_FILE)
-            return [str(s).strip() for s in xls.sheet_names]
+            return xls.sheet_names
         except Exception:
             return ["Sheet1"]
     return ["Sheet1"]
@@ -71,32 +71,21 @@ def get_sheet_names():
 def load_data(sheet_name=0):
     if os.path.exists(EXCEL_FILE):
         try:
-            xls = pd.ExcelFile(EXCEL_FILE)
-            raw_sheets = xls.sheet_names
-            target_sheet = sheet_name
+            df = pd.read_excel(EXCEL_FILE, sheet_name=sheet_name, dtype=str)
+            df.columns = df.columns.str.strip()
+            df = df.fillna("")
+            if "Unnamed: 5" in df.columns:
+                df = df.rename(columns={"Unnamed: 5": "Category"})
             
-            if isinstance(sheet_name, str):
-                matched = [s for s in raw_sheets if str(s).strip().lower() == sheet_name.strip().lower()]
-                target_sheet = matched[0] if matched else (raw_sheets[0] if raw_sheets else 0)
-            
-            df = pd.read_excel(EXCEL_FILE, sheet_name=target_sheet, dtype=str)
-            
-            if df is not None:
-                df.columns = df.columns.str.strip()
-                df = df.fillna("")
-                if "Unnamed: 5" in df.columns:
-                    df = df.rename(columns={"Unnamed: 5": "Category"})
+            if "Updated_By" not in df.columns:
+                df["Updated_By"] = ""
+            if "Updated_At" not in df.columns:
+                df["Updated_At"] = ""
                 
-                if "Updated_By" not in df.columns:
-                    df["Updated_By"] = ""
-                if "Updated_At" not in df.columns:
-                    df["Updated_At"] = ""
-                
-                return df
+            return df
         except Exception:
-            pass
-            
-    return pd.DataFrame(columns=["Username", "Password", "Status", "Updated_By", "Updated_At"])
+            return None
+    return None
 
 def save_data(df_to_save, sheet_name=0):
     if "Category" in df_to_save.columns:
@@ -121,79 +110,221 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# 🎨 Modern Professional CSS
+# 🎨 Modern Professional CSS with Minimal Top Gap
 st.markdown("""
 <style>
-    [data-testid="stHeader"] { display: none !important; }
+    /* Hide Streamlit default top header bar */
+    [data-testid="stHeader"] {
+        display: none !important;
+    }
+
+    /* Fixed / Frozen Header Banner at the Very Top */
     .sticky-top-banner {
-        position: fixed; top: 0; left: 0; width: 100%; z-index: 999999;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 999999;
         background: #ffffff;
         background-image: radial-gradient(#d0e1f9 1px, transparent 1px), linear-gradient(to right, rgba(29,111,165,0.03), rgba(243,156,18,0.03));
         background-size: 20px 20px;
-        padding: 8px 20px;
+        padding: 6px 20px;
         border-bottom: 3px solid #1d6fa5;
         box-shadow: 0 4px 15px rgba(11, 60, 101, 0.15);
-        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        box-sizing: border-box;
     }
-    .sticky-top-banner img { max-height: 115px; width: auto; }
-    .banner-middle { text-align: center; flex: 1; padding: 0 15px; }
-    .world-map-title { font-size: 19px; font-weight: 800; color: #0b3c65; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 1px; }
-    .world-map-subtitle { font-size: 12px; font-weight: 700; color: #d35400; letter-spacing: 1.5px; }
-    .banner-info { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; font-size: 12px; font-weight: 600; color: #0b3c65; }
-    .banner-info a { color: #0b3c65; text-decoration: none; }
-    .social-icons { display: flex; gap: 6px; align-items: center; }
-    .social-icons img { height: 22px; width: 22px; border-radius: 4px; max-height: 22px !important; }
+    .sticky-top-banner img {
+        max-height: 85px;
+        width: auto;
+    }
+    .banner-middle {
+        text-align: center;
+        flex: 1;
+        padding: 0 15px;
+    }
+    .world-map-title {
+        font-size: 19px;
+        font-weight: 800;
+        color: #0b3c65;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 1px;
+    }
+    .world-map-subtitle {
+        font-size: 12px;
+        font-weight: 700;
+        color: #d35400;
+        letter-spacing: 1.5px;
+    }
+    .banner-info {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        font-weight: 600;
+        color: #0b3c65;
+    }
+    .banner-info a {
+        color: #0b3c65;
+        text-decoration: none;
+    }
+    .social-icons {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+    .social-icons img {
+        height: 22px;
+        width: 22px;
+        border-radius: 4px;
+        max-height: 22px !important;
+    }
 
     @media (prefers-color-scheme: dark) {
-        .sticky-top-banner { background-color: #0e1117; border-bottom: 3px solid #4da6ff; }
-        .world-map-title { color: #ffffff; }
-        .banner-info, .banner-info a { color: #e6edf3; }
+        .sticky-top-banner {
+            background-color: #0e1117;
+            border-bottom: 3px solid #4da6ff;
+        }
+        .world-map-title {
+            color: #ffffff;
+        }
+        .banner-info {
+            color: #e6edf3;
+        }
+        .banner-info a {
+            color: #e6edf3;
+        }
     }
 
-    .block-container { padding-top: 135px !important; padding-bottom: 2rem; }
+    /* Push main page content down minimally so top banner doesn't overlap */
+    .block-container {
+        padding-top: 105px !important;
+        padding-bottom: 2rem;
+    }
+
+    /* Make Welcome bar, Buttons and KPI cards sticky right below top banner with minimal gap */
     .sticky-control-panel {
-        position: sticky; top: 125px; z-index: 99998; background-color: #ffffff;
-        padding-top: 2px; padding-bottom: 6px; border-bottom: 2px solid #e1e4e8; margin-bottom: 10px;
+        position: sticky;
+        top: 98px;
+        z-index: 99998;
+        background-color: #ffffff;
+        padding-top: 2px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid #e1e4e8;
+        margin-bottom: 10px;
     }
     @media (prefers-color-scheme: dark) {
-        .sticky-control-panel { background-color: #0e1117; border-bottom: 2px solid #30363d; }
+        .sticky-control-panel {
+            background-color: #0e1117;
+            border-bottom: 2px solid #30363d;
+        }
     }
 
+    /* Compact & Neat KPI Metric Cards - Uniform Equal Size */
     .kpi-card {
-        background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%); color: white;
-        padding: 10px 8px; border-radius: 8px; box-shadow: 0 3px 8px rgba(0,0,0,0.1);
-        text-align: center; border-left: 4px solid #f39c12; margin-bottom: 5px; height: 85px; width: 100%;
-        display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box;
+        background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%);
+        color: white;
+        padding: 10px 8px;
+        border-radius: 8px;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        text-align: center;
+        border-left: 4px solid #f39c12;
+        margin-bottom: 5px;
+        height: 85px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        box-sizing: border-box;
     }
-    .kpi-card.gold { background: linear-gradient(135deg, #d35400 0%, #f39c12 100%); border-left: 4px solid #0b3c65; }
-    .kpi-card.green { background: linear-gradient(135deg, #117a65 0%, #1abc9c 100%); border-left: 4px solid #f1c40f; }
-    .kpi-card.purple { background: linear-gradient(135deg, #4a235a 0%, #8e44ad 100%); border-left: 4px solid #f39c12; }
-    .kpi-card.teal { background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%); border-left: 4px solid #f1c40f; }
-    .kpi-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95; margin-bottom: 4px; line-height: 1.2; }
-    .kpi-value { font-size: 20px; font-weight: 800; margin: 0; line-height: 1.1; }
+    .kpi-card.gold {
+        background: linear-gradient(135deg, #d35400 0%, #f39c12 100%);
+        border-left: 4px solid #0b3c65;
+    }
+    .kpi-card.green {
+        background: linear-gradient(135deg, #117a65 0%, #1abc9c 100%);
+        border-left: 4px solid #f1c40f;
+    }
+    .kpi-card.purple {
+        background: linear-gradient(135deg, #4a235a 0%, #8e44ad 100%);
+        border-left: 4px solid #f39c12;
+    }
+    .kpi-title {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        opacity: 0.95;
+        margin-bottom: 4px;
+        line-height: 1.2;
+    }
+    .kpi-value {
+        font-size: 20px;
+        font-weight: 800;
+        margin: 0;
+        line-height: 1.1;
+    }
 
+    /* Section Header Pill */
     .section-banner {
-        background-color: #eef5fc; border-left: 5px solid #0b3c65; padding: 10px 15px;
-        border-radius: 6px; margin: 10px 0px; font-weight: 700; color: #0b3c65; font-size: 18px;
+        background-color: #eef5fc;
+        border-left: 5px solid #0b3c65;
+        padding: 10px 15px;
+        border-radius: 6px;
+        margin: 10px 0px;
+        font-weight: 700;
+        color: #0b3c65;
+        font-size: 18px;
     }
     @media (prefers-color-scheme: dark) {
-        .section-banner { background-color: #1c2530; border-left: 5px solid #4da6ff; color: #e6edf3; }
+        .section-banner {
+            background-color: #1c2530;
+            border-left: 5px solid #4da6ff;
+            color: #e6edf3;
+        }
     }
 
+    /* 🎨 Default Action Buttons Style */
     .stButton > button {
-        width: 100% !important; border-radius: 8px !important; font-weight: 700 !important;
-        padding: 12px 15px !important; color: #ffffff !important;
+        width: 100% !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important;
+        padding: 12px 15px !important;
+        color: #ffffff !important;
         background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%) !important;
-        border: none !important; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-top: 5px !important; margin-bottom: 10px !important;
+        border: none !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        margin-top: 5px !important;
+        margin-bottom: 10px !important;
     }
-    div[data-testid="stExpander"] { width: 100% !important; max-width: 950px !important; }
-    div.row-widget.stRadio > div { flex-direction: row; gap: 12px; background: rgba(29, 111, 165, 0.06); padding: 8px 14px; border-radius: 8px; }
-    [data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
-    hr { margin-top: 0.8rem !important; margin-bottom: 0.8rem !important; }
+
+    div[data-testid="stExpander"] {
+        width: 100% !important;
+        max-width: 950px !important;
+    }
+    div.row-widget.stRadio > div {
+        flex-direction: row;
+        gap: 12px;
+        background: rgba(29, 111, 165, 0.06);
+        padding: 8px 14px;
+        border-radius: 8px;
+    }
+    [data-testid="stVerticalBlock"] {
+        gap: 0.3rem !important;
+    }
+    hr {
+        margin-top: 0.8rem !important;
+        margin-bottom: 0.8rem !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 🌟 Fixed Top Banner
+# 🌟 Fixed Top Banner with Logo, Middle Text, and Contact/Socials on Right
 found_logo = next((f for f in LOGO_FILES if os.path.exists(f)), None)
 logo_html = ""
 if found_logo:
@@ -233,7 +364,7 @@ def find_username_column(df):
     for col in df.columns:
         if col.strip().lower() in ["username", "cases_worker", "user"]:
             return col
-    return df.columns[0] if len(df.columns) > 0 else "Username"
+    return df.columns[0]
 
 def find_password_column(df):
     for col in df.columns:
@@ -241,7 +372,7 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 Modal Dialogs
+# 🌟 Modal Dialogs for Secure Popup Management
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
     st.info("💡 ప్రతి కేస్ వర్కర్ ఎదురుగా వారి **Password**, **Update**, **Add**, **Search** పర్మిషన్లు మార్చుకుని చివర్లో ఉన్న **💾 Update** బటన్ నొక్కండి:")
@@ -441,7 +572,7 @@ def search_data_dialog():
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
-# 🌟 Dialog Handler
+# 🌟 Handle Dialog Execution securely via Session State (Zero Logout)
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -458,7 +589,7 @@ elif st.session_state["open_dialog"] == "search_data":
     search_data_dialog()
     st.session_state["open_dialog"] = None
 
-# 1. LOGIN SCREEN
+# 1. లాగిన్ స్క్రీన్
 if not st.session_state["logged_in"]:
     col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
     with col_l2:
@@ -486,7 +617,6 @@ if not st.session_state["logged_in"]:
                             st.rerun()
                         else:
                             logged_in_success = False
-                            target_matched_sheet = sheets[0]
                             for s in sheets:
                                 df_check = load_data(sheet_name=s)
                                 if df_check is not None and not df_check.empty:
@@ -496,14 +626,13 @@ if not st.session_state["logged_in"]:
                                                          (df_check[p_col].astype(str).str.strip() == p_in)]
                                     if not user_rows.empty:
                                         logged_in_success = True
-                                        target_matched_sheet = s
+                                        st.session_state["active_sheet"] = s
                                         break
                             
                             if logged_in_success:
                                 st.session_state["logged_in"] = True
                                 st.session_state["username"] = u_in
                                 st.session_state["role"] = "worker"
-                                st.session_state["active_sheet"] = target_matched_sheet
                                 st.rerun()
                             else:
                                 st.error("❌ తప్పు Username లేదా Password!")
@@ -592,6 +721,7 @@ elif st.session_state["role"] == "admin":
                 if admin_search != "":
                     for idx in edited_full_df.index:
                         df.loc[idx] = edited_full_df.loc[idx]
+                    df = df.loc[~df.index.isin(display_df.index) | df.index.isin(edited_full_df.index)]
                     save_data(df, sheet_name=current_sheet)
                 else:
                     save_data(edited_full_df, sheet_name=current_sheet)
@@ -615,22 +745,26 @@ else:
         current_sheet = sheets[0]
         st.session_state["active_sheet"] = current_sheet
 
-    worker_name = st.session_state.get("username", "")
-    df_worker = load_data(sheet_name=current_sheet)
-    u_col = find_username_column(df_worker)
-    p_col = find_password_column(df_worker)
+    df = load_data(sheet_name=current_sheet)
+    current_user = st.session_state["username"].strip()
     
-    perms = load_permissions()
-    worker_perm = perms.get(worker_name, {"can_update": True, "can_add": True, "can_search": True})
+    all_perms = load_permissions()
+    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True})
     
+    user_col = find_username_column(df)
+    pass_col = find_password_column(df)
+    
+    user_mask = df[user_col].astype(str).str.strip().str.lower() == current_user.lower()
+    user_rows = df[user_mask]
+        
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    tc1, tc2, tc3 = st.columns([5, 1.2, 1.2], gap="small")
-    with tc1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 స్వాగతం, {worker_name} — Case Worker Workspace</div>", unsafe_allow_html=True)
-    with tc2:
-        if st.button("🔄 Refresh", key="worker_refresh_btn"):
+    top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
+    with top_col1:
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 స్వాగతం, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+    with top_col2:
+        if st.button("🔄 Refresh", key="worker_refresh"):
             st.rerun()
-    with tc3:
+    with top_col3:
         if st.button("🚪 Logout", key="worker_logout"):
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
@@ -638,103 +772,131 @@ else:
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    if u_col in df_worker.columns:
-        my_cases_df = df_worker[df_worker[u_col].astype(str).str.strip().str.lower() == worker_name.lower()]
-    else:
-        my_cases_df = pd.DataFrame(columns=df_worker.columns)
+    my_total = len(user_rows)
+    my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
-    total_my_cases = len(my_cases_df)
-    updated_my_cases = len(my_cases_df[my_cases_df["Updated_By"].astype(str).str.strip().str.lower() == worker_name.lower()]) if "Updated_By" in my_cases_df.columns else 0
-
-    # Find Visa Type column dynamically for exact counts
     visa_col = None
-    for col in my_cases_df.columns:
-        if "visa" in col.strip().lower() or "type" in col.strip().lower():
-            visa_col = col
+    for c in user_rows.columns:
+        if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
+            visa_col = c
             break
 
-    h1b_count = 0
-    h4_count = 0
-    h1bh4_count = 0
-    
-    if not my_cases_df.empty:
-        for _, row in my_cases_df.iterrows():
-            val = str(row[visa_col]).strip().upper() if visa_col and visa_col in row else ""
-            
-            # Exact/Clean matching to avoid random strings
-            if val in ["H1B H4", "H1B & H4", "H1B, H4"]:
-                h1bh4_count += 1
-            elif val == "H1B":
-                h1b_count += 1
-            elif val == "H4":
-                h4_count += 1
+    visa_counts = {}
+    if visa_col and not user_rows.empty:
+        for val in user_rows[visa_col].astype(str):
+            v_clean = val.strip().upper()
+            # కేవలం నిర్దిష్టమైనవి లేదా ఎక్సెల్ లో ఉన్నవి మాత్రమే కౌంట్ అయ్యేలా (abcd లాంటి డమ్మీ ఉంటే జనరల్ లేదా స్కిప్)
+            if v_clean in ["H1B", "H4", "H1B H4", "H1B & H4", "H1B, H4"]:
+                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
+            elif v_clean != "":
+                # ఎక్సెల్ లో వేరే వాలిడ్ వీసా టైప్ ఏమున్నా అది ఆటోమేటిక్‌గా కార్డ్ లాగా వస్తుంది
+                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
-    # 5 KPI Cards in one row
-    kc1, kc2, kc3, kc4, kc5 = st.columns(5)
-    with kc1:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📂 నా కేసులు (MY CASES)</div><div class='kpi-value'>{total_my_cases}</div></div>", unsafe_allow_html=True)
-    with kc2:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ నేను అప్‌డేట్ చేసినవి</div><div class='kpi-value'>{updated_my_cases}</div></div>", unsafe_allow_html=True)
-    with kc3:
-        st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>✈️ H1B</div><div class='kpi-value'>{h1b_count}</div></div>", unsafe_allow_html=True)
-    with kc4:
-        st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>✈️ H4</div><div class='kpi-value'>{h4_count}</div></div>", unsafe_allow_html=True)
-    with kc5:
-        st.markdown(f"<div class='kpi-card teal'><div class='kpi-title'>✈️ H1B H4</div><div class='kpi-value'>{h1bh4_count}</div></div>", unsafe_allow_html=True)
+    total_metrics = 2 + len(visa_counts)
+    kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2)
 
-    st.markdown("<div style='height: 5px;'></div>", unsafe_allow_html=True)
+    with kpi_cols[0]:
+        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 నా కేసులు (My Cases)</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
+    with kpi_cols[1]:
+        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ నేను అప్‌డేట్ చేసినవి</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-    # 3 Action Buttons
-    act_cols = st.columns(3)
-    with act_cols[0]:
+    colors_list = ["gold", "purple", "green", "blue"]
+    for idx, (v_name, v_count) in enumerate(visa_counts.items()):
+        c_class = colors_list[idx % len(colors_list)]
+        with kpi_cols[2 + idx]:
+            st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
+    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
+    with col_w_btn1:
         if st.button("🔑 పాస్‌వర్డ్ మార్చుకోండి", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
-    with act_cols[1]:
+    with col_w_btn2:
         if worker_perm.get("can_add", True):
-            if st.button("➕ కొత్త కేసును జోడించండి", use_container_width=True, key="worker_add_case_btn"):
+            if st.button("➕ కొత్త కేసును జోడించండి", use_container_width=True, key="worker_add_btn"):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
-            st.button("➕ కొత్త కేసును జోడించండి (Disabled)", disabled=True, use_container_width=True)
-    with act_cols[2]:
+            st.button("🚫 కొత్త కేసుల పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_add_disabled")
+    with col_w_btn3:
         if worker_perm.get("can_search", True):
             if st.button("🔍 Main Data వెతకండి", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
-            st.button("🔍 Main Data వెతకండి (Disabled)", disabled=True, use_container_width=True)
-
+            st.button("🚫 సెర్చ్ పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_search_disabled")
+            
     st.divider()
 
-    st.markdown(f"<div class='section-banner'>📋 నా కేసులు & షీట్ మేనేజ్‌మెంట్</div>", unsafe_allow_html=True)
-    
     if sheets:
         st.write("📑 **Sheets Switch:**")
-        st.radio("Select Sheet Worker", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
-
+        st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
+            
+    st.divider()
+    
+    st.markdown(f"<div class='section-banner'>✏️ మీ లాగిన్ కేసులు ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
+    
     if worker_perm.get("can_update", True):
-        editor_df = st.data_editor(my_cases_df if not my_cases_df.empty else df_worker, num_rows="dynamic" if worker_perm.get("can_add", True) else "fixed", use_container_width=True, height=450, key="worker_data_editor")
+        st.caption("💡 మీరు ఏ నిర్దిష్ట కేసులోనైతే మార్పులు చేసి సేవ్ చేస్తారో, ఆ ఒక్క రో (Row) కి మాత్రమే మీ పేరు మరియు టైమ్ రికార్డ్ అవుతుంది.")
         
-        if st.button("💾 Save Changes", type="primary", use_container_width=True, key="worker_save_btn"):
+        editable_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore").reset_index(drop=True)
+        edited_df = st.data_editor(editable_df, num_rows="dynamic", use_container_width=True, height=360, key="user_login_editor")
+        
+        if st.button("💾 Save My Changes to Excel", type="primary", key="worker_save_btn"):
             try:
-                full_df = load_data(sheet_name=current_sheet)
-                if not my_cases_df.empty and len(editor_df) == len(my_cases_df):
-                    for idx, row in editor_df.iterrows():
-                        row["Updated_By"] = worker_name
-                        row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        full_df.loc[idx] = row
-                else:
-                    full_df = editor_df
-                    for idx in full_df.index:
-                        full_df.loc[idx, "Updated_By"] = worker_name
-                        full_df.loc[idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                orig_indices = user_rows.index.tolist()
+                df_updated = df.copy()
+                
+                for orig_idx in orig_indices:
+                    df_updated.at[orig_idx, "Updated_By"] = ""
+                    df_updated.at[orig_idx, "Updated_At"] = ""
 
-                save_data(full_df, sheet_name=current_sheet)
+                for i, row in edited_df.iterrows():
+                    if i < len(orig_indices):
+                        orig_idx = orig_indices[i]
+                        data_cols = [c for c in edited_df.columns if c not in [user_col, pass_col]]
+                        
+                        orig_row = user_rows.loc[orig_idx]
+                        changed = False
+                        for c in data_cols:
+                            old_val = str(orig_row.get(c, "")).strip()
+                            new_val = str(row.get(c, "")).strip()
+                            if old_val != new_val:
+                                changed = True
+                                break
+                        
+                        for c in data_cols:
+                            df_updated.at[orig_idx, c] = row.get(c, "")
+                        
+                        if changed:
+                            df_updated.at[orig_idx, "Updated_By"] = current_user
+                            df_updated.at[orig_idx, "Updated_At"] = current_time
+                    else:
+                        new_row = {col: "" for col in df_updated.columns}
+                        new_row[user_col] = current_user
+                        
+                        curr_p_val = ""
+                        m_row = user_rows[user_rows[user_col].astype(str).str.strip().str.lower() == current_user.lower()]
+                        if not m_row.empty:
+                            curr_p_val = str(m_row.iloc[0][pass_col]).strip()
+                        new_row[pass_col] = curr_p_val
+
+                        for c in edited_df.columns:
+                            new_row[c] = row.get(c, "")
+                        new_row["Updated_By"], new_row["Updated_At"] = current_user, current_time
+                        df_updated = pd.concat([df_updated, pd.DataFrame([new_row])], ignore_index=True)
+                
+                save_data(df_updated, sheet_name=current_sheet)
                 st.success("✅ మార్పులు సేవ్ చేయబడ్డాయి!")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ సమస్య: {e}")
     else:
-        view_df = my_cases_df if not my_cases_df.empty else df_worker
-        st.dataframe(view_df.drop(columns=[u_col, p_col], errors="ignore"), use_container_width=True, height=450)
+        st.warning("⚠️ అడ్మిన్ ద్వారా మీకు ఈ కేసులను ఎడిట్ చేసి అప్‌డేట్ చేసే అనుమతి (Update Permission) నిలిపివేయబడింది.")
+        view_only_user_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
+        view_only_user_df.index = range(1, len(view_only_user_df) + 1)
+        st.dataframe(view_only_user_df, use_container_width=True)
