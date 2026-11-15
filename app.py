@@ -836,7 +836,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_w_btn1, col_w_btn2, col_w_btn3, col_w_btn4 = st.columns(4)
+    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
     with col_w_btn1:
         if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
@@ -855,10 +855,6 @@ else:
                 st.rerun()
         else:
             st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
-    with col_w_btn4:
-        if st.button("📋 View Updated Cases", use_container_width=True, key="worker_upd_hist_btn"):
-            st.session_state["open_dialog"] = "updated_history"
-            st.rerun()
             
     st.divider()
 
