@@ -13,7 +13,7 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Session State Initialization (లాగౌట్ సమస్య రాకుండా)
+# 🌟 Session State Initialization
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
     st.session_state["username"] = ""
@@ -372,10 +372,10 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 Modal Dialogs for Secure Popup Management (Fixed Excel Saving Bug)
+# 🌟 Modal Dialogs for Secure Popup Management
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
-    st.info("💡 ప్రతి కేస్ వర్కర్ ఎదురుగా వారి **Password**, **Update**, **Add**, **Search** పర్మిషన్లు మార్చుకుని చివర్లో ఉన్న **💾 Update** బటన్ నొక్కండి:")
+    st.info("💡 Modify **Password**, **Update**, **Add**, and **Search** permissions for each case worker, then click the **💾 Update** button:")
     sheets = get_sheet_names()
     all_users_dict = {}
     for s in sheets:
@@ -394,7 +394,7 @@ def permissions_dialog():
     current_perms = load_permissions()
     
     if not all_users_dict:
-        st.warning("ఏ కేస్ వర్కర్లు కనుగొనబడలేదు.")
+        st.warning("No case workers found.")
     else:
         for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
             w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True})
@@ -436,31 +436,31 @@ def permissions_dialog():
                             "can_search": new_sch_val
                         }
                         save_permissions(current_perms)
-                        st.success(f"✅ '{u_name}' వివరాలు అప్‌డేట్ చేయబడ్డాయి!")
+                        st.success(f"✅ Details updated for '{u_name}'!")
                     except Exception as e:
-                        st.error(f"❌ సమస్య: {e}")
+                        st.error(f"❌ Error: {e}")
             st.write("")
 
-@st.dialog("🔑 Admin పాస్‌వర్డ్ మార్చుకోండి", width="medium")
+@st.dialog("🔑 Change Admin Password", width="medium")
 def admin_password_dialog():
     with st.form("dlg_admin_pass_form"):
-        curr_p = st.text_input("ప్రస్తుత పాస్‌వర్డ్ (Current Password)", type="password")
-        new_p = st.text_input("కొత్త పాస్‌వర్డ్ (New Password)", type="password")
-        conf_p = st.text_input("కొత్త పాస్‌వర్డ్ మళ్ళీ టైప్ చేయండి (Confirm Password)", type="password")
+        curr_p = st.text_input("Current Password", type="password")
+        new_p = st.text_input("New Password", type="password")
+        conf_p = st.text_input("Confirm Password", type="password")
         
         if st.form_submit_button("Update Admin Password", type="primary", use_container_width=True):
             admin_u, admin_p = get_admin_creds()
             if curr_p != admin_p:
-                st.error("❌ ప్రస్తుత పాస్‌వర్డ్ తప్పు!")
+                st.error("❌ Incorrect current password!")
             elif new_p.strip() == "":
-                st.warning("⚠️ కొత్త పాస్‌వర్డ్ ఖాళీగా ఉండకూడదు.")
+                st.warning("⚠️ New password cannot be empty.")
             elif new_p != conf_p:
-                st.error("❌ కొత్త పాస్‌వర్డ్‌లు రెండు సరిపోలడం లేదు!")
+                st.error("❌ New passwords do not match!")
             else:
                 save_admin_creds(admin_u, new_p.strip())
-                st.success("✅ Admin పాస్‌వర్డ్ విజయవంతంగా మార్చబడింది!")
+                st.success("✅ Admin password updated successfully!")
 
-@st.dialog("🔑 పాస్‌వర్డ్ మార్చుకోండి", width="medium")
+@st.dialog("🔑 Change Password", width="medium")
 def worker_password_dialog(worker_name):
     sheets = get_sheet_names()
     worker_current_pass = ""
@@ -475,17 +475,17 @@ def worker_password_dialog(worker_name):
                 break
 
     with st.form("dlg_worker_pass_form"):
-        curr_wp = st.text_input("ప్రస్తుత పాస్‌వర్డ్ (Current Password)", type="password")
-        new_wp = st.text_input("కొత్త పాస్‌వర్డ్ (New Password)", type="password")
-        conf_wp = st.text_input("కొత్త పాస్‌వర్డ్ మళ్ళీ టైప్ చేయండి (Confirm Password)", type="password")
+        curr_wp = st.text_input("Current Password", type="password")
+        new_wp = st.text_input("New Password", type="password")
+        conf_wp = st.text_input("Confirm Password", type="password")
         
         if st.form_submit_button("Update Password", type="primary", use_container_width=True):
             if curr_wp.strip() != worker_current_pass:
-                st.error("❌ ప్రస్తుత పాస్‌వర్డ్ తప్పు!")
+                st.error("❌ Incorrect current password!")
             elif new_wp.strip() == "":
-                st.warning("⚠️ కొత్త పాస్‌వర్డ్ ఖాళీగా ఉండకూడదు.")
+                st.warning("⚠️ New password cannot be empty.")
             elif new_wp != conf_wp:
-                st.error("❌ కొత్త పాస్‌వర్డ్‌లు రెండు సరిపోలడం లేదు!")
+                st.error("❌ New passwords do not match!")
             else:
                 try:
                     all_sheets_data = {}
@@ -503,14 +503,14 @@ def worker_password_dialog(worker_name):
                     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                         for s, df_val in all_sheets_data.items():
                             df_val.to_excel(writer, sheet_name=str(s), index=False)
-                    st.success("✅ మీ పాస్‌వర్డ్ విజయవంతంగా మార్చబడింది!")
+                    st.success("✅ Password updated successfully!")
                 except Exception as e:
-                    st.error(f"❌ సమస్య: {e}")
+                    st.error(f"❌ Error: {e}")
 
-@st.dialog("➕ కొత్త కేసును జోడించండి", width="large")
+@st.dialog("➕ Add New Case", width="large")
 def add_case_dialog(worker_name):
     sheets = get_sheet_names()
-    st.info("💡 ఏ షీట్‌లో కొత్త కేసు జోడించాలనుకుంటున్నారో సెలెక్ట్ చేసుకోండి:")
+    st.info("💡 Select the sheet where you want to add a new case:")
     
     selected_target_sheet = st.selectbox("Select Target Sheet for New Case", options=sheets, key="dlg_target_sheet")
     target_df = load_data(sheet_name=selected_target_sheet)
@@ -526,7 +526,7 @@ def add_case_dialog(worker_name):
     with st.form("dlg_new_case_form", clear_on_submit=True):
         assigned_username = st.selectbox("Assign Username", options=available_usernames, index=available_usernames.index(worker_name) if worker_name in available_usernames else 0)
         st.divider()
-        st.write(f"📂 **{selected_target_sheet}** షీట్ హెడ్డింగ్స్:")
+        st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
         cols = [c for c in target_df.columns if c not in [t_user_col, t_pass_col, "Updated_By", "Updated_At"]]
@@ -553,11 +553,11 @@ def add_case_dialog(worker_name):
                     
                 updated_target_df = pd.concat([target_df, pd.DataFrame([new_row])], ignore_index=True)
                 save_data(updated_target_df, sheet_name=selected_target_sheet)
-                st.success("✅ కొత్త కేసు విజయవంతంగా జోడించబడింది!")
+                st.success("✅ New case added successfully!")
             except Exception as e:
-                st.error(f"❌ సమస్య: {e}")
+                st.error(f"❌ Error: {e}")
 
-@st.dialog("🔍 Main Data లో వెతకండి", width="large")
+@st.dialog("🔍 Search Main Data", width="large")
 def search_data_dialog():
     sheets = get_sheet_names()
     selected_search_sheet = st.selectbox("Select Sheet to Search:", options=sheets, key="dlg_search_sheet")
@@ -566,21 +566,21 @@ def search_data_dialog():
         u_col = find_username_column(df_search)
         p_col = find_password_column(df_search)
         
-        search_query = st.text_input("ఏదైనా బ్రాంచ్ పేరు లేదా వ్యక్తి పేరు టైప్ చేయండి:", placeholder="ఉదాహరణకు: ALLAGADDA, Adoni...", key="dlg_search_input").strip()
+        search_query = st.text_input("Type any branch name or person name:", placeholder="e.g., ALLAGADDA, Adoni...", key="dlg_search_input").strip()
         
         if search_query != "":
             main_search_mask = df_search.apply(lambda row: row.astype(str).str.contains(search_query, case=False, na=False).any(), axis=1)
             found_data = df_search[main_search_mask]
             
             if found_data.empty:
-                st.warning(f"'{search_query}' పేరుతో వివరాలు దొరకలేదు.")
+                st.warning(f"No details found for '{search_query}'.")
             else:
-                st.success(f"'{search_query}' కి సంబంధించిన ఫలితాలు ({len(found_data)} rows):")
+                st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
                 view_only_df = found_data.drop(columns=[u_col, p_col, "Updated_By", "Updated_At"], errors="ignore")
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
-# 🌟 Handle Dialog Execution securely via Session State (Zero Logout)
+# 🌟 Handle Dialog Execution securely via Session State
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -597,7 +597,7 @@ elif st.session_state["open_dialog"] == "search_data":
     search_data_dialog()
     st.session_state["open_dialog"] = None
 
-# 1. లాగిన్ స్క్రీన్
+# 1. Login Screen
 if not st.session_state["logged_in"]:
     col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
     with col_l2:
@@ -606,11 +606,11 @@ if not st.session_state["logged_in"]:
             st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
             sheets = get_sheet_names()
             if not sheets:
-                st.error(f"'{EXCEL_FILE}' ఫైల్ కనుగొనబడలేదు.")
+                st.error(f"'{EXCEL_FILE}' file not found.")
             else:
                 with st.form("login_form"):
-                    username_input = st.text_input("👤 Username", placeholder="మీ యూజర్‌నేమ్ టైప్ చేయండి")
-                    password_input = st.text_input("🔑 Password", type="password", placeholder="మీ పాస్‌వర్డ్ టైప్ చేయండి")
+                    username_input = st.text_input("👤 Username", placeholder="Type your username")
+                    password_input = st.text_input("🔑 Password", type="password", placeholder="Type your password")
                     submit_btn = st.form_submit_button("🚀 Login to Portal", type="primary", use_container_width=True)
                     
                     if submit_btn:
@@ -643,7 +643,7 @@ if not st.session_state["logged_in"]:
                                 st.session_state["role"] = "worker"
                                 st.rerun()
                             else:
-                                st.error("❌ తప్పు Username లేదా Password!")
+                                st.error("❌ Incorrect Username or Password!")
 
 # 2. ADMIN DASHBOARD
 elif st.session_state["role"] == "admin":
@@ -680,13 +680,13 @@ elif st.session_state["role"] == "admin":
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 మొత్తం కేసులు (Total)</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
     with k2:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ అప్‌డేట్ అయినవి (Updated)</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated Cases</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
     with k3:
-        st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ అసైన్ కానివి (Unassigned)</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned Cases</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
     with k4:
-        st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 కేస్ వర్కర్స్ (Workers)</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Case Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
@@ -705,7 +705,7 @@ elif st.session_state["role"] == "admin":
     st.markdown(f"<div class='section-banner'>🔍 Admin Search & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
     col_s1, col_s2 = st.columns([2, 1])
     with col_s1:
-        admin_search = st.text_input("ఏదైనా యూజర్‌నేమ్, కేసు లేదా సమాచారం కోసం వెతకండి:", placeholder="ఉదాహరణకు: Anil, Kiran...", key="admin_search_input").strip()
+        admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
     with col_s2:
         if sheets:
             st.write("📑 **Sheets Switch:**")
@@ -714,11 +714,11 @@ elif st.session_state["role"] == "admin":
     if admin_search != "":
         admin_search_mask = df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
         display_df = df[admin_search_mask]
-        st.info(f"'{admin_search}' కి సంబంధించిన ఫలితాలు ({len(display_df)} rows):")
+        st.info(f"Results for '{admin_search}' ({len(display_df)} rows):")
     else:
         display_df = df
 
-    st.caption("💡 ఏ కేసులో అయితే మార్పులు జరిగాయో, ఆ నిర్దిష్ట రో లో మాత్రమే **Updated_By** మరియు **Updated_At** కనిపిస్తాయి.")
+    st.caption("💡 Updated_By and Updated_At will appear only on the specific row where changes occurred.")
     
     edited_full_df = st.data_editor(display_df, num_rows="dynamic", use_container_width=True, height=480, key="admin_full_editor")
     
@@ -733,10 +733,10 @@ elif st.session_state["role"] == "admin":
                     save_data(df, sheet_name=current_sheet)
                 else:
                     save_data(edited_full_df, sheet_name=current_sheet)
-                st.success("✅ డేటా Excel ఫైల్‌లో సేవ్ అయింది!")
+                st.success("✅ Data saved to Excel file!")
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ సమస్య: {e}")
+                st.error(f"❌ Error: {e}")
                 
     with col_dl:
         buffer = io.BytesIO()
@@ -768,7 +768,7 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 స్వాగతం, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.rerun()
@@ -800,9 +800,9 @@ else:
     kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2)
 
     with kpi_cols[0]:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 నా కేసులు (My Cases)</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
     with kpi_cols[1]:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ నేను అప్‌డేట్ చేసినవి</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
     colors_list = ["gold", "purple", "green", "blue"]
     for idx, (v_name, v_count) in enumerate(visa_counts.items()):
@@ -815,23 +815,23 @@ else:
 
     col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
     with col_w_btn1:
-        if st.button("🔑 పాస్‌వర్డ్ మార్చుకోండి", use_container_width=True, key="worker_pw_btn"):
+        if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
     with col_w_btn2:
         if worker_perm.get("can_add", True):
-            if st.button("➕ కొత్త కేసును జోడించండి", use_container_width=True, key="worker_add_btn"):
+            if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
-            st.button("🚫 కొత్త కేసుల పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_add_disabled")
+            st.button("🚫 No Add Permission", disabled=True, use_container_width=True, key="worker_add_disabled")
     with col_w_btn3:
         if worker_perm.get("can_search", True):
-            if st.button("🔍 Main Data వెతకండి", use_container_width=True, key="worker_search_btn"):
+            if st.button("🔍 Search Main Data", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
-            st.button("🚫 సెర్చ్ పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_search_disabled")
+            st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
             
     st.divider()
 
@@ -841,10 +841,10 @@ else:
             
     st.divider()
     
-    st.markdown(f"<div class='section-banner'>✏️ మీ లాగిన్ కేసులు ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
     
     if worker_perm.get("can_update", True):
-        st.caption("💡 మీరు ఏ నిర్దిష్ట కేసులోనైతే మార్పులు చేసి సేవ్ చేస్తారో, ఆ ఒక్క రో (Row) కి మాత్రమే మీ పేరు మరియు టైమ్ రికార్డ్ అవుతుంది.")
+        st.caption("💡 Your username and timestamp will be recorded only for the specific row you modify and save.")
         
         editable_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore").reset_index(drop=True)
         edited_df = st.data_editor(editable_df, num_rows="dynamic", use_container_width=True, height=360, key="user_login_editor")
@@ -895,12 +895,12 @@ else:
                         df_updated = pd.concat([df_updated, pd.DataFrame([new_row])], ignore_index=True)
                 
                 save_data(df_updated, sheet_name=current_sheet)
-                st.success("✅ మార్పులు సేవ్ చేయబడ్డాయి!")
+                st.success("✅ Changes saved successfully!")
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ సమస్య: {e}")
+                st.error(f"❌ Error: {e}")
     else:
-        st.warning("⚠️ అడ్మిన్ ద్వారా మీకు ఈ కేసులను ఎడిట్ చేసి అప్‌డేట్ చేసే అనుమతి (Update Permission) నిలిపివేయబడింది.")
+        st.warning("⚠️ Update permission has been disabled by admin.")
         view_only_user_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
         view_only_user_df.index = range(1, len(view_only_user_df) + 1)
         st.dataframe(view_only_user_df, use_container_width=True)
