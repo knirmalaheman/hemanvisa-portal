@@ -360,16 +360,16 @@ st.markdown("""
         color: #0b3c65 !important;
     }
 
+    /* 🌟 Admin Sheets Radio Button Single Line Fix */
+    div[data-testid="stRadio"] > div {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 15px !important;
+    }
+
     div[data-testid="stExpander"] {
         width: 100% !important;
         max-width: 950px !important;
-    }
-    div.row-widget.stRadio > div {
-        flex-direction: row;
-        gap: 12px;
-        background: rgba(29, 111, 165, 0.06);
-        padding: 8px 14px;
-        border-radius: 8px;
     }
     [data-testid="stVerticalBlock"] {
         gap: 0.3rem !important;
@@ -815,7 +815,6 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         perms = load_permissions()
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
-    # Note: open_dialog for edit_case_popup is cleared inside save/cancel inside the dialog itself so it stays open during editing.
 
 # 1. Login Screen
 if not st.session_state["logged_in"]:
@@ -952,12 +951,14 @@ elif st.session_state["role"] == "admin":
     st.divider()
     
     st.markdown(f"<div class='section-banner'>🔍 Admin Search & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
-    col_s1, col_s2 = st.columns([2, 1])
-    with col_s1:
+    
+    # 🌟 Admin Search Bar & Sheets Switch side-by-side in one row
+    col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
+    with col_search:
         admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
-    with col_s2:
+    with col_sheets:
         if sheets:
-            st.write("📑 **Sheets Switch:**")
+            st.markdown("📑 **Sheets Switch:**")
             st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
     
     if admin_search != "":
