@@ -32,16 +32,18 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
-# Handle Hyperlink Click from URL Query Params
-if "edit_row" in qp:
+# Handle Hyperlink Click from URL Query Params only if logged in
+if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
         st.session_state["is_editing_popup"] = False
-        del qp["edit_row"]
+        qp.pop("edit_row", None)
     except:
-        pass
+        qp.pop("edit_row", None)
+elif not st.session_state["logged_in"] and "edit_row" in qp:
+    qp.pop("edit_row", None)
 
 if "active_sheet" not in st.session_state:
     def get_initial_sheets():
