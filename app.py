@@ -124,7 +124,7 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# 🎨 Modern Professional CSS
+# 🎨 Modern Professional CSS with Hyperlink Button Styling
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -310,16 +310,21 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
-    /* Link-style button for username */
-    .stButton.link-btn > button {
+    /* Hyperlink style button for Username */
+    div.stButton.hyperlink-btn > button {
         background: transparent !important;
         color: #1d6fa5 !important;
         box-shadow: none !important;
         text-decoration: underline !important;
-        padding: 0px !important;
+        padding: 2px 0px !important;
         margin: 0px !important;
         text-align: left !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
+        border: none !important;
+    }
+    div.stButton.hyperlink-btn > button:hover {
+        color: #0b3c65 !important;
+        background: rgba(29, 111, 165, 0.05) !important;
     }
 
     div[data-testid="stExpander"] {
@@ -392,7 +397,7 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🌟 Case Details View & Edit Dialog (Popup with Edit Option)
+# 🌟 Case Details View & Edit Popup Dialog (Popup with Details & Edit Option Button)
 @st.dialog("📋 Case Details & Edit", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -892,15 +897,18 @@ elif st.session_state["role"] == "admin":
     if display_df.empty:
         st.info("No cases found.")
     else:
-        st.caption("క్రింద ఉన్న యూజర్‌నేమ్‌ల (Hyperlinks) పై క్లిక్ చేయగానే ఆ కేస్ వివరాల పాప్-అప్ ఓపెన్ అవుతుంది:")
+        st.caption("క్రింద యూజర్‌నేమ్ హైపర్‌లింక్ పై క్లిక్ చేసి వివరాలు చూసి ఎడిట్ చేసుకోవచ్చు:")
         for idx, row in display_df.iterrows():
             col_link, col_info = st.columns([2, 5])
             with col_link:
                 u_val = str(row[u_col]).strip() if str(row[u_col]).strip() != "" else "Not Assigned"
-                if st.button(f"🔗 {u_val}", key=f"admin_link_{idx}", use_container_width=True):
-                    st.session_state["selected_row_idx"] = idx
-                    st.session_state["open_dialog"] = "edit_case_popup"
-                    st.rerun()
+                with st.container():
+                    st.markdown('<div class="hyperlink-btn">', unsafe_allow_html=True)
+                    if st.button(f"{u_val}", key=f"admin_link_{idx}", use_container_width=True):
+                        st.session_state["selected_row_idx"] = idx
+                        st.session_state["open_dialog"] = "edit_case_popup"
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
             with col_info:
                 preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [u_col, p_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
                 st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
@@ -1063,10 +1071,12 @@ else:
         for idx, row in user_rows.iterrows():
             col_link, col_info = st.columns([2, 5])
             with col_link:
-                if st.button(f"🔗 {current_user}", key=f"worker_link_{idx}", use_container_width=True):
+                st.markdown('<div class="hyperlink-btn">', unsafe_allow_html=True)
+                if st.button(f"{current_user}", key=f"worker_link_{idx}", use_container_width=True):
                     st.session_state["selected_row_idx"] = idx
                     st.session_state["open_dialog"] = "edit_case_popup"
                     st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
             with col_info:
                 preview_txt = " | ".join([f"**{c}**: {val}" for c, val in row.items() if c not in [user_col, pass_col, "Updated_By", "Updated_At"] and str(val).strip() != ""][:2])
                 st.markdown(f"Row #{idx+1} | {preview_txt}", unsafe_allow_html=True)
