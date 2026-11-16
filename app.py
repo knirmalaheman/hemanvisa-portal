@@ -115,13 +115,16 @@ def load_login_tracking():
 
 def record_worker_login(worker_name):
     logins = load_login_tracking()
-    # Store with exact casing and normalized lowercase for robust matching
     logins[worker_name.strip()] = {
         "status": "Logged In",
         "last_login": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     with open(LOGINS_FILE, "w") as f:
         json.dump(logins, f, indent=4)
+
+# Automatically record worker login if logged in
+if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
+    record_worker_login(st.session_state["username"])
 
 def get_sheet_names():
     if os.path.exists(EXCEL_FILE):
@@ -692,10 +695,10 @@ def admin_notice_dialog():
             st.success("✅ Notice cleared successfully!")
             st.rerun()
 
-# 🌟 Admin Worker Login Status Tracking Dialog (Professional Native DataFrame)
+# 🌟 Admin Worker Login Status Tracking Dialog (Professional Button Badges)
 @st.dialog("👥 Case Worker Login Status", width="large")
 def admin_login_status_dialog():
-    st.info("💡 కేస్ వర్కర్ల లాగిన్ వివరాలు (ఎవరు లాగిన్ అయ్యారు, ఎవరూ కాలేదు) క్రింద ఇవ్వబడ్డాయి:")
+    st.info("💡 కేస్ వర్కర్ల లాగిన్ వివరాలు (ఎవరు లాగిన్ అయ్యారు, ఎవరూ కాలేదు) క్రింద ప్రొఫెషనల్ బటన్స్ రూపంలో ఇవ్వబడ్డాయి:")
     
     sheets = get_sheet_names()
     all_workers = set()
@@ -709,7 +712,6 @@ def admin_login_status_dialog():
                     all_workers.add(u)
                     
     login_records = load_login_tracking()
-    # Normalize keys to lowercase for robust case-insensitive comparison
     normalized_login_records = {k.lower(): v for k, v in login_records.items()}
     
     status_data = []
@@ -717,20 +719,45 @@ def admin_login_status_dialog():
         rec = normalized_login_records.get(w.lower(), {})
         status = rec.get("status", "Not Logged In")
         last_time = rec.get("last_login", "-")
-        
-        status_label = "🟢 Logged In" if status == "Logged In" else "🔴 Not Logged In"
-        
         status_data.append({
-            "Case Worker Name": w,
-            "Login Status": status_label,
-            "Last Login Timestamp": last_time
+            "worker": w,
+            "status": status,
+            "time": last_time
         })
         
     if not status_data:
         st.warning("ఎటువంటి కేస్ వర్కర్లు కనుగొనబడలేదు.")
     else:
-        df_status = pd.DataFrame(status_data)
-        st.dataframe(df_status, use_container_width=True, hide_index=True)
+        html = """
+        <div style="max-height: 420px; overflow-y: auto; border: 1px solid #e1e4e8; border-radius: 8px;">
+        <table style="width:100%; border-collapse: collapse; font-size: 14px; font-family: sans-serif;">
+            <thead>
+                <tr style="background-color: #0b3c65; color: white; position: sticky; top: 0; z-index: 1;">
+                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left;">Case Worker Name</th>
+                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: center;">Login Status Button</th>
+                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left;">Last Login Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for idx, item in enumerate(status_data):
+            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+            is_logged = item["status"] == "Logged In"
+            
+            if is_logged:
+                status_badge = '<span style="background-color: #dcfce7; color: #15803d; padding: 6px 16px; border-radius: 20px; font-weight: 700; border: 1px solid #bbf7d0; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">🟢 Logged In</span>'
+            else:
+                status_badge = '<span style="background-color: #fee2e2; color: #b91c1c; padding: 6px 16px; border-radius: 20px; font-weight: 700; border: 1px solid #fecaca; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">🔴 Not Logged In</span>'
+            
+            html += f"""
+                <tr style="background-color: {bg};">
+                    <td style="padding: 12px; border: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">{item['worker']}</td>
+                    <td style="padding: 12px; border: 1px solid #e2e8f0; text-align: center;">{status_badge}</td>
+                    <td style="padding: 12px; border: 1px solid #e2e8f0; color: #64748b; font-weight: 500;">{item['time']}</td>
+                </tr>
+            """
+        html += "</tbody></table></div>"
+        st.markdown(html, unsafe_allow_html=True)
 
 # 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
@@ -1184,7 +1211,7 @@ if not st.session_state["logged_in"]:
                                     break
                             
                             if logged_in_success:
-                                record_worker_login(actual_matched_username)  # 🌟 Record Login Status with exact case
+                                record_worker_login(actual_matched_username)
                                 st.session_state["logged_in"] = True
                                 st.session_state["username"] = actual_matched_username
                                 st.session_state["role"] = "worker"
