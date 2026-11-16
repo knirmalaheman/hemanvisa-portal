@@ -303,7 +303,7 @@ st.markdown("""
         box-sizing: border-box;
     }
     .logo-container {
-        margin-left: 120px; /* లోగోను కుడి వైపునకు చాలా దూరం జరపడానికి */
+        margin-left: 120px;
     }
     .sticky-top-banner img {
         max-height: 62px;
@@ -316,7 +316,7 @@ st.markdown("""
         text-align: center;
         flex: 1;
         padding: 0 15px;
-        margin-left: 40px; /* కంపెనీ పేరును కూడా కొద్దిగా కుడి వైపునకు జరపడానికి */
+        margin-left: 40px;
     }
     .world-map-title {
         font-size: 19px;
@@ -1591,7 +1591,7 @@ elif st.session_state["role"] == "admin":
 
     admin_dash_tab = st.radio(
         "Admin Navigation",
-        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
+        ["📊 Dashboard & Quick Actions", "ℹ️ System Guidelines"],
         horizontal=True,
         label_visibility="collapsed",
         key="admin_dash_tab_radio"
@@ -1654,33 +1654,7 @@ elif st.session_state["role"] == "admin":
 
         st.divider()
 
-    elif admin_dash_tab == "ℹ️ System Guidelines":
-        st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
-        g1, g2 = st.columns(2, gap="medium")
-        with g1:
-            st.markdown("""
-                <div class="corporate-card">
-                    <h3>👥 User & Permission Management</h3>
-                    <p>Assign specific privileges (Update, Add, Search, Download, Sync) to case workers to maintain strict security and accountability across all sheets.</p>
-                </div>
-                <div class="corporate-card">
-                    <h3>🗑️ Delete Request Approvals</h3>
-                    <p>When case workers request case deletions with reasons, review them in the 'Delete Requests' section to either permanently delete or reject the request.</p>
-                </div>
-            """, unsafe_allow_html=True)
-        with g2:
-            st.markdown("""
-                <div class="corporate-card">
-                    <h3>📊 Attendance & Login Tracking</h3>
-                    <p>Monitor real-time worker logins, active status, and automated daily attendance logs with instant Excel report exports.</p>
-                </div>
-                <div class="corporate-card">
-                    <h3>📢 Live Announcements</h3>
-                    <p>Broadcast scrolling marquee announcements directly to all active case worker screens using the 'Broadcast Notice' feature.</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-    if admin_dash_tab in ["📊 Dashboard & Quick Actions", "📂 Case Records & Search"]:
+        # Case Records & Sheet Management Table directly inside Dashboard
         st.markdown(f"<div class='section-banner'>🔍 Case Records & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
         
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
@@ -1712,6 +1686,32 @@ elif st.session_state["role"] == "admin":
                 use_container_width=True, 
                 key="admin_dl_all_btn"
             )
+
+    elif admin_dash_tab == "ℹ️ System Guidelines":
+        st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
+        g1, g2 = st.columns(2, gap="medium")
+        with g1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>👥 User & Permission Management</h3>
+                    <p>Assign specific privileges (Update, Add, Search, Download, Sync) to case workers to maintain strict security and accountability across all sheets.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🗑️ Delete Request Approvals</h3>
+                    <p>When case workers request case deletions with reasons, review them in the 'Delete Requests' section to either permanently delete or reject the request.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with g2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>📊 Attendance & Login Tracking</h3>
+                    <p>Monitor real-time worker logins, active status, and automated daily attendance logs with instant Excel report exports.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>📢 Live Announcements</h3>
+                    <p>Broadcast scrolling marquee announcements directly to all active case worker screens using the 'Broadcast Notice' feature.</p>
+                </div>
+            """, unsafe_allow_html=True)
 
 # 3. CASE WORKER DASHBOARD
 else:
