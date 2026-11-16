@@ -39,6 +39,7 @@ if st.session_state["logged_in"] and "edit_row" in qp:
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
         st.session_state["is_editing_popup"] = False
+        st.session_state["is_delete_request_mode"] = False
         if "edit_row" in st.query_params:
             del st.query_params["edit_row"]
     except:
@@ -418,7 +419,7 @@ def update_admin_sheet():
 
 def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
-    st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
+    st.query_params["active_sheet"] = st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
 # 🌟 Case Details View, Edit & Delete / Request Delete Popup Dialog
 @st.dialog("📋 Case Details, Edit & Delete", width="large")
@@ -436,8 +437,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     if "is_editing_popup" not in st.session_state:
         st.session_state["is_editing_popup"] = False
+    if "is_delete_request_mode" not in st.session_state:
+        st.session_state["is_delete_request_mode"] = False
 
-    if not st.session_state["is_editing_popup"]:
+    if not st.session_state["is_editing_popup"] and not st.session_state["is_delete_request_mode"]:
         st.markdown("### 📄 Case Information")
         for col in df_full.columns:
             if col not in [p_col]:
@@ -464,30 +467,43 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Error deleting case: {e}")
+                else:
+                    if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req_mode"):
+                        st.session_state["is_delete_request_mode"] = True
+                        st.rerun()
 
-            # Direct Delete Request form for Case Worker right inside view mode
-            if role != "admin":
-                st.markdown("---")
-                st.markdown("#### 🗑️ Request Case Deletion")
-                with st.form(f"worker_del_req_form_{row_idx}"):
-                    del_reason_input = st.text_input("✍️ ఈ కేసును ఎందుకు డిలీట్ చేయాలనుకుంటున్నారు? (Reason):", placeholder="కారణం ఇక్కడ రాయండి...", key=f"del_rsn_{row_idx}")
-                    submitted_del_req = st.form_submit_button("📤 Submit Delete Request", type="secondary", use_container_width=True)
-                    if submitted_del_req:
-                        if del_reason_input.strip() == "":
-                            st.warning("⚠️ దయచేసి డిలీట్ చేయడానికి కారణం (Reason) రాయండి.")
-                        else:
-                            try:
-                                df_full.at[row_idx, "Updated_By"] = current_user
-                                df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                df_full.at[row_idx, "Action_Type"] = "Delete Request"
-                                df_full.at[row_idx, "Delete_Reason"] = del_reason_input.strip()
-                                save_data(df_full, sheet_name=sheet_name)
-                                st.session_state["selected_row_idx"] = None
-                                st.session_state["open_dialog"] = None
-                                st.success("✅ Delete request sent to Admin with reason successfully!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Error: {e}")
+    elif st.session_state["is_delete_request_mode"]:
+        st.markdown("### 🗑️ Request Delete Case")
+        with st.form(f"delete_reason_form_{row_idx}"):
+            del_reason = st.text_area("✍️ ఈ కేసును ఎందుకు డిలీట్ చేయాలనుకుంటున్నారు? (Reason required):", placeholder="కారణం ఇక్కడ రాయండి...")
+            col_sub_req, col_back_req = st.columns(2)
+            with col_sub_req:
+                submitted_req = st.form_submit_button("🚀 Submit Delete Request", type="primary", use_container_width=True)
+            with col_back_req:
+                cancelled_req = st.form_submit_button("↩️ Back", use_container_width=True)
+
+            if submitted_req:
+                if del_reason.strip() == "":
+                    st.warning("⚠️ దయచేసి డిలీట్ చేయడానికి తగిన కారణం (Reason) రాయండి.")
+                else:
+                    try:
+                        df_full.at[row_idx, "Updated_By"] = current_user
+                        df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        df_full.at[row_idx, "Action_Type"] = "Delete Request"
+                        df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
+                        save_data(df_full, sheet_name=sheet_name)
+                        st.session_state["is_delete_request_mode"] = False
+                        st.session_state["selected_row_idx"] = None
+                        st.session_state["open_dialog"] = None
+                        st.success("✅ Delete request sent to Admin with reason successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {e}")
+
+            if cancelled_req:
+                st.session_state["is_delete_request_mode"] = False
+                st.rerun()
+
     else:
         st.markdown("### ✏️ Edit Case Details")
         with st.form(f"popup_edit_form_{row_idx}"):
@@ -589,7 +605,7 @@ def render_clickable_table(df, display_c, p_col):
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
 
-# 🌟 Combined New/Updated Cases & Calendar Dialog View (Without Delete Requests)
+# 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
     st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
