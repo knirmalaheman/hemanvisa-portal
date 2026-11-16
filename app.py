@@ -695,10 +695,10 @@ def admin_notice_dialog():
             st.success("✅ Notice cleared successfully!")
             st.rerun()
 
-# 🌟 Admin Worker Login Status Tracking Dialog (Professional Native Streamlit Components)
+# 🌟 Admin Worker Login Status Tracking Dialog (Separated into Login & Not Login Tabs)
 @st.dialog("👥 Case Worker Login Status", width="large")
 def admin_login_status_dialog():
-    st.info("💡 కేస్ వర్కర్ల లాగిన్ వివరాలు (ఎవరు లాగిన్ అయ్యారు, ఎవరూ కాలేదు) క్రింద ప్రొఫెషనల్ స్టేటస్ బటన్స్ రూపంలో ఇవ్వబడ్డాయి:")
+    st.info("💡 కేస్ వర్కర్ల లాగిన్ స్టేటస్ వివరాలు క్రింది ట్యాబ్స్‌లో (Login / Not Login) విడివిడిగా చూడవచ్చు:")
     
     sheets = get_sheet_names()
     all_workers = set()
@@ -714,34 +714,55 @@ def admin_login_status_dialog():
     login_records = load_login_tracking()
     normalized_login_records = {k.lower(): v for k, v in login_records.items()}
     
-    if not all_workers:
-        st.warning("ఎటువంటి కేస్ వర్కర్లు కనుగొనబడలేదు.")
-    else:
-        # Table Header Layout
-        h1, h2, h3 = st.columns([2, 2, 2])
-        with h1:
-            st.markdown("**Case Worker Name**")
-        with h2:
-            st.markdown("**Login Status**")
-        with h3:
-            st.markdown("**Last Login Timestamp**")
-        st.divider()
+    logged_in_list = []
+    not_logged_in_list = []
+    
+    for w in sorted(list(all_workers)):
+        rec = normalized_login_records.get(w.lower(), {})
+        status = rec.get("status", "Not Logged In")
+        last_time = rec.get("last_login", "-")
         
-        for w in sorted(list(all_workers)):
-            rec = normalized_login_records.get(w.lower(), {})
-            status = rec.get("status", "Not Logged In")
-            last_time = rec.get("last_login", "-")
+        item = {
+            "worker": w,
+            "status": status,
+            "time": last_time
+        }
+        if status == "Logged In":
+            logged_in_list.append(item)
+        else:
+            not_logged_in_list.append(item)
             
-            c1, c2, c3 = st.columns([2, 2, 2])
-            with c1:
-                st.write(f"👤 **{w}**")
-            with c2:
-                if status == "Logged In":
-                    st.success("🟢 Logged In")
-                else:
-                    st.error("🔴 Not Logged In")
-            with c3:
-                st.text(last_time if last_time else "-")
+    tab_logged, tab_not_logged = st.tabs([f"🟢 Login ({len(logged_in_list)})", f"🔴 Not Login ({len(not_logged_in_list)})"])
+    
+    with tab_logged:
+        if not logged_in_list:
+            st.warning("ప్రస్తుతం ఎటువంటి కేస్ వర్కర్లు లాగిన్ అయి లేరు.")
+        else:
+            h1, h2, h3 = st.columns([2, 2, 2])
+            with h1: st.markdown("**Case Worker Name**")
+            with h2: st.markdown("**Login Status**")
+            with h3: st.markdown("**Last Login Timestamp**")
+            st.divider()
+            for item in logged_in_list:
+                c1, c2, c3 = st.columns([2, 2, 2])
+                with c1: st.write(f"👤 **{item['worker']}**")
+                with c2: st.success("🟢 Logged In")
+                with c3: st.text(item['time'])
+                
+    with tab_not_logged:
+        if not not_logged_in_list:
+            st.success("అందరూ కేస్ వర్కర్లు లాగిన్ అయి ఉన్నారు!")
+        else:
+            h1, h2, h3 = st.columns([2, 2, 2])
+            with h1: st.markdown("**Case Worker Name**")
+            with h2: st.markdown("**Login Status**")
+            with h3: st.markdown("**Last Login Timestamp**")
+            st.divider()
+            for item in not_logged_in_list:
+                c1, c2, c3 = st.columns([2, 2, 2])
+                with c1: st.write(f"👤 **{item['worker']}**")
+                with c2: st.error("🔴 Not Logged In")
+                with c3: st.text(item['time'])
 
 # 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
