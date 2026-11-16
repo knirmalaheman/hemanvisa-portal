@@ -81,6 +81,8 @@ def load_data(sheet_name=0):
                 df["Updated_By"] = ""
             if "Updated_At" not in df.columns:
                 df["Updated_At"] = ""
+            if "Action_Type" not in df.columns:
+                df["Action_Type"] = ""
                 
             return df
         except Exception:
@@ -437,33 +439,46 @@ def permissions_dialog():
                         st.error(f"❌ సమస్య: {e}")
             st.write("")
 
-@st.dialog("📋 కేస్ వర్కర్స్ అప్‌డేట్ చేసిన / కొత్త కేసులు (All Sheets)", width="large")
+@st.dialog("📋 కొత్త కేసులు & అప్‌డేట్స్ వివరాలు (All Sheets)", width="large")
 def admin_updated_cases_dialog():
-    st.info("💡 కేస్ వర్కర్స్ ద్వారా ఏయే కేసులు అప్‌డేట్ చేయబడ్డాయో లేదా కొత్తగా యాడ్ చేయబడ్డాయో ఇక్కడ అన్ని షీట్ల నుండి చూడవచ్చు:")
+    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడిన కేసులు (**New Cases**) మరియు అప్‌డేట్ చేయబడిన కేసులు (**Updated Cases**) వేర్వేరు ట్యాబ్స్‌లో చూడవచ్చు:")
     sheets = get_sheet_names()
-    all_updated_rows = []
+    all_rows = []
     
     for s in sheets:
         df_s = load_data(sheet_name=s)
         if df_s is not None and not df_s.empty and "Updated_By" in df_s.columns:
-            # Updated_By ఖాళీగా లేని రోస్ ని ఫిల్టర్ చేయడం
             upd_rows = df_s[df_s["Updated_By"].astype(str).str.strip() != ""]
             if not upd_rows.empty:
                 upd_rows = upd_rows.copy()
                 upd_rows.insert(0, "Sheet_Name", s)
-                all_updated_rows.append(upd_rows)
+                all_rows.append(upd_rows)
                 
-    if not all_updated_rows:
+    if not all_rows:
         st.warning("ఇంతవరకు కేస్ వర్కర్లు ఎటువంటి మార్పులు లేదా కొత్త కేసులు చేయలేదు.")
     else:
-        combined_df = pd.concat(all_updated_rows, ignore_index=True)
-        u_col = find_username_column(combined_df)
+        combined_df = pd.concat(all_rows, ignore_index=True)
         p_col = find_password_column(combined_df)
-        
-        # అనవసరమైన పాస్‌వర్డ్ కాలమ్ ని దాచిపెట్టి చూపించడం
         view_df = combined_df.drop(columns=[p_col], errors="ignore")
-        st.success(f"మొత్తం అప్‌డేట్ అయిన కేసులు: {len(view_df)}")
-        st.dataframe(view_df, use_container_width=True)
+        
+        # Tabs for New Cases vs Updated Cases
+        tab_new, tab_upd = st.tabs(["➕ కొత్త కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసిన కేసులు (Updated Cases)"])
+        
+        with tab_new:
+            new_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "new case"]
+            if new_cases_df.empty:
+                st.info("ఎటువంటి కొత్త కేసులు (New Cases) కనుగొనబడలేదు.")
+            else:
+                st.success(f"మొత్తం కొత్త కేసులు: {len(new_cases_df)}")
+                st.dataframe(new_cases_df, use_container_width=True)
+                
+        with tab_upd:
+            updated_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "updated case"]
+            if updated_cases_df.empty:
+                st.info("ఎటువంటి అప్‌డేట్ కేసులు (Updated Cases) కనుగొనబడలేదు.")
+            else:
+                st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
+                st.dataframe(updated_cases_df, use_container_width=True)
 
 @st.dialog("🔑 Admin పాస్‌వర్డ్ మార్చుకోండి", width="medium")
 def admin_password_dialog():
@@ -549,7 +564,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** షీట్ హెడ్డింగ్స్:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_user_col, t_pass_col, "Updated_By", "Updated_At"]]
+        cols = [c for c in target_df.columns if c not in [t_user_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type"]]
         for col_name in cols:
             form_data[col_name] = st.text_input(f"{col_name}")
         
@@ -567,6 +582,7 @@ def add_case_dialog(worker_name):
                 new_row[t_pass_col] = current_pass if final_assigned_user != "" else "admin123"
                 new_row["Updated_By"] = worker_name
                 new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                new_row["Action_Type"] = "New Case"
                 
                 for k, v in form_data.items():
                     new_row[k] = v
@@ -596,7 +612,7 @@ def search_data_dialog():
                 st.warning(f"'{search_query}' పేరుతో వివరాలు దొరకలేదు.")
             else:
                 st.success(f"'{search_query}' కి సంబంధించిన ఫలితాలు ({len(found_data)} rows):")
-                view_only_df = found_data.drop(columns=[u_col, p_col, "Updated_By", "Updated_At"], errors="ignore")
+                view_only_df = found_data.drop(columns=[u_col, p_col, "Updated_By", "Updated_At", "Action_Type"], errors="ignore")
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
@@ -880,7 +896,7 @@ else:
     if worker_perm.get("can_update", True):
         st.caption("💡 మీరు ఏ నిర్దిష్ట కేసులోనైతే మార్పులు చేసి సేవ్ చేస్తారో, ఆ ఒక్క రో (Row) కి మాత్రమే మీ పేరు మరియు టైమ్ రికార్డ్ అవుతుంది.")
         
-        editable_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore").reset_index(drop=True)
+        editable_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At", "Action_Type"], errors="ignore").reset_index(drop=True)
         edited_df = st.data_editor(editable_df, num_rows="dynamic", use_container_width=True, height=360, key="user_login_editor")
         
         if st.button("💾 Save My Changes to Excel", type="primary", key="worker_save_btn"):
@@ -892,6 +908,7 @@ else:
                 df_updated = df_updated.drop(orig_indices)
 
                 new_rows_list = []
+                # Check current rows in user_rows vs edited_df to classify New Case vs Updated Case
                 for i, row in edited_df.iterrows():
                     new_row = {col: "" for col in df.columns}
                     new_row[user_col] = current_user
@@ -908,6 +925,24 @@ else:
                     
                     new_row["Updated_By"] = current_user
                     new_row["Updated_At"] = current_time
+                    
+                    # If index exists in original rows, it's an update. If it's a new row added via data_editor, it's a New Case.
+                    if i < len(orig_indices):
+                        orig_idx = orig_indices[i]
+                        orig_row = user_rows.loc[orig_idx]
+                        changed = False
+                        for c in data_cols:
+                            if str(orig_row.get(c, "")).strip() != str(row.get(c, "")).strip():
+                                changed = True
+                                break
+                        if changed:
+                            new_row["Action_Type"] = "Updated Case"
+                        else:
+                            # Retain previous action type if no change
+                            new_row["Action_Type"] = str(orig_row.get("Action_Type", ""))
+                    else:
+                        new_row["Action_Type"] = "New Case"
+
                     new_rows_list.append(new_row)
 
                 if new_rows_list:
@@ -920,6 +955,6 @@ else:
                 st.error(f"❌ సమస్య: {e}")
     else:
         st.warning("⚠️ అడ్మిన్ ద్వారా మీకు ఈ కేసులను ఎడిట్ చేసి అప్‌డేట్ చేసే అనుమతి (Update Permission) నిలిపివేయబడింది.")
-        view_only_user_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At"], errors="ignore")
+        view_only_user_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At", "Action_Type"], errors="ignore")
         view_only_user_df.index = range(1, len(view_only_user_df) + 1)
         st.dataframe(view_only_user_df, use_container_width=True)
