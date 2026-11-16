@@ -1675,7 +1675,7 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
-        # Display Interactive Visa Category Buttons in Exactly 2 Rows
+        # Display Interactive Visa Category Buttons in Exactly 2 Rows for Admin
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
@@ -1688,7 +1688,7 @@ elif st.session_state["role"] == "admin":
                     for idx, (v_name, v_count) in enumerate(row_items):
                         with v_cols[idx]:
                             btn_label = f"✈️ {v_name}: {v_count}"
-                            if st.button(btn_label, key=f"visa_card_btn_{v_name}_{idx}", use_container_width=True):
+                            if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
                                 if st.session_state["selected_visa_filter"] == v_name:
                                     st.session_state["selected_visa_filter"] = "All"
                                 else:
@@ -1847,21 +1847,29 @@ else:
         with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-        # 2. Worker Visa Category Breakdown Grid in Exactly 2 Rows
+        # 2. Worker Visa Category Breakdown in EXACTLY ONE SINGLE LINE
         if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution</div>", unsafe_allow_html=True)
+            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click to filter):</div>", unsafe_allow_html=True)
             colors_list = ["gold", "purple", "green", "blue"]
             visa_items = list(visa_counts.items())
-            mid = (len(visa_items) + 1) // 2
-            rows = [visa_items[:mid], visa_items[mid:]]
             
-            for r_idx, row_items in enumerate(rows):
-                if row_items:
-                    v_cols = st.columns(len(row_items), gap="medium")
-                    for idx, (v_name, v_count) in enumerate(row_items):
-                        c_class = colors_list[(r_idx + idx) % len(colors_list)]
-                        with v_cols[idx]:
-                            st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+            if visa_items:
+                w_cols = st.columns(len(visa_items), gap="medium")
+                for idx, (v_name, v_count) in enumerate(visa_items):
+                    c_class = colors_list[idx % len(colors_list)]
+                    with w_cols[idx]:
+                        btn_label = f"✈️ {v_name}: {v_count}"
+                        if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
+                            if st.session_state["selected_visa_filter"] == v_name:
+                                st.session_state["selected_visa_filter"] = "All"
+                            else:
+                                st.session_state["selected_visa_filter"] = v_name
+                            st.rerun()
+
+            if st.session_state["selected_visa_filter"] != "All":
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All Cases)", use_container_width=True, key="worker_reset_visa_filter"):
+                    st.session_state["selected_visa_filter"] = "All"
+                    st.rerun()
 
         st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
         has_sync_perm = worker_perm.get("can_sync", False)
@@ -1927,13 +1935,19 @@ else:
                 
         st.divider()
         
-        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
+        # Filter worker rows based on active interactive visa filter button
+        filtered_user_rows = user_rows
+        if st.session_state["selected_visa_filter"] != "All" and visa_col:
+            target_visa = st.session_state["selected_visa_filter"]
+            filtered_user_rows = filtered_user_rows[filtered_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
-        if user_rows.empty:
-            st.info("No cases assigned to you in this sheet.")
+        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(filtered_user_rows)})</div>", unsafe_allow_html=True)
+
+        if filtered_user_rows.empty:
+            st.info("No cases found matching the selected filter.")
         else:
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
-            render_clickable_table(user_rows, display_c, p_col)
+            render_clickable_table(filtered_user_rows, display_c, p_col)
 
     elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
