@@ -39,7 +39,6 @@ if st.session_state["logged_in"] and "edit_row" in qp:
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
         st.session_state["is_editing_popup"] = False
-        st.session_state["is_delete_request_mode"] = False
         if "edit_row" in st.query_params:
             del st.query_params["edit_row"]
     except:
@@ -437,10 +436,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     if "is_editing_popup" not in st.session_state:
         st.session_state["is_editing_popup"] = False
-    if "is_delete_request_mode" not in st.session_state:
-        st.session_state["is_delete_request_mode"] = False
 
-    if not st.session_state["is_editing_popup"] and not st.session_state["is_delete_request_mode"]:
+    if not st.session_state["is_editing_popup"]:
         st.markdown("### 📄 Case Information")
         for col in df_full.columns:
             if col not in [p_col]:
@@ -467,43 +464,30 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Error deleting case: {e}")
-                else:
-                    if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req_mode"):
-                        st.session_state["is_delete_request_mode"] = True
-                        st.rerun()
 
-    elif st.session_state["is_delete_request_mode"]:
-        st.markdown("### 🗑️ Request Delete Case")
-        with st.form(f"delete_reason_form_{row_idx}"):
-            del_reason = st.text_area("✍️ ఈ కేసును ఎందుకు డిలీట్ చేయాలనుకుంటున్నారు? (Reason required):", placeholder="కారణం ఇక్కడ రాయండి...")
-            col_sub_req, col_back_req = st.columns(2)
-            with col_sub_req:
-                submitted_req = st.form_submit_button("🚀 Submit Delete Request", type="primary", use_container_width=True)
-            with col_back_req:
-                cancelled_req = st.form_submit_button("↩️ Back", use_container_width=True)
-
-            if submitted_req:
-                if del_reason.strip() == "":
-                    st.warning("⚠️ దయచేసి డిలీట్ చేయడానికి తగిన కారణం (Reason) రాయండి.")
-                else:
-                    try:
-                        df_full.at[row_idx, "Updated_By"] = current_user
-                        df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        df_full.at[row_idx, "Action_Type"] = "Delete Request"
-                        df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
-                        save_data(df_full, sheet_name=sheet_name)
-                        st.session_state["is_delete_request_mode"] = False
-                        st.session_state["selected_row_idx"] = None
-                        st.session_state["open_dialog"] = None
-                        st.success("✅ Delete request sent to Admin with reason successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-
-            if cancelled_req:
-                st.session_state["is_delete_request_mode"] = False
-                st.rerun()
-
+            # Direct Delete Request form for Case Worker right inside view mode
+            if role != "admin":
+                st.markdown("---")
+                st.markdown("#### 🗑️ Request Case Deletion")
+                with st.form(f"worker_del_req_form_{row_idx}"):
+                    del_reason_input = st.text_input("✍️ ఈ కేసును ఎందుకు డిలీట్ చేయాలనుకుంటున్నారు? (Reason):", placeholder="కారణం ఇక్కడ రాయండి...", key=f"del_rsn_{row_idx}")
+                    submitted_del_req = st.form_submit_button("📤 Submit Delete Request", type="secondary", use_container_width=True)
+                    if submitted_del_req:
+                        if del_reason_input.strip() == "":
+                            st.warning("⚠️ దయచేసి డిలీట్ చేయడానికి కారణం (Reason) రాయండి.")
+                        else:
+                            try:
+                                df_full.at[row_idx, "Updated_By"] = current_user
+                                df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                df_full.at[row_idx, "Action_Type"] = "Delete Request"
+                                df_full.at[row_idx, "Delete_Reason"] = del_reason_input.strip()
+                                save_data(df_full, sheet_name=sheet_name)
+                                st.session_state["selected_row_idx"] = None
+                                st.session_state["open_dialog"] = None
+                                st.success("✅ Delete request sent to Admin with reason successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error: {e}")
     else:
         st.markdown("### ✏️ Edit Case Details")
         with st.form(f"popup_edit_form_{row_idx}"):
@@ -605,10 +589,10 @@ def render_clickable_table(df, display_c, p_col):
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
 
-# 🌟 Combined New/Updated Cases, Delete Requests & Calendar Dialog View
+# 🌟 Combined New/Updated Cases & Calendar Dialog View (Without Delete Requests)
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
-    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**), డిలీట్ రిక్వెస్ట్‌లు (**Delete Requests**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
+    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
     sheets = get_sheet_names()
     all_rows = []
     
@@ -621,7 +605,7 @@ def admin_updated_cases_dialog():
                 upd_rows.insert(0, "Sheet_Name", s)
                 all_rows.append(upd_rows)
                 
-    tab_new, tab_upd, tab_del_req, tab_cal = st.tabs(["➕ న్యూ కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసినవి (Updated)", "🗑️ డిలీట్ రిక్వెస్ట్‌లు (Delete Requests)", "📅 క్యాలెండర్ (Calendar)"])
+    tab_new, tab_upd, tab_cal = st.tabs(["➕ న్యూ కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసినవి (Updated)", "📅 క్యాలెండర్ (Calendar)"])
     
     with tab_new:
         if not all_rows:
@@ -651,61 +635,6 @@ def admin_updated_cases_dialog():
                 st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
                 render_clickable_table(updated_cases_df, find_display_username_column(updated_cases_df), p_col)
 
-    with tab_del_req:
-        st.write("🗑️ **కేస్ వర్కర్స్ ద్వారా పంపబడిన డిలీట్ రిక్వెస్ట్‌లు:**")
-        del_reqs_list = []
-        for s in sheets:
-            df_s = load_data(sheet_name=s)
-            if df_s is not None and not df_s.empty and "Action_Type" in df_s.columns:
-                for idx, r in df_s.iterrows():
-                    if str(r.get("Action_Type", "")).strip().lower() == "delete request":
-                        r_dict = r.to_dict()
-                        r_dict["Sheet_Name"] = s
-                        r_dict["Original_Index"] = idx
-                        del_reqs_list.append(r_dict)
-        
-        if not del_reqs_list:
-            st.info("ఎటువంటి డిలీట్ రిక్వెస్ట్‌లు లేవు.")
-        else:
-            st.success(f"మొత్తం డిలీట్ రిక్వెస్ట్‌లు: {len(del_reqs_list)}")
-            for i, r_dict in enumerate(del_reqs_list):
-                s_name = r_dict["Sheet_Name"]
-                orig_idx = r_dict["Original_Index"]
-                worker_name = r_dict.get("Updated_By", "Unknown")
-                req_time = r_dict.get("Updated_At", "")
-                
-                # Fetch specific Username and Delete Reason as requested
-                df_temp = load_data(sheet_name=s_name)
-                disp_col = find_display_username_column(df_temp) if df_temp is not None else "USERNAME"
-                case_username = str(r_dict.get(disp_col, "N/A"))
-                delete_reason = str(r_dict.get("Delete_Reason", "Reason not specified"))
-
-                with st.expander(f"📁 Sheet: {s_name} | Case User: {case_username} | Worker: {worker_name}"):
-                    st.markdown(f"👤 **Case Username:** `{case_username}`")
-                    st.markdown(f"✍️ **Delete Reason:** `{delete_reason}`")
-                    st.caption(f"Requested Time: {req_time}")
-                    
-                    col_acc, col_rej = st.columns(2)
-                    with col_acc:
-                        if st.button("✅ Accept Delete (Permanent Delete)", key=f"accept_del_{s_name}_{orig_idx}_{i}", type="primary", use_container_width=True):
-                            df_target = load_data(sheet_name=s_name)
-                            if df_target is not None and orig_idx in df_target.index:
-                                df_target = df_target.drop(orig_idx)
-                                save_data(df_target, sheet_name=s_name)
-                                st.success("✅ Delete request accepted! Case permanently deleted.")
-                                st.rerun()
-                    with col_rej:
-                        if st.button("❌ Reject Delete (Restore Case)", key=f"reject_del_{s_name}_{orig_idx}_{i}", use_container_width=True):
-                            df_target = load_data(sheet_name=s_name)
-                            if df_target is not None and orig_idx in df_target.index:
-                                df_target.at[orig_idx, "Action_Type"] = ""
-                                df_target.at[orig_idx, "Updated_By"] = ""
-                                df_target.at[orig_idx, "Updated_At"] = ""
-                                df_target.at[orig_idx, "Delete_Reason"] = ""
-                                save_data(df_target, sheet_name=s_name)
-                                st.success("❌ Delete request rejected. Case restored.")
-                                st.rerun()
-
     with tab_cal:
         st.write("📅 **తేదీ వారీగా ఫిల్టర్ చేసి చూడండి:**")
         selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select_tab")
@@ -728,6 +657,64 @@ def admin_updated_cases_dialog():
                     render_clickable_table(matched_df, display_c, pc)
             else:
                 st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
+
+# 🌟 Separate Admin Delete Requests Dialog
+@st.dialog("🗑️ Pending Delete Requests", width="large")
+def admin_delete_requests_dialog():
+    st.info("💡 కేస్ వర్కర్ల ద్వారా డిలీట్ చేయమని పంపబడిన రిక్వెస్ట్‌లు (Username మరియు Reason తో సహా):")
+    sheets = get_sheet_names()
+    del_reqs_list = []
+    
+    for s in sheets:
+        df_s = load_data(sheet_name=s)
+        if df_s is not None and not df_s.empty and "Action_Type" in df_s.columns:
+            for idx, r in df_s.iterrows():
+                if str(r.get("Action_Type", "")).strip().lower() == "delete request":
+                    r_dict = r.to_dict()
+                    r_dict["Sheet_Name"] = s
+                    r_dict["Original_Index"] = idx
+                    del_reqs_list.append(r_dict)
+    
+    if not del_reqs_list:
+        st.info("ఎటువంటి డిలీట్ రిక్వెస్ట్‌లు లేవు.")
+    else:
+        st.success(f"మొత్తం పెండింగ్ డిలీట్ రిక్వెస్ట్‌లు: {len(del_reqs_list)}")
+        for i, r_dict in enumerate(del_reqs_list):
+            s_name = r_dict["Sheet_Name"]
+            orig_idx = r_dict["Original_Index"]
+            worker_name = r_dict.get("Updated_By", "Unknown")
+            req_time = r_dict.get("Updated_At", "")
+            
+            df_temp = load_data(sheet_name=s_name)
+            disp_col = find_display_username_column(df_temp) if df_temp is not None else "USERNAME"
+            case_username = str(r_dict.get(disp_col, "N/A"))
+            delete_reason = str(r_dict.get("Delete_Reason", "Reason not specified"))
+
+            with st.expander(f"📁 Sheet: {s_name} | Case User: {case_username} | Worker: {worker_name}"):
+                st.markdown(f"👤 **Case Username:** `{case_username}`")
+                st.markdown(f"✍️ **Delete Reason:** `{delete_reason}`")
+                st.caption(f"Requested Time: {req_time}")
+                
+                col_acc, col_rej = st.columns(2)
+                with col_acc:
+                    if st.button("✅ Accept Delete (Permanent Delete)", key=f"accept_del_{s_name}_{orig_idx}_{i}", type="primary", use_container_width=True):
+                        df_target = load_data(sheet_name=s_name)
+                        if df_target is not None and orig_idx in df_target.index:
+                            df_target = df_target.drop(orig_idx)
+                            save_data(df_target, sheet_name=s_name)
+                            st.success("✅ Delete request accepted! Case permanently deleted.")
+                            st.rerun()
+                with col_rej:
+                    if st.button("❌ Reject Delete (Restore Case)", key=f"reject_del_{s_name}_{orig_idx}_{i}", use_container_width=True):
+                        df_target = load_data(sheet_name=s_name)
+                        if df_target is not None and orig_idx in df_target.index:
+                            df_target.at[orig_idx, "Action_Type"] = ""
+                            df_target.at[orig_idx, "Updated_By"] = ""
+                            df_target.at[orig_idx, "Updated_At"] = ""
+                            df_target.at[orig_idx, "Delete_Reason"] = ""
+                            save_data(df_target, sheet_name=s_name)
+                            st.success("❌ Delete request rejected. Case restored.")
+                            st.rerun()
 
 # 🌟 Other Modal Dialogs
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
@@ -977,6 +964,9 @@ elif st.session_state["open_dialog"] == "sync_excel":
 elif st.session_state["open_dialog"] == "admin_updated_cases":
     admin_updated_cases_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_delete_requests":
+    admin_delete_requests_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
     st.session_state["open_dialog"] = None
@@ -1109,7 +1099,7 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4 = st.columns(4)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5 = st.columns(5)
     with col_btn_1:
         if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
@@ -1123,8 +1113,12 @@ elif st.session_state["role"] == "admin":
             st.session_state["open_dialog"] = "sync_excel"
             st.rerun()
     with col_btn_4:
-        if st.button("📋 New / Updated Cases & Calendar", use_container_width=True, key="admin_upd_cases_btn"):
+        if st.button("📋 New / Updated & Calendar", use_container_width=True, key="admin_upd_cases_btn"):
             st.session_state["open_dialog"] = "admin_updated_cases"
+            st.rerun()
+    with col_btn_5:
+        if st.button("🗑️ Delete Requests", use_container_width=True, key="admin_del_req_btn"):
+            st.session_state["open_dialog"] = "admin_delete_requests"
             st.rerun()
 
     st.divider()
