@@ -566,7 +566,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
-# 🌟 Helper function to render table with clickable USERNAME hyperlinks inside table cells
+# 🌟 Helper function to render table with status column at the end
 def render_clickable_table(df, display_c, p_col):
     if df.empty:
         st.info("No cases found.")
@@ -588,15 +588,15 @@ def render_clickable_table(df, display_c, p_col):
     """
     for col in display_cols:
         html += f'<th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">{col}</th>'
+    html += '<th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">Status</th>'
     html += "</tr></thead><tbody>"
 
     for idx, row in df.iterrows():
         row_bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
         
-        # Highlight row if delete was rejected
         act_t = str(row.get("Action_Type", "")).strip().lower()
         if act_t == "delete rejected":
-            row_bg = "#fee2e2" # Light red tint for rejected cases
+            row_bg = "#fee2e2"
 
         html += f'<tr style="background-color: {row_bg};">'
         html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>'
@@ -605,14 +605,16 @@ def render_clickable_table(df, display_c, p_col):
             val = str(row[col])
             if col == display_c:
                 display_val = val.strip() if val.strip() != "" else "Not Assigned"
-                if act_t == "delete rejected":
-                    display_val += " ❌ (Rejected)"
                 link_url = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row={idx}"
                 cell_content = f'<a href="{link_url}" target="_self" class="username-hyperlink">{display_val}</a>'
             else:
                 cell_content = val if val != "" else "-"
             
             html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
+        
+        # Status at the end of the row
+        status_display = "Rejected" if act_t == "delete rejected" else "-"
+        html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: 700; white-space: nowrap;">{status_display}</td>'
         html += "</tr>"
 
     html += "</tbody></table></div>"
