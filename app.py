@@ -461,7 +461,6 @@ def admin_updated_cases_dialog():
         p_col = find_password_column(combined_df)
         view_df = combined_df.drop(columns=[p_col], errors="ignore")
         
-        # Tabs for New Cases vs Updated Cases
         tab_new, tab_upd = st.tabs(["➕ కొత్త కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసిన కేసులు (Updated Cases)"])
         
         with tab_new:
@@ -479,6 +478,50 @@ def admin_updated_cases_dialog():
             else:
                 st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
                 st.dataframe(updated_cases_df, use_container_width=True)
+
+@st.dialog("📅 Day-wise Calendar View", width="large")
+def calendar_view_dialog(worker_filter=None):
+    st.info("💡 ఒక నిర్దిష్ట తేదీని (Date) సెలెక్ట్ చేసుకుని ఆ రోజు బుక్ అయిన లేదా అప్‌డేట్ అయిన కేసులను చూడండి:")
+    sheets = get_sheet_names()
+    selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select")
+    
+    df_cal = load_data(sheet_name=selected_cal_sheet)
+    if df_cal is None or df_cal.empty:
+        st.warning("ఈ షీట్‌లో డేటా అందుబాటులో లేదు.")
+        return
+        
+    # Find columns that look like date (contain 'date' or 'entty' or 'time')
+    date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day'])]
+    if not date_cols:
+        st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
+        return
+        
+    selected_date_col = st.selectbox("Select Date Column:", options=date_cols, key="cal_date_col_select")
+    
+    # Pick a date using st.date_input
+    selected_date = st.date_input("Select Target Date:", value=datetime.date.today(), key="cal_target_date")
+    
+    if df_cal is not None and not df_cal.empty:
+        # Filter by worker if called from worker dashboard
+        if worker_filter:
+            uc = find_username_column(df_cal)
+            df_cal = df_cal[df_cal[uc].astype(str).str.strip().str.lower() == worker_filter.lower()]
+            
+        # Convert selected date to string formats for flexible matching (e.g., YYYY-MM-DD)
+        date_str = selected_date.strftime("%Y-%m-%d")
+        
+        # Match rows where selected date column contains the selected date string
+        mask = df_cal[selected_date_col].astype(str).str.contains(date_str, na=False)
+        matched_df = df_cal[mask]
+        
+        st.write(f"📅 **{date_str}** తేదీకి సంబంధించిన కేసులు ({len(matched_df)} found):")
+        if matched_df.empty:
+            st.info(f"ఈ తేదీ ({date_str}) లో ఎటువంటి కేసులు నమోదు కాలేదు.")
+        else:
+            pc = find_password_column(matched_df)
+            uc = find_username_column(matched_df)
+            display_matched = matched_df.drop(columns=[pc], errors="ignore")
+            st.dataframe(display_matched, use_container_width=True)
 
 @st.dialog("🔑 Admin పాస్‌వర్డ్ మార్చుకోండి", width="medium")
 def admin_password_dialog():
@@ -623,6 +666,12 @@ if st.session_state["open_dialog"] == "permissions":
 elif st.session_state["open_dialog"] == "admin_updated_cases":
     admin_updated_cases_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "calendar_view":
+    calendar_view_dialog()
+    st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "worker_calendar_view":
+    calendar_view_dialog(worker_filter=st.session_state.get("username", ""))
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "admin_password":
     admin_password_dialog()
     st.session_state["open_dialog"] = None
@@ -729,17 +778,21 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3 = st.columns(3)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4 = st.columns(4)
     with col_btn_1:
-        if st.button("👥 Users, Passwords & Permissions", use_container_width=True, key="admin_perm_btn"):
+        if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
     with col_btn_2:
-        if st.button("📋 View All Updated / New Cases", use_container_width=True, key="admin_upd_cases_btn"):
+        if st.button("📋 New / Updated Cases", use_container_width=True, key="admin_upd_cases_btn"):
             st.session_state["open_dialog"] = "admin_updated_cases"
             st.rerun()
     with col_btn_3:
-        if st.button("🔑 Change Admin Password", use_container_width=True, key="admin_pw_btn"):
+        if st.button("📅 Day-wise Calendar", use_container_width=True, key="admin_cal_btn"):
+            st.session_state["open_dialog"] = "calendar_view"
+            st.rerun()
+    with col_btn_4:
+        if st.button("🔑 Change Password", use_container_width=True, key="admin_pw_btn"):
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
 
@@ -863,25 +916,32 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
+    col_w_btn1, col_w_btn2, col_w_btn3, col_w_btn4 = st.columns(4)
     with col_w_btn1:
-        if st.button("🔑 పాస్‌వర్డ్ మార్చుకోండి", use_container_width=True, key="worker_pw_btn"):
+        if st.button("🔑 పాస్‌వర్డ్", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
     with col_w_btn2:
         if worker_perm.get("can_add", True):
-            if st.button("➕ కొత్త కేసును జోడించండి", use_container_width=True, key="worker_add_btn"):
+            if st.button("➕ కొత్త కేసు", use_container_width=True, key="worker_add_btn"):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
-            st.button("🚫 కొత్త కేసుల పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_add_disabled")
+            st.button("🚫 పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_add_disabled")
     with col_w_btn3:
         if worker_perm.get("can_search", True):
-            if st.button("🔍 Main Data వెతకండి", use_container_width=True, key="worker_search_btn"):
+            if st.button("📅 Day-wise Calendar", use_container_width=True, key="worker_cal_btn"):
+                st.session_state["open_dialog"] = "worker_calendar_view"
+                st.rerun()
+        else:
+            st.button("🚫 పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_cal_disabled")
+    with col_w_btn4:
+        if worker_perm.get("can_search", True):
+            if st.button("🔍 Main Search", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
-            st.button("🚫 సెర్చ్ పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_search_disabled")
+            st.button("🚫 పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_search_disabled")
             
     st.divider()
 
@@ -908,7 +968,6 @@ else:
                 df_updated = df_updated.drop(orig_indices)
 
                 new_rows_list = []
-                # Check current rows in user_rows vs edited_df to classify New Case vs Updated Case
                 for i, row in edited_df.iterrows():
                     new_row = {col: "" for col in df.columns}
                     new_row[user_col] = current_user
@@ -926,7 +985,6 @@ else:
                     new_row["Updated_By"] = current_user
                     new_row["Updated_At"] = current_time
                     
-                    # If index exists in original rows, it's an update. If it's a new row added via data_editor, it's a New Case.
                     if i < len(orig_indices):
                         orig_idx = orig_indices[i]
                         orig_row = user_rows.loc[orig_idx]
@@ -938,7 +996,6 @@ else:
                         if changed:
                             new_row["Action_Type"] = "Updated Case"
                         else:
-                            # Retain previous action type if no change
                             new_row["Action_Type"] = str(orig_row.get("Action_Type", ""))
                     else:
                         new_row["Action_Type"] = "New Case"
