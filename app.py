@@ -18,65 +18,7 @@ st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wi
 
 # 🌟 Helper function for Indian Standard Time (IST)
 def get_ist_now():
-    # సర్వర్ టైమ్ UTC అయినప్పటికీ, సరిగ్గా IST (Indian Standard Time) టైమ్ వచ్చేలా 5:30 గంటలు అడ్జస్ట్ చేయబడింది
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
-
-# 🌟 Session State & Query Params Initialization
-qp = st.query_params
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-    st.session_state["username"] = ""
-    st.session_state["role"] = ""
-
-if "attendance_recorded" not in st.session_state:
-    st.session_state["attendance_recorded"] = False
-
-if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
-    st.session_state["logged_in"] = True
-    st.session_state["username"] = qp.get("username", "")
-    st.session_state["role"] = qp.get("role", "worker")
-    if qp.get("role") == "worker" and not st.session_state["attendance_recorded"]:
-        record_worker_login(qp.get("username", ""))
-        st.session_state["attendance_recorded"] = True
-
-if "open_dialog" not in st.session_state:
-    st.session_state["open_dialog"] = None
-
-if "selected_row_idx" not in st.session_state:
-    st.session_state["selected_row_idx"] = None
-
-# Handle Hyperlink Click from URL Query Params securely
-if st.session_state["logged_in"] and "edit_row" in qp:
-    try:
-        r_val = int(qp["edit_row"])
-        st.session_state["selected_row_idx"] = r_val
-        st.session_state["open_dialog"] = "edit_case_popup"
-        st.session_state["is_editing_popup"] = False
-        st.session_state["is_delete_request_mode"] = False
-        if "edit_row" in st.query_params:
-            del st.query_params["edit_row"]
-    except:
-        if "edit_row" in st.query_params:
-            del st.query_params["edit_row"]
-elif not st.session_state["logged_in"] and "edit_row" in qp:
-    qp.clear()
-
-if "active_sheet" not in st.session_state:
-    def get_initial_sheets():
-        if os.path.exists(EXCEL_FILE):
-            try:
-                xls = pd.ExcelFile(EXCEL_FILE)
-                return xls.sheet_names
-            except Exception:
-                return ["Sheet1"]
-        return ["Sheet1"]
-    sheets_init = get_initial_sheets()
-    saved_sheet = qp.get("active_sheet")
-    if saved_sheet in sheets_init:
-        st.session_state["active_sheet"] = saved_sheet
-    else:
-        st.session_state["active_sheet"] = sheets_init[0] if sheets_init else "Sheet1"
 
 def get_admin_creds():
     if os.path.exists(ADMIN_FILE):
@@ -194,11 +136,6 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
-    if not st.session_state.get("attendance_recorded", False):
-        record_worker_login(st.session_state["username"])
-        st.session_state["attendance_recorded"] = True
-
 def get_sheet_names():
     if os.path.exists(EXCEL_FILE):
         try:
@@ -277,6 +214,69 @@ def find_password_column(df):
         if col.strip().lower() in ["password", "pass"]:
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
+
+
+# 🌟 Session State & Query Params Initialization
+qp = st.query_params
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+    st.session_state["username"] = ""
+    st.session_state["role"] = ""
+
+if "attendance_recorded" not in st.session_state:
+    st.session_state["attendance_recorded"] = False
+
+if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
+    st.session_state["logged_in"] = True
+    st.session_state["username"] = qp.get("username", "")
+    st.session_state["role"] = qp.get("role", "worker")
+    if qp.get("role") == "worker" and not st.session_state["attendance_recorded"]:
+        record_worker_login(qp.get("username", ""))
+        st.session_state["attendance_recorded"] = True
+
+if "open_dialog" not in st.session_state:
+    st.session_state["open_dialog"] = None
+
+if "selected_row_idx" not in st.session_state:
+    st.session_state["selected_row_idx"] = None
+
+# Handle Hyperlink Click from URL Query Params securely
+if st.session_state["logged_in"] and "edit_row" in qp:
+    try:
+        r_val = int(qp["edit_row"])
+        st.session_state["selected_row_idx"] = r_val
+        st.session_state["open_dialog"] = "edit_case_popup"
+        st.session_state["is_editing_popup"] = False
+        st.session_state["is_delete_request_mode"] = False
+        if "edit_row" in st.query_params:
+            del st.query_params["edit_row"]
+    except:
+        if "edit_row" in st.query_params:
+            del st.query_params["edit_row"]
+elif not st.session_state["logged_in"] and "edit_row" in qp:
+    qp.clear()
+
+if "active_sheet" not in st.session_state:
+    def get_initial_sheets():
+        if os.path.exists(EXCEL_FILE):
+            try:
+                xls = pd.ExcelFile(EXCEL_FILE)
+                return xls.sheet_names
+            except Exception:
+                return ["Sheet1"]
+        return ["Sheet1"]
+    sheets_init = get_initial_sheets()
+    saved_sheet = qp.get("active_sheet")
+    if saved_sheet in sheets_init:
+        st.session_state["active_sheet"] = saved_sheet
+    else:
+        st.session_state["active_sheet"] = sheets_init[0] if sheets_init else "Sheet1"
+
+if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
+    if not st.session_state.get("attendance_recorded", False):
+        record_worker_login(st.session_state["username"])
+        st.session_state["attendance_recorded"] = True
 
 # 🎨 Modern Professional CSS & Marquee Styling
 st.markdown("""
