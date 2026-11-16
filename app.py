@@ -16,6 +16,11 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
+# 🌟 Helper function for Indian Standard Time (IST)
+def get_ist_now():
+    # సర్వర్ టైమ్ UTC అయినప్పటికీ, సరిగ్గా IST (Indian Standard Time) టైమ్ వచ్చేలా 5:30 గంటలు అడ్జస్ట్ చేయబడింది
+    return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+
 # 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
@@ -136,7 +141,7 @@ def save_attendance(att_list):
 def record_worker_login(worker_name):
     if not worker_name:
         return
-    now_dt = datetime.datetime.now()
+    now_dt = get_ist_now()
     today_str = now_dt.strftime("%Y-%m-%d")
     time_str = now_dt.strftime("%I:%M:%S %p")
     full_timestamp = f"{today_str} {time_str}"
@@ -171,7 +176,7 @@ def record_worker_login(worker_name):
 def record_worker_logout(worker_name):
     if not worker_name:
         return
-    now_dt = datetime.datetime.now()
+    now_dt = get_ist_now()
     today_str = now_dt.strftime("%Y-%m-%d")
     time_str = now_dt.strftime("%I:%M:%S %p")
     
@@ -614,7 +619,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 else:
                     try:
                         df_full.at[row_idx, "Updated_By"] = current_user
-                        df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        df_full.at[row_idx, "Updated_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
                         df_full.at[row_idx, "Action_Type"] = "Delete Request"
                         df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
                         save_data(df_full, sheet_name=sheet_name)
@@ -659,7 +664,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if submitted:
                 try:
-                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+                    current_time = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
                     changed = False
                     for col_name, new_val in updated_values.items():
                         old_val = str(df_full.at[row_idx, col_name]).strip()
@@ -1202,7 +1207,7 @@ def add_case_dialog(worker_name):
 
                 new_row[t_pass_col] = current_pass if final_assigned_user != "" else "admin123"
                 new_row["Updated_By"] = worker_name
-                new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+                new_row["Updated_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
                 new_row["Action_Type"] = "New Case"
                 new_row["Delete_Reason"] = ""
                 
