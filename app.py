@@ -16,11 +16,9 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Perfect IST Timezone Helper (Cloud Server UTC to Indian Standard Time UTC +5:30 conversion)
+# 🌟 Perfect IST Timezone Helper (Cloud Server UTC + 5:30 hours for Indian Standard Time)
 def get_ist_now():
-    utc_dt = datetime.datetime.now(datetime.timezone.utc)
-    ist_tz = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
-    return utc_dt.astimezone(ist_tz).replace(tzinfo=None)
+    return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
 def get_admin_creds():
     if os.path.exists(ADMIN_FILE):
@@ -861,34 +859,6 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 Worker Attendance Dialog (For Case Workers)
-@st.dialog("📊 My Attendance Report", width="large")
-def worker_attendance_dialog(worker_name):
-    st.info(f"💡 **{worker_name}** గారూ, మీ రోజువారీ లాగిన్ మరియు లాగౌట్ సమయాల హాజరు (Attendance) వివరాలు:")
-    
-    attendance_data = load_attendance()
-    my_att = [entry for entry in attendance_data if entry.get("Worker", "").lower() == worker_name.strip().lower()]
-    
-    if not my_att:
-        st.warning("ఎటువంటి అటెండెన్స్ రికార్డులు కనుగొనబడలేదు.")
-    else:
-        df_att = pd.DataFrame(my_att)
-        df_att.index = range(1, len(df_att) + 1)
-        st.dataframe(df_att, use_container_width=True)
-        
-        att_buffer = io.BytesIO()
-        with pd.ExcelWriter(att_buffer, engine='openpyxl') as writer:
-            df_att.to_excel(writer, sheet_name="My_Attendance", index=False)
-            
-        st.download_button(
-            label="📥 Download My Attendance Report (.xlsx)",
-            data=att_buffer.getvalue(),
-            file_name=f"{worker_name}_Attendance.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="download_worker_attendance_excel"
-        )
-
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
     st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
@@ -1270,9 +1240,6 @@ elif st.session_state["open_dialog"] == "admin_login_status":
 elif st.session_state["open_dialog"] == "admin_attendance":
     admin_attendance_dialog()
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "worker_attendance":
-    worker_attendance_dialog(st.session_state.get("username", ""))
-    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
     st.session_state["open_dialog"] = None
@@ -1569,7 +1536,7 @@ else:
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
     has_sync_perm = worker_perm.get("can_sync", False)
-    w_cols = st.columns(6 if has_sync_perm else 5)
+    w_cols = st.columns(5 if has_sync_perm else 4)
     
     with w_cols[0]:
         if st.button("🔑 Password", use_container_width=True, key="worker_pw_btn"):
@@ -1616,14 +1583,9 @@ else:
             )
         else:
             st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
-            
-    with w_cols[4]:
-        if st.button("📊 Attendance", use_container_width=True, key="worker_att_btn"):
-            st.session_state["open_dialog"] = "worker_attendance"
-            st.rerun()
 
     if has_sync_perm:
-        with w_cols[5]:
+        with w_cols[4]:
             if st.button("🔄 Sync", use_container_width=True, key="worker_sync_btn"):
                 st.session_state["open_dialog"] = "sync_excel"
                 st.rerun()
