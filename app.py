@@ -1681,8 +1681,6 @@ elif st.session_state["role"] == "admin":
             """, unsafe_allow_html=True)
 
     if admin_dash_tab in ["📊 Dashboard & Quick Actions", "📂 Case Records & Search"]:
-        st.markdown(f"<div class='section-banner'>🔍 Case Records & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
-        
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
         with col_search:
             admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
