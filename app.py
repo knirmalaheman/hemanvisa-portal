@@ -1603,7 +1603,7 @@ elif st.session_state["role"] == "admin":
     unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
     active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
-    # Calculate Visa Counts for Admin Dashboard as well
+    # Calculate Visa Counts for Admin Dashboard
     visa_col = None
     for c in df.columns:
         if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
@@ -1618,23 +1618,29 @@ elif st.session_state["role"] == "admin":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
-        total_metrics = 4 + len(visa_counts)
-        kpi_cols = st.columns(total_metrics if total_metrics > 0 else 4, gap="medium")
-
-        with kpi_cols[0]:
+        # 1. Core KPIs Row (4 columns)
+        k1, k2, k3, k4 = st.columns(4, gap="medium")
+        with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
-        with kpi_cols[1]:
+        with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated Cases</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
-        with kpi_cols[2]:
+        with k3:
             st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
-        with kpi_cols[3]:
+        with k4:
             st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
 
-        colors_list = ["gold", "purple", "green", "blue"]
-        for idx, (v_name, v_count) in enumerate(visa_counts.items()):
-            c_class = colors_list[idx % len(colors_list)]
-            with kpi_cols[4 + idx]:
-                st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+        # 2. Visa Category Breakdown Grid (4 columns per row for clean professional look)
+        if visa_counts:
+            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution</div>", unsafe_allow_html=True)
+            colors_list = ["gold", "purple", "green", "blue"]
+            visa_items = list(visa_counts.items())
+            for i in range(0, len(visa_items), 4):
+                row_items = visa_items[i:i+4]
+                v_cols = st.columns(4, gap="medium")
+                for idx, (v_name, v_count) in enumerate(row_items):
+                    c_class = colors_list[(i + idx) % len(colors_list)]
+                    with v_cols[idx]:
+                        st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
 
         st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
         r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4, gap="medium")
@@ -1822,19 +1828,25 @@ else:
                 if v_clean != "":
                     visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
-        total_metrics = 2 + len(visa_counts)
-        kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2, gap="medium")
-
-        with kpi_cols[0]:
+        # 1. Worker Core KPIs Row (2 columns)
+        k1, k2 = st.columns(2, gap="medium")
+        with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
-        with kpi_cols[1]:
+        with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-        colors_list = ["gold", "purple", "green", "blue"]
-        for idx, (v_name, v_count) in enumerate(visa_counts.items()):
-            c_class = colors_list[idx % len(colors_list)]
-            with kpi_cols[2 + idx]:
-                st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+        # 2. Worker Visa Category Breakdown Grid (4 columns per row)
+        if visa_counts:
+            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution</div>", unsafe_allow_html=True)
+            colors_list = ["gold", "purple", "green", "blue"]
+            visa_items = list(visa_counts.items())
+            for i in range(0, len(visa_items), 4):
+                row_items = visa_items[i:i+4]
+                v_cols = st.columns(4, gap="medium")
+                for idx, (v_name, v_count) in enumerate(row_items):
+                    c_class = colors_list[(i + idx) % len(colors_list)]
+                    with v_cols[idx]:
+                        st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
 
         st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
         has_sync_perm = worker_perm.get("can_sync", False)
