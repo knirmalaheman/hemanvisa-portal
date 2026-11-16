@@ -278,7 +278,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Modern Professional Corporate CSS & Styling
+# 🎨 Ultra-Modern Corporate UI & Dashboard Styling
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -418,16 +418,17 @@ st.markdown("""
     }
 
     .marquee-container {
-        background: linear-gradient(90deg, #d35400 0%, #f39c12 100%);
+        background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
         color: white;
-        padding: 10px 14px;
-        border-radius: 6px;
+        padding: 12px 18px;
+        border-radius: 8px;
         font-weight: 700;
         font-size: 14px;
-        margin-bottom: 18px !important;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        margin-bottom: 22px !important;
+        box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
         overflow: hidden;
         white-space: nowrap;
+        border-left: 5px solid #fbbf24;
     }
     .marquee-container marquee {
         font-weight: 700;
@@ -439,10 +440,10 @@ st.markdown("""
         top: 98px;
         z-index: 99998;
         background-color: #ffffff;
-        padding-top: 2px;
-        padding-bottom: 6px;
+        padding-top: 6px;
+        padding-bottom: 10px;
         border-bottom: 2px solid #e1e4e8;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
     }
     @media (prefers-color-scheme: dark) {
         .sticky-control-panel {
@@ -452,15 +453,15 @@ st.markdown("""
     }
 
     .kpi-card {
-        background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%);
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
         color: white;
-        padding: 10px 8px;
-        border-radius: 8px;
-        box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        padding: 16px 12px;
+        border-radius: 10px;
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
         text-align: center;
-        border-left: 4px solid #f39c12;
-        margin-bottom: 5px;
-        height: 85px;
+        border-left: 5px solid #fbbf24;
+        margin-bottom: 10px;
+        height: 95px;
         width: 100%;
         display: flex;
         flex-direction: column;
@@ -469,47 +470,49 @@ st.markdown("""
         box-sizing: border-box;
     }
     .kpi-card.gold {
-        background: linear-gradient(135deg, #d35400 0%, #f39c12 100%);
-        border-left: 4px solid #0b3c65;
+        background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%);
+        border-left: 5px solid #1e3a8a;
     }
     .kpi-card.green {
-        background: linear-gradient(135deg, #117a65 0%, #1abc9c 100%);
-        border-left: 4px solid #f1c40f;
+        background: linear-gradient(135deg, #047857 0%, #059669 100%);
+        border-left: 5px solid #facc15;
     }
     .kpi-card.purple {
-        background: linear-gradient(135deg, #4a235a 0%, #8e44ad 100%);
-        border-left: 4px solid #f39c12;
+        background: linear-gradient(135deg, #581c87 0%, #7e22ce 100%);
+        border-left: 5px solid #facc15;
     }
     .kpi-title {
         font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
         opacity: 0.95;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
         line-height: 1.2;
+        font-weight: 700;
     }
     .kpi-value {
-        font-size: 20px;
+        font-size: 22px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
     }
 
     .section-banner {
-        background-color: #eef5fc;
-        border-left: 5px solid #0b3c65;
-        padding: 10px 15px;
-        border-radius: 6px;
-        margin: 10px 0px;
-        font-weight: 700;
-        color: #0b3c65;
-        font-size: 18px;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-left: 6px solid #1e3a8a;
+        padding: 12px 18px;
+        border-radius: 8px;
+        margin: 12px 0px;
+        font-weight: 800;
+        color: #1e3a8a;
+        font-size: 17px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
     }
     @media (prefers-color-scheme: dark) {
         .section-banner {
-            background-color: #1c2530;
-            border-left: 5px solid #4da6ff;
-            color: #e6edf3;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-left: 6px solid #3b82f6;
+            color: #f8fafc;
         }
     }
 
@@ -517,23 +520,28 @@ st.markdown("""
         width: 100% !important;
         border-radius: 8px !important;
         font-weight: 700 !important;
-        padding: 12px 15px !important;
+        padding: 10px 14px !important;
         color: #ffffff !important;
-        background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%) !important;
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
         border: none !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-        margin-top: 5px !important;
-        margin-bottom: 10px !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        margin-top: 4px !important;
+        margin-bottom: 8px !important;
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
     }
 
     .username-hyperlink {
-        color: #1d6fa5 !important;
+        color: #2563eb !important;
         text-decoration: underline !important;
         font-weight: 700 !important;
         cursor: pointer !important;
     }
     .username-hyperlink:hover {
-        color: #0b3c65 !important;
+        color: #1e3a8a !important;
     }
 
     div[data-testid="stRadio"] > div {
@@ -750,15 +758,15 @@ def render_clickable_table(df, display_c, p_col):
     curr_sheet = qp.get("active_sheet", st.session_state.get("active_sheet", ""))
 
     html = f"""
-    <div style="max-height: 480px; overflow-y: auto; overflow-x: auto; border: 1px solid #e1e4e8; border-radius: 8px; margin-bottom: 15px;">
+    <div style="max-height: 480px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
     <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
         <thead>
-            <tr style="background-color: #0b3c65; color: white; position: sticky; top: 0; z-index: 1;">
-                <th style="padding: 10px; border: 1px solid #cbd5e1; text-align: center;">#</th>
+            <tr style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white; position: sticky; top: 0; z-index: 1;">
+                <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: center;">#</th>
     """
     for col in display_cols:
-        html += f'<th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">{col}</th>'
-    html += '<th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">Status</th>'
+        html += f'<th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">{col}</th>'
+    html += '<th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">Status</th>'
     html += "</tr></thead><tbody>"
 
     for idx, row in df.iterrows():
@@ -769,7 +777,7 @@ def render_clickable_table(df, display_c, p_col):
             row_bg = "#fee2e2"
 
         html += f'<tr style="background-color: {row_bg};">'
-        html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>'
+        html += f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>'
         
         for col in display_cols:
             val = str(row[col])
@@ -780,10 +788,10 @@ def render_clickable_table(df, display_c, p_col):
             else:
                 cell_content = val if val != "" else "-"
             
-            html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
+            html += f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
         
         status_display = "Rejected" if act_t == "delete rejected" else "-"
-        html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: 700; white-space: nowrap;">{status_display}</td>'
+        html += f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: 700; white-space: nowrap;">{status_display}</td>'
         html += "</tr>"
 
     html += "</tbody></table></div>"
@@ -1305,7 +1313,6 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
 
 # 1. Professional Public Website & Login Screen
 if not st.session_state["logged_in"]:
-    # Professional Corporate Navigation Bar / Radio
     selected_page = st.radio(
         "Navigation",
         ["🏠 Home", "ℹ️ About Us", "✈️ Services", "⭐ Success Stories", "📞 Contact Us", "🔐 Portal Login"],
@@ -1436,7 +1443,7 @@ if not st.session_state["logged_in"]:
         col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
         with col_l2:
             with st.container(border=True):
-                st.markdown("<h3 style='text-align:center; color:#0b3c65;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='text-align:center; color:#1e3a8a;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
                 sheets = get_sheet_names()
                 if not sheets:
@@ -1550,7 +1557,7 @@ elif st.session_state["role"] == "admin":
     with k4:
         st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Case Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6, col_btn_7, col_btn_8 = st.columns(8)
     with col_btn_1:
