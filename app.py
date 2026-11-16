@@ -114,7 +114,6 @@ def load_login_tracking():
             return {}
     return {}
 
-# 🌟 Attendance Functions for Day-by-Day tracking
 def load_attendance():
     if os.path.exists(ATTENDANCE_FILE):
         try:
@@ -134,7 +133,6 @@ def record_worker_login(worker_name):
     time_str = now_dt.strftime("%I:%M:%S %p")
     full_timestamp = f"{today_str} {time_str}"
     
-    # 1. Update current status
     logins = load_login_tracking()
     logins[worker_name.strip()] = {
         "status": "Logged In",
@@ -143,7 +141,6 @@ def record_worker_login(worker_name):
     with open(LOGINS_FILE, "w") as f:
         json.dump(logins, f, indent=4)
         
-    # 2. Update Daily Attendance Record
     attendance = load_attendance()
     found = False
     for entry in attendance:
@@ -169,14 +166,12 @@ def record_worker_logout(worker_name):
     today_str = now_dt.strftime("%Y-%m-%d")
     time_str = now_dt.strftime("%I:%M:%S %p")
     
-    # 1. Update current status
     logins = load_login_tracking()
     if worker_name.strip() in logins:
         logins[worker_name.strip()]["status"] = "Not Logged In"
     with open(LOGINS_FILE, "w") as f:
         json.dump(logins, f, indent=4)
         
-    # 2. Update Daily Attendance Record for Logout
     attendance = load_attendance()
     for entry in attendance:
         if entry.get("Worker", "").lower() == worker_name.strip().lower() and entry.get("Date") == today_str:
@@ -185,7 +180,6 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-# Automatically record worker login if logged in
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
     record_worker_login(st.session_state["username"])
 
@@ -682,7 +676,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
-# 🌟 Helper function to render table with status column at the end
 def render_clickable_table(df, display_c, p_col):
     if df.empty:
         st.info("No cases found.")
@@ -735,7 +728,6 @@ def render_clickable_table(df, display_c, p_col):
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
 
-# 🌟 Admin Add/Edit Notice Dialog
 @st.dialog("📢 Add / Update Notice (Scrolling Announcement)", width="medium")
 def admin_notice_dialog():
     current_notice = get_admin_notice()
@@ -758,7 +750,6 @@ def admin_notice_dialog():
             st.success("✅ Notice cleared successfully!")
             st.rerun()
 
-# 🌟 Admin Worker Login Status Tracking Dialog (Separated into Login & Not Login Tabs)
 @st.dialog("👥 Case Worker Login Status", width="large")
 def admin_login_status_dialog():
     st.info("💡 కేస్ వర్కర్ల లాగిన్ స్టేటస్ వివరాలు క్రింది ట్యాబ్స్‌లో (Login / Not Login) విడివిడిగా చూడవచ్చు:")
@@ -827,7 +818,6 @@ def admin_login_status_dialog():
                 with c2: st.error("🔴 Not Logged In")
                 with c3: st.text(item['time'])
 
-# 🌟 Admin Attendance History & Excel Download Dialog
 @st.dialog("📊 Case Worker Attendance Report", width="large")
 def admin_attendance_dialog():
     st.info("💡 కేస్ వర్కర్ల రోజువారీ లాగిన్ మరియు లాగౌట్ సమయాల హాజరు (Attendance) వివరాలు:")
@@ -840,7 +830,6 @@ def admin_attendance_dialog():
         df_att.index = range(1, len(df_att) + 1)
         st.dataframe(df_att, use_container_width=True)
         
-        # Excel Download Buffer
         att_buffer = io.BytesIO()
         with pd.ExcelWriter(att_buffer, engine='openpyxl') as writer:
             df_att.to_excel(writer, sheet_name="Attendance", index=False)
@@ -854,7 +843,6 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
     st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
@@ -923,7 +911,6 @@ def admin_updated_cases_dialog():
             else:
                 st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
 
-# 🌟 Separate Admin Delete Requests Dialog
 @st.dialog("🗑️ Pending Delete Requests", width="large")
 def admin_delete_requests_dialog():
     st.info("💡 కేస్ వర్కర్ల ద్వారా డిలీట్ చేయమని పంపబడిన రిక్వెస్ట్‌లు (Username మరియు Reason తో సహా):")
@@ -978,7 +965,6 @@ def admin_delete_requests_dialog():
                             st.success("❌ Delete request rejected. Marked as Rejected for worker.")
                             st.rerun()
 
-# 🌟 Other Modal Dialogs
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
     st.info("💡 Modify permissions for each case worker, then click the **💾 Save** button:")
@@ -1583,4 +1569,21 @@ else:
     if has_sync_perm:
         with w_cols[4]:
             if st.button("🔄 Sync", use_container_width=True, key="worker_sync_btn"):
-                st.session_state["open_dialog"]
+                st.session_state["open_dialog"] = "sync_excel"
+                st.rerun()
+            
+    st.divider()
+
+    if sheets:
+        st.write("📑 **Sheets Switch:**")
+        st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
+            
+    st.divider()
+    
+    st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
+
+    if user_rows.empty:
+        st.info("No cases assigned to you in this sheet.")
+    else:
+        st.caption("Click USERNAME inside the table to view, edit, or delete details.")
+        render_clickable_table(user_rows, display_c, p_col)
