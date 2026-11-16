@@ -1655,8 +1655,37 @@ elif st.session_state["role"] == "admin":
         st.divider()
 
     elif admin_dash_tab == "📂 Case Records & Search":
-        st.markdown("<div class='section-banner'>📂 Case Records & Management Hub</div>", unsafe_allow_html=True)
-        st.info("💡 అడ్మిన్ డాష్‌బోర్డ్ నుండి ప్రధాన టేబుల్ తొలగించబడింది. మీరు పైన ఉన్న టాబ్స్ మరియు బటన్స్ ద్వారా రికార్డులను, లాగిన్‌లను, మరియు అటెండెన్స్‌ను నిర్వహించవచ్చు.")
+        st.markdown("<div class='section-banner'>📂 Case Records & Search Hub</div>", unsafe_allow_html=True)
+        
+        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
+        with col_search:
+            admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
+        with col_sheets:
+            if sheets:
+                st.markdown("📑 **Sheets Switch:**")
+                st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
+        
+        if admin_search != "":
+            admin_search_mask = df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
+            display_df = df[admin_search_mask]
+            st.info(f"Results for '{admin_search}' ({len(display_df)} rows):")
+        else:
+            display_df = df
+
+        st.caption("💡 Click USERNAME inside the table to view, edit, or delete details.")
+        render_clickable_table(display_df, display_c, p_col)
+                    
+        if os.path.exists(EXCEL_FILE):
+            with open(EXCEL_FILE, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label="📥 Download Complete Excel File (All Sheets)", 
+                data=excel_bytes, 
+                file_name=EXCEL_FILE, 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="admin_dl_all_btn"
+            )
 
     elif admin_dash_tab == "ℹ️ System Guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
