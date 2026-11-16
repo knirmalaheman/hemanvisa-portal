@@ -227,6 +227,9 @@ if "logged_in" not in st.session_state:
 if "attendance_recorded" not in st.session_state:
     st.session_state["attendance_recorded"] = False
 
+if "selected_visa_filter" not in st.session_state:
+    st.session_state["selected_visa_filter"] = "All"
+
 if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
     st.session_state["logged_in"] = True
     st.session_state["username"] = qp.get("username", "")
@@ -501,52 +504,6 @@ st.markdown("""
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
-    }
-
-    /* 🎨 Compact Visa Category Cards for Case Records Tab */
-    .compact-kpi-card {
-        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-        color: white;
-        padding: 10px 8px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-        text-align: center;
-        border-bottom: 3px solid #f59e0b;
-        margin-bottom: 8px;
-        height: 65px;
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        box-sizing: border-box;
-    }
-    .compact-kpi-card.gold {
-        background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
-        border-bottom: 3px solid #1e3a8a;
-    }
-    .compact-kpi-card.green {
-        background: linear-gradient(135deg, #047857 0%, #10b981 100%);
-        border-bottom: 3px solid #fde047;
-    }
-    .compact-kpi-card.purple {
-        background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%);
-        border-bottom: 3px solid #fde047;
-    }
-    .compact-kpi-title {
-        font-size: 9.5px;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        opacity: 0.95;
-        margin-bottom: 3px;
-        line-height: 1.1;
-        font-weight: 700;
-    }
-    .compact-kpi-value {
-        font-size: 18px;
-        font-weight: 800;
-        margin: 0;
-        line-height: 1;
     }
 
     .section-banner {
@@ -1664,7 +1621,7 @@ elif st.session_state["role"] == "admin":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
-        # 1. Core KPIs Row (4 columns) - Visa category cards removed from here
+        # 1. Core KPIs Row (4 columns)
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
@@ -1718,18 +1675,28 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
-        # Display Compact Visa Category Distribution KPI Cards here
+        # Display Interactive Visa Category Buttons (Acting as KPI Filters)
         if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution Summary</div>", unsafe_allow_html=True)
-            colors_list = ["gold", "purple", "green", "blue"]
+            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
             for i in range(0, len(visa_items), 4):
                 row_items = visa_items[i:i+4]
                 v_cols = st.columns(4, gap="medium")
                 for idx, (v_name, v_count) in enumerate(row_items):
-                    c_class = colors_list[(i + idx) % len(colors_list)]
                     with v_cols[idx]:
-                        st.markdown(f"<div class='compact-kpi-card {c_class}'><div class='compact-kpi-title'>✈️ {v_name}</div><div class='compact-kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+                        is_active = (st.session_state["selected_visa_filter"] == v_name)
+                        btn_label = f"✈️ {v_name}: {v_count}"
+                        if st.button(btn_label, key=f"visa_card_btn_{v_name}_{i}_{idx}", use_container_width=True):
+                            if st.session_state["selected_visa_filter"] == v_name:
+                                st.session_state["selected_visa_filter"] = "All"
+                            else:
+                                st.session_state["selected_visa_filter"] = v_name
+                            st.rerun()
+            
+            if st.session_state["selected_visa_filter"] != "All":
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All Cases)", use_container_width=True, key="reset_visa_filter"):
+                    st.session_state["selected_visa_filter"] = "All"
+                    st.rerun()
             st.divider()
 
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
@@ -1742,21 +1709,17 @@ elif st.session_state["role"] == "admin":
         
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-        # Visa Type Sub-Tabs inside Case Records & Search
-        visa_tab_options = ["📋 All Cases"] + [f"✈️ {v}" for v in visa_counts.keys()]
-        selected_visa_tab = st.radio("Filter by Visa Type", options=visa_tab_options, horizontal=True, key="admin_visa_sub_tab_radio")
-
-        # Filter dataframe based on search and selected visa tab
+        # Filter dataframe based on search and selected interactive visa filter button
         display_df = df
         if admin_search != "":
             admin_search_mask = display_df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
             display_df = display_df[admin_search_mask]
 
-        if selected_visa_tab != "📋 All Cases" and visa_col:
-            target_visa = selected_visa_tab.replace("✈️ ", "").strip()
+        if st.session_state["selected_visa_filter"] != "All" and visa_col:
+            target_visa = st.session_state["selected_visa_filter"]
             display_df = display_df[display_df[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
-        st.caption("💡 Click USERNAME inside the table to view, edit, or delete details.")
+        st.caption(f"💡 Showing {len(display_df)} cases. Click USERNAME inside the table to view, edit, or delete details.")
         render_clickable_table(display_df, display_c, p_col)
                     
         if os.path.exists(EXCEL_FILE):
