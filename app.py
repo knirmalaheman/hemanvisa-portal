@@ -294,9 +294,9 @@ st.markdown("""
         background: #ffffff;
         background-image: radial-gradient(#d0e1f9 1px, transparent 1px), linear-gradient(to right, rgba(29,111,165,0.03), rgba(243,156,18,0.03));
         background-size: 20px 20px;
-        padding: 6px 24px;
+        padding: 8px 28px;
         border-bottom: 3px solid #1e3a8a;
-        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -304,7 +304,7 @@ st.markdown("""
         box-sizing: border-box;
     }
     .sticky-top-banner img {
-        max-height: 76px;
+        max-height: 74px;
         width: auto;
     }
     .banner-middle {
@@ -313,7 +313,7 @@ st.markdown("""
         padding: 0 15px;
     }
     .world-map-title {
-        font-size: 19px;
+        font-size: 20px;
         font-weight: 800;
         color: #0f172a;
         letter-spacing: 1px;
@@ -324,7 +324,7 @@ st.markdown("""
         font-size: 12px;
         font-weight: 700;
         color: #d97706;
-        letter-spacing: 1.4px;
+        letter-spacing: 1.5px;
     }
     .banner-info {
         display: flex;
@@ -341,7 +341,7 @@ st.markdown("""
     }
     .social-icons {
         display: flex;
-        gap: 7px;
+        gap: 8px;
         align-items: center;
     }
     .social-icons img {
@@ -365,7 +365,7 @@ st.markdown("""
     }
 
     .block-container {
-        padding-top: 108px !important;
+        padding-top: 112px !important;
         padding-bottom: 2.5rem;
         max-width: 1400px !important;
     }
@@ -434,7 +434,7 @@ st.markdown("""
 
     .sticky-control-panel {
         position: sticky;
-        top: 94px;
+        top: 96px;
         z-index: 99998;
         background-color: #ffffff;
         padding: 8px 0 10px 0;
@@ -560,7 +560,6 @@ st.markdown("""
         color: #1e3a8a !important;
     }
 
-    /* Styled Pill Navigation Bar */
     div[data-testid="stRadio"] > div {
         flex-direction: row !important;
         flex-wrap: wrap !important;
@@ -1654,7 +1653,6 @@ elif st.session_state["role"] == "admin":
                 </div>
             """, unsafe_allow_html=True)
 
-    # Case Records & Search Section (Shown on Dashboard & Case Records tabs)
     if admin_dash_tab in ["📊 Dashboard & Quick Actions", "📂 Case Records & Search"]:
         st.markdown(f"<div class='section-banner'>🔍 Case Records & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
         
