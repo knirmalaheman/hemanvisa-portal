@@ -490,19 +490,6 @@ st.markdown("""
         background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%);
         border-bottom: 4px solid #fde047;
     }
-    .kpi-card.cyan {
-        background: linear-gradient(135deg, #0e7490 0%, #06b6d4 100%);
-        border-bottom: 4px solid #fef08a;
-    }
-    .kpi-card.rose {
-        background: linear-gradient(135deg, #be123c 0%, #f43f5e 100%);
-        border-bottom: 4px solid #fde047;
-    }
-    .kpi-card.indigo {
-        background: linear-gradient(135deg, #3730a3 0%, #6366f1 100%);
-        border-bottom: 4px solid #f59e0b;
-    }
-    
     .kpi-title {
         font-size: 11px;
         text-transform: uppercase;
@@ -1860,18 +1847,27 @@ else:
         with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-        # 2. Worker Visa Category Breakdown in EXACTLY ONE SINGLE LINE (Colorful Display Cards ONLY - NO BUTTONS)
+        # 2. Worker Visa Category Breakdown in EXACTLY ONE SINGLE LINE (Interactive Buttons)
         if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution</div>", unsafe_allow_html=True)
-            colors_list = ["gold", "purple", "green", "blue", "cyan", "rose", "indigo"]
+            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
             
             if visa_items:
                 w_cols = st.columns(len(visa_items), gap="medium")
                 for idx, (v_name, v_count) in enumerate(visa_items):
-                    c_class = colors_list[idx % len(colors_list)]
                     with w_cols[idx]:
-                        st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+                        btn_label = f"✈️ {v_name}: {v_count}"
+                        if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
+                            if st.session_state["selected_visa_filter"] == v_name:
+                                st.session_state["selected_visa_filter"] = "All"
+                            else:
+                                st.session_state["selected_visa_filter"] = v_name
+                            st.rerun()
+            
+            if st.session_state["selected_visa_filter"] != "All":
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All My Cases)", use_container_width=True, key="reset_worker_visa_filter"):
+                    st.session_state["selected_visa_filter"] = "All"
+                    st.rerun()
 
         st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
         has_sync_perm = worker_perm.get("can_sync", False)
@@ -1937,13 +1933,18 @@ else:
                 
         st.divider()
         
-        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
+        display_user_rows = user_rows
+        if st.session_state["selected_visa_filter"] != "All" and visa_col:
+            target_visa = st.session_state["selected_visa_filter"]
+            display_user_rows = display_user_rows[display_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
-        if user_rows.empty:
-            st.info("No cases assigned to you in this sheet.")
+        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(display_user_rows)})</div>", unsafe_allow_html=True)
+
+        if display_user_rows.empty:
+            st.info("No cases found matching your criteria in this sheet.")
         else:
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
-            render_clickable_table(user_rows, display_c, p_col)
+            render_clickable_table(display_user_rows, display_c, p_col)
 
     elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
