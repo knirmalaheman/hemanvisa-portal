@@ -1675,23 +1675,25 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
-        # Display Interactive Visa Category Buttons (Acting as KPI Filters)
+        # Display Interactive Visa Category Buttons in Exactly 2 Rows
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
-            for i in range(0, len(visa_items), 4):
-                row_items = visa_items[i:i+4]
-                v_cols = st.columns(4, gap="medium")
-                for idx, (v_name, v_count) in enumerate(row_items):
-                    with v_cols[idx]:
-                        is_active = (st.session_state["selected_visa_filter"] == v_name)
-                        btn_label = f"✈️ {v_name}: {v_count}"
-                        if st.button(btn_label, key=f"visa_card_btn_{v_name}_{i}_{idx}", use_container_width=True):
-                            if st.session_state["selected_visa_filter"] == v_name:
-                                st.session_state["selected_visa_filter"] = "All"
-                            else:
-                                st.session_state["selected_visa_filter"] = v_name
-                            st.rerun()
+            mid = (len(visa_items) + 1) // 2
+            rows = [visa_items[:mid], visa_items[mid:]]
+            
+            for row_items in rows:
+                if row_items:
+                    v_cols = st.columns(len(row_items), gap="medium")
+                    for idx, (v_name, v_count) in enumerate(row_items):
+                        with v_cols[idx]:
+                            btn_label = f"✈️ {v_name}: {v_count}"
+                            if st.button(btn_label, key=f"visa_card_btn_{v_name}_{idx}", use_container_width=True):
+                                if st.session_state["selected_visa_filter"] == v_name:
+                                    st.session_state["selected_visa_filter"] = "All"
+                                else:
+                                    st.session_state["selected_visa_filter"] = v_name
+                                st.rerun()
             
             if st.session_state["selected_visa_filter"] != "All":
                 if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All Cases)", use_container_width=True, key="reset_visa_filter"):
@@ -1845,18 +1847,21 @@ else:
         with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-        # 2. Worker Visa Category Breakdown Grid (4 columns per row)
+        # 2. Worker Visa Category Breakdown Grid in Exactly 2 Rows
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution</div>", unsafe_allow_html=True)
             colors_list = ["gold", "purple", "green", "blue"]
             visa_items = list(visa_counts.items())
-            for i in range(0, len(visa_items), 4):
-                row_items = visa_items[i:i+4]
-                v_cols = st.columns(4, gap="medium")
-                for idx, (v_name, v_count) in enumerate(row_items):
-                    c_class = colors_list[(i + idx) % len(colors_list)]
-                    with v_cols[idx]:
-                        st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+            mid = (len(visa_items) + 1) // 2
+            rows = [visa_items[:mid], visa_items[mid:]]
+            
+            for r_idx, row_items in enumerate(rows):
+                if row_items:
+                    v_cols = st.columns(len(row_items), gap="medium")
+                    for idx, (v_name, v_count) in enumerate(row_items):
+                        c_class = colors_list[(r_idx + idx) % len(colors_list)]
+                        with v_cols[idx]:
+                            st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
 
         st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
         has_sync_perm = worker_perm.get("can_sync", False)
