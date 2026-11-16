@@ -1603,16 +1603,38 @@ elif st.session_state["role"] == "admin":
     unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
     active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
+    # Calculate Visa Counts for Admin Dashboard as well
+    visa_col = None
+    for c in df.columns:
+        if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
+            visa_col = c
+            break
+
+    visa_counts = {}
+    if visa_col and not df.empty:
+        for val in df[visa_col].astype(str):
+            v_clean = val.strip().upper()
+            if v_clean != "":
+                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
+
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
-        k1, k2, k3, k4 = st.columns(4, gap="medium")
-        with k1:
+        total_metrics = 4 + len(visa_counts)
+        kpi_cols = st.columns(total_metrics if total_metrics > 0 else 4, gap="medium")
+
+        with kpi_cols[0]:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
-        with k2:
+        with kpi_cols[1]:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated Cases</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
-        with k3:
-            st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned Cases</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
-        with k4:
-            st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Case Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
+        with kpi_cols[2]:
+            st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
+        with kpi_cols[3]:
+            st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
+
+        colors_list = ["gold", "purple", "green", "blue"]
+        for idx, (v_name, v_count) in enumerate(visa_counts.items()):
+            c_class = colors_list[idx % len(colors_list)]
+            with kpi_cols[4 + idx]:
+                st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
 
         st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
         r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4, gap="medium")
@@ -1655,7 +1677,7 @@ elif st.session_state["role"] == "admin":
         st.divider()
 
     elif admin_dash_tab == "📂 Case Records & Search":
-        st.markdown("<div class='section-banner'>📂 Case Records & Search Hub</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
         with col_search:
@@ -1665,12 +1687,21 @@ elif st.session_state["role"] == "admin":
                 st.markdown("📑 **Sheets Switch:**")
                 st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
         
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+        # Visa Type Sub-Tabs inside Case Records & Search
+        visa_tab_options = ["📋 All Cases"] + [f"✈️ {v}" for v in visa_counts.keys()]
+        selected_visa_tab = st.radio("Filter by Visa Type", options=visa_tab_options, horizontal=True, key="admin_visa_sub_tab_radio")
+
+        # Filter dataframe based on search and selected visa tab
+        display_df = df
         if admin_search != "":
-            admin_search_mask = df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
-            display_df = df[admin_search_mask]
-            st.info(f"Results for '{admin_search}' ({len(display_df)} rows):")
-        else:
-            display_df = df
+            admin_search_mask = display_df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
+            display_df = display_df[admin_search_mask]
+
+        if selected_visa_tab != "📋 All Cases" and visa_col:
+            target_visa = selected_visa_tab.replace("✈️ ", "").strip()
+            display_df = display_df[display_df[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
         st.caption("💡 Click USERNAME inside the table to view, edit, or delete details.")
         render_clickable_table(display_df, display_c, p_col)
