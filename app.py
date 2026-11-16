@@ -285,7 +285,7 @@ st.markdown("""
         display: none !important;
     }
 
-    /* 🌟 Luxurious Dark Gradient Header with Gold Accent */
+    /* 🌟 Luxurious Dark Gradient Header with Logo Shifted Right */
     .sticky-top-banner {
         position: fixed;
         top: 0;
@@ -301,6 +301,9 @@ st.markdown("""
         justify-content: space-between;
         flex-wrap: wrap;
         box-sizing: border-box;
+    }
+    .logo-container {
+        margin-left: 25px; /* లోగోను కుడి వైపునకు జరపడానికి మార్జిన్ */
     }
     .sticky-top-banner img {
         max-height: 62px;
@@ -612,9 +615,9 @@ if found_logo:
     ext = found_logo.split(".")[-1].lower()
     mime_type = "image/png" if ext == "png" else "image/jpeg"
     img_b64 = get_base64_image(found_logo)
-    logo_html = f'<img src="data:{mime_type};base64,{img_b64}" alt="HemanVisa Logo">'
+    logo_html = f'<div class="logo-container"><img src="data:{mime_type};base64,{img_b64}" alt="HemanVisa Logo"></div>'
 else:
-    logo_html = '<h2 style="margin:0; color:#ffffff;">HemanVisa</h2>'
+    logo_html = '<div class="logo-container"><h2 style="margin:0; color:#ffffff;">HemanVisa</h2></div>'
 
 st.markdown(f"""
     <div class="sticky-top-banner">
