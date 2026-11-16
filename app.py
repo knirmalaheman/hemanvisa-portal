@@ -418,7 +418,7 @@ def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
     st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
-# 🌟 Case Details View, Edit & Delete Popup Dialog
+# 🌟 Case Details View, Edit & Delete / Request Delete Popup Dialog
 @st.dialog("📋 Case Details, Edit & Delete", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -451,16 +451,30 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                     st.session_state["is_editing_popup"] = True
                     st.rerun()
             with col_act2:
-                if st.button("🗑️ Delete Case", type="secondary", use_container_width=True, key="btn_trigger_delete"):
-                    try:
-                        df_full = df_full.drop(row_idx)
-                        save_data(df_full, sheet_name=sheet_name)
-                        st.session_state["selected_row_idx"] = None
-                        st.session_state["open_dialog"] = None
-                        st.success("✅ Case deleted successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error deleting case: {e}")
+                if role == "admin":
+                    if st.button("🗑️ Delete Case", type="secondary", use_container_width=True, key="btn_trigger_delete"):
+                        try:
+                            df_full = df_full.drop(row_idx)
+                            save_data(df_full, sheet_name=sheet_name)
+                            st.session_state["selected_row_idx"] = None
+                            st.session_state["open_dialog"] = None
+                            st.success("✅ Case deleted successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error deleting case: {e}")
+                else:
+                    if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req"):
+                        try:
+                            df_full.at[row_idx, "Updated_By"] = current_user
+                            df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            df_full.at[row_idx, "Action_Type"] = "Delete Request"
+                            save_data(df_full, sheet_name=sheet_name)
+                            st.session_state["selected_row_idx"] = None
+                            st.session_state["open_dialog"] = None
+                            st.success("✅ Delete request sent to Admin for approval!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error sending delete request: {e}")
     else:
         st.markdown("### ✏️ Edit Case Details")
         with st.form(f"popup_edit_form_{row_idx}"):
@@ -562,10 +576,10 @@ def render_clickable_table(df, display_c, p_col):
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
 
-# 🌟 Combined New/Updated Cases & Calendar Dialog View
+# 🌟 Combined New/Updated Cases, Delete Requests & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
-    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు తేదీల వారీగా (**Calendar View**) చూడవచ్చు:")
+    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**), డిలీట్ రిక్వెస్ట్‌లు (**Delete Requests**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
     sheets = get_sheet_names()
     all_rows = []
     
@@ -578,7 +592,7 @@ def admin_updated_cases_dialog():
                 upd_rows.insert(0, "Sheet_Name", s)
                 all_rows.append(upd_rows)
                 
-    tab_new, tab_upd, tab_cal = st.tabs(["➕ న్యూ కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసిన కేసులు (Updated Cases)", "📅 డే-వైజ్ క్యాలెండర్ (Calendar View)"])
+    tab_new, tab_upd, tab_del_req, tab_cal = st.tabs(["➕ న్యూ కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసినవి (Updated)", "🗑️ డిలీట్ రిక్వెస్ట్‌లు (Delete Requests)", "📅 క్యాలెండర్ (Calendar)"])
     
     with tab_new:
         if not all_rows:
@@ -607,6 +621,54 @@ def admin_updated_cases_dialog():
             else:
                 st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
                 render_clickable_table(updated_cases_df, find_display_username_column(updated_cases_df), p_col)
+
+    with tab_del_req:
+        st.write("🗑️ **కేస్ వర్కర్స్ ద్వారా పంపబడిన డిలీట్ రిక్వెస్ట్‌లు:**")
+        del_reqs_list = []
+        for s in sheets:
+            df_s = load_data(sheet_name=s)
+            if df_s is not None and not df_s.empty and "Action_Type" in df_s.columns:
+                for idx, r in df_s.iterrows():
+                    if str(r.get("Action_Type", "")).strip().lower() == "delete request":
+                        r_dict = r.to_dict()
+                        r_dict["Sheet_Name"] = s
+                        r_dict["Original_Index"] = idx
+                        del_reqs_list.append(r_dict)
+        
+        if not del_reqs_list:
+            st.info("ఎటువంటి డిలీట్ రిక్వెస్ట్‌లు లేవు.")
+        else:
+            st.success(f"మొత్తం డిలీట్ రిక్వెస్ట్‌లు: {len(del_reqs_list)}")
+            for i, r_dict in enumerate(del_reqs_list):
+                s_name = r_dict["Sheet_Name"]
+                orig_idx = r_dict["Original_Index"]
+                worker_name = r_dict.get("Updated_By", "Unknown")
+                req_time = r_dict.get("Updated_At", "")
+                
+                # Exclude internal metadata columns for clean view
+                clean_dict = {k: v for k, v in r_dict.items() if k not in ["Sheet_Name", "Original_Index", "password", "Password", "pass"]}
+                
+                with st.expander(f"📁 Sheet: {s_name} | Worker: {worker_name} | Time: {req_time}"):
+                    st.json(clean_dict)
+                    col_acc, col_rej = st.columns(2)
+                    with col_acc:
+                        if st.button("✅ Accept Delete (Permanent Delete)", key=f"accept_del_{s_name}_{orig_idx}_{i}", type="primary", use_container_width=True):
+                            df_target = load_data(sheet_name=s_name)
+                            if df_target is not None and orig_idx in df_target.index:
+                                df_target = df_target.drop(orig_idx)
+                                save_data(df_target, sheet_name=s_name)
+                                st.success("✅ Delete request accepted! Case permanently deleted.")
+                                st.rerun()
+                    with col_rej:
+                        if st.button("❌ Reject Delete (Restore Case)", key=f"reject_del_{s_name}_{orig_idx}_{i}", use_container_width=True):
+                            df_target = load_data(sheet_name=s_name)
+                            if df_target is not None and orig_idx in df_target.index:
+                                df_target.at[orig_idx, "Action_Type"] = ""
+                                df_target.at[orig_idx, "Updated_By"] = ""
+                                df_target.at[orig_idx, "Updated_At"] = ""
+                                save_data(df_target, sheet_name=s_name)
+                                st.success("❌ Delete request rejected. Case restored.")
+                                st.rerun()
 
     with tab_cal:
         st.write("📅 **తేదీ వారీగా ఫిల్టర్ చేసి చూడండి:**")
