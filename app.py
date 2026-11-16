@@ -1542,23 +1542,78 @@ elif st.session_state["role"] == "admin":
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    total_cases = len(df)
-    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
-    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
-    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
-
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
-    with k2:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated Cases</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
-    with k3:
-        st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned Cases</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
-    with k4:
-        st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Case Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
-
+    # 🌟 Added Professional Navigation / Sub-Pages inside Admin Dashboard
+    admin_dash_tab = st.radio(
+        "Admin Navigation",
+        ["📊 Dashboard Overview", "📂 Case Management & Search", "ℹ️ System Guidelines & Help"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="admin_dash_tab_radio"
+    )
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
+    if admin_dash_tab == "📊 Dashboard Overview":
+        total_cases = len(df)
+        updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
+        unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
+        active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+
+        k1, k2, k3, k4 = st.columns(4)
+        with k1:
+            st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
+        with k2:
+            st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated Cases</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
+        with k3:
+            st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned Cases</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
+        with k4:
+            st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Case Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
+
+        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+        
+        c_ov1, c_ov2 = st.columns(2)
+        with c_ov1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>👑 Admin Quick Actions</h3>
+                    <p>Use the action bar below to manage user permissions, review worker attendance, track delete requests, and sync cloud data instantly.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c_ov2:
+            st.markdown(f"""
+                <div class="corporate-card">
+                    <h3>📂 Current Active Sheet</h3>
+                    <p>You are currently managing <b>{current_sheet}</b> containing <b>{total_cases}</b> records. Switch sheets anytime using the Sheet Management tab.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    elif admin_dash_tab == "ℹ️ System Guidelines & Help":
+        st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
+        g1, g2 = st.columns(2)
+        with g1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>👥 User & Permission Management</h3>
+                    <p>Assign specific privileges (Update, Add, Search, Download, Sync) to case workers to maintain strict security and accountability across all sheets.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🗑️ Delete Request Approvals</h3>
+                    <p>When case workers request case deletions with reasons, review them in the 'Delete Requests' section to either permanently delete or reject the request.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with g2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>📊 Attendance & Login Tracking</h3>
+                    <p>Monitor real-time worker logins, active status, and automated daily attendance logs with instant Excel report exports.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>📢 Live Announcements</h3>
+                    <p>Broadcast scrolling marquee announcements directly to all active case worker screens using the 'Add Notice' feature.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    # Always Visible Admin Action Toolbar & Table
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6, col_btn_7, col_btn_8 = st.columns(8)
     with col_btn_1:
         if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
@@ -1673,45 +1728,82 @@ else:
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 📢 Scrolling Marquee Notice for Case Workers
-    admin_notice = get_admin_notice()
-    if admin_notice:
-        st.markdown(f"""
-            <div class="marquee-container">
-                <marquee scrollamount="5">📢 <b>Admin Announcement / Note:</b> {admin_notice}</marquee>
-            </div>
-        """, unsafe_allow_html=True)
+    # 🌟 Added Professional Navigation Tabs inside Worker Dashboard
+    worker_dash_tab = st.radio(
+        "Worker Navigation",
+        ["📊 My Dashboard", "ℹ️ Case Worker Guide & Help"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="worker_dash_tab_radio"
+    )
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-    my_total = len(user_rows)
-    my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
+    if worker_dash_tab == "📊 My Dashboard":
+        # 📢 Scrolling Marquee Notice for Case Workers
+        admin_notice = get_admin_notice()
+        if admin_notice:
+            st.markdown(f"""
+                <div class="marquee-container">
+                    <marquee scrollamount="5">📢 <b>Admin Announcement / Note:</b> {admin_notice}</marquee>
+                </div>
+            """, unsafe_allow_html=True)
 
-    visa_col = None
-    for c in user_rows.columns:
-        if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
-            visa_col = c
-            break
+        my_total = len(user_rows)
+        my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
-    visa_counts = {}
-    if visa_col and not user_rows.empty:
-        for val in user_rows[visa_col].astype(str):
-            v_clean = val.strip().upper()
-            if v_clean != "":
-                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
+        visa_col = None
+        for c in user_rows.columns:
+            if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
+                visa_col = c
+                break
 
-    total_metrics = 2 + len(visa_counts)
-    kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2)
+        visa_counts = {}
+        if visa_col and not user_rows.empty:
+            for val in user_rows[visa_col].astype(str):
+                v_clean = val.strip().upper()
+                if v_clean != "":
+                    visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
-    with kpi_cols[0]:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
-    with kpi_cols[1]:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
+        total_metrics = 2 + len(visa_counts)
+        kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2)
 
-    colors_list = ["gold", "purple", "green", "blue"]
-    for idx, (v_name, v_count) in enumerate(visa_counts.items()):
-        c_class = colors_list[idx % len(colors_list)]
-        with kpi_cols[2 + idx]:
-            st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        with kpi_cols[0]:
+            st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
+        with kpi_cols[1]:
+            st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
+
+        colors_list = ["gold", "purple", "green", "blue"]
+        for idx, (v_name, v_count) in enumerate(visa_counts.items()):
+            c_class = colors_list[idx % len(colors_list)]
+            with kpi_cols[2 + idx]:
+                st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif worker_dash_tab == "ℹ️ Case Worker Guide & Help":
+        st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
+        w_g1, w_g2 = st.columns(2)
+        with w_g1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>✏️ Editing & Updating Cases</h3>
+                    <p>Click on any USERNAME inside your assigned cases table to open the pop-up modal. You can review all details and update information instantly.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>➕ Adding New Cases</h3>
+                    <p>Use the 'Add Case' button in the toolbar to create new records directly in your designated sheet with automatic timestamping.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with w_g2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>🗑️ Requesting Case Deletions</h3>
+                    <p>If a case needs removal, click 'Request Delete' and provide a mandatory reason. The admin will review and approve or reject your request.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🔒 Security & Password</h3>
+                    <p>Keep your account secure by changing your password periodically using the 'Password' button in the toolbar.</p>
+                </div>
+            """, unsafe_allow_html=True)
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
