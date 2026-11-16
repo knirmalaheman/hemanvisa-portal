@@ -285,18 +285,17 @@ st.markdown("""
         display: none !important;
     }
 
+    /* 🌟 Luxurious Dark Gradient Header with Gold Accent */
     .sticky-top-banner {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         z-index: 999999;
-        background: #ffffff;
-        background-image: radial-gradient(#d0e1f9 1px, transparent 1px), linear-gradient(to right, rgba(29,111,165,0.03), rgba(243,156,18,0.03));
-        background-size: 20px 20px;
-        padding: 8px 28px;
-        border-bottom: 3px solid #0f172a;
-        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+        padding: 10px 28px;
+        border-bottom: 3px solid #d97706;
+        box-shadow: 0 6px 25px rgba(15, 23, 42, 0.35);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -304,8 +303,11 @@ st.markdown("""
         box-sizing: border-box;
     }
     .sticky-top-banner img {
-        max-height: 74px;
+        max-height: 62px;
         width: auto;
+        border-radius: 6px;
+        background: #ffffff;
+        padding: 2px;
     }
     .banner-middle {
         text-align: center;
@@ -313,42 +315,64 @@ st.markdown("""
         padding: 0 15px;
     }
     .world-map-title {
-        font-size: 20px;
+        font-size: 19px;
         font-weight: 800;
-        color: #0f172a;
-        letter-spacing: 1px;
+        color: #ffffff;
+        letter-spacing: 1.2px;
         text-transform: uppercase;
         margin-bottom: 2px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .world-map-subtitle {
         font-size: 12px;
         font-weight: 700;
-        color: #d97706;
+        color: #fde047;
         letter-spacing: 1.5px;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.3);
     }
     .banner-info {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 12px;
         flex-wrap: wrap;
         font-size: 12px;
         font-weight: 600;
-        color: #1e293b;
+        color: #cbd5e1;
+    }
+    .banner-badge {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        padding: 6px 12px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+    }
+    .banner-badge:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: #d97706;
     }
     .banner-info a {
-        color: #1e293b;
+        color: #f8fafc;
         text-decoration: none;
     }
     .social-icons {
         display: flex;
         gap: 8px;
         align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        padding: 5px 10px;
+        border-radius: 8px;
     }
     .social-icons img {
-        height: 22px;
-        width: 22px;
+        height: 20px;
+        width: 20px;
         border-radius: 4px;
-        max-height: 22px !important;
+        max-height: 20px !important;
+        background: transparent !important;
+        padding: 0 !important;
     }
 
     .block-container {
@@ -590,7 +614,7 @@ if found_logo:
     img_b64 = get_base64_image(found_logo)
     logo_html = f'<img src="data:{mime_type};base64,{img_b64}" alt="HemanVisa Logo">'
 else:
-    logo_html = '<h2 style="margin:0; color:#0b3c65;">HemanVisa</h2>'
+    logo_html = '<h2 style="margin:0; color:#ffffff;">HemanVisa</h2>'
 
 st.markdown(f"""
     <div class="sticky-top-banner">
@@ -600,8 +624,8 @@ st.markdown(f"""
             <div class="world-map-subtitle">✈️ Your Gateway to Study, Work & Travel Worldwide</div>
         </div>
         <div class="banner-info">
-            <div>✉️ <a href="mailto:services@hemanvisa.com">services@hemanvisa.com</a></div>
-            <div>📞 <a href="tel:+919533840632">+91 95338 40632</a></div>
+            <div class="banner-badge">✉️ <a href="mailto:services@hemanvisa.com">services@hemanvisa.com</a></div>
+            <div class="banner-badge">📞 <a href="tel:+919533840632">+91 95338 40632</a></div>
             <div class="social-icons">
                 <a href="https://facebook.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="FB"></a>
                 <a href="https://instagram.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733558.png" alt="IG"></a>
