@@ -278,7 +278,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Vibrant, High-End & Attractive SaaS Color Palette
+# 🎨 Vibrant, High-End & Attractive SaaS Color Palette (Logo & Name shifted right)
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -303,7 +303,7 @@ st.markdown("""
         box-sizing: border-box;
     }
     .logo-container {
-        margin-left: 25px;
+        margin-left: 120px; /* లోగోను కుడి వైపునకు చాలా దూరం జరపడానికి */
     }
     .sticky-top-banner img {
         max-height: 62px;
@@ -316,6 +316,7 @@ st.markdown("""
         text-align: center;
         flex: 1;
         padding: 0 15px;
+        margin-left: 40px; /* కంపెనీ పేరును కూడా కొద్దిగా కుడి వైపునకు జరపడానికి */
     }
     .world-map-title {
         font-size: 19px;
