@@ -439,9 +439,9 @@ def permissions_dialog():
                         st.error(f"❌ సమస్య: {e}")
             st.write("")
 
-@st.dialog("📋 కొత్త కేసులు & అప్‌డేట్స్ వివరాలు (All Sheets)", width="large")
+@st.dialog("📋 కొత్త కేసులు, అప్‌డేట్స్ & Day-wise Calendar (All Sheets)", width="large")
 def admin_updated_cases_dialog():
-    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడిన కేసులు (**New Cases**) మరియు అప్‌డేట్ చేయబడిన కేసులు (**Updated Cases**) వేర్వేరు ట్యాబ్స్‌లో చూడవచ్చు:")
+    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు తేదీల వారీగా (**Day-wise**) చూడవచ్చు:")
     sheets = get_sheet_names()
     all_rows = []
     
@@ -454,74 +454,58 @@ def admin_updated_cases_dialog():
                 upd_rows.insert(0, "Sheet_Name", s)
                 all_rows.append(upd_rows)
                 
-    if not all_rows:
-        st.warning("ఇంతవరకు కేస్ వర్కర్లు ఎటువంటి మార్పులు లేదా కొత్త కేసులు చేయలేదు.")
-    else:
-        combined_df = pd.concat(all_rows, ignore_index=True)
-        p_col = find_password_column(combined_df)
-        view_df = combined_df.drop(columns=[p_col], errors="ignore")
-        
-        tab_new, tab_upd = st.tabs(["➕ కొత్త కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసిన కేసులు (Updated Cases)"])
-        
-        with tab_new:
+    tab_new, tab_upd, tab_cal = st.tabs(["➕ కొత్త కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసిన కేసులు (Updated Cases)", "📅 Day-wise Calendar View"])
+    
+    with tab_new:
+        if not all_rows:
+            st.info("ఎటువంటి కొత్త కేసులు (New Cases) కనుగొనబడలేదు.")
+        else:
+            combined_df = pd.concat(all_rows, ignore_index=True)
+            p_col = find_password_column(combined_df)
+            view_df = combined_df.drop(columns=[p_col], errors="ignore")
             new_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "new case"]
             if new_cases_df.empty:
-                st.info("ఎటువంటి కొత్త కేసులు (New Cases) కనుగొనబడలేదు.")
+                st.info("ఎటువంటి కొత్త కేసులు కనుగొనబడలేదు.")
             else:
                 st.success(f"మొత్తం కొత్త కేసులు: {len(new_cases_df)}")
                 st.dataframe(new_cases_df, use_container_width=True)
                 
-        with tab_upd:
+    with tab_upd:
+        if not all_rows:
+            st.info("ఎటువంటి అప్‌డేట్ కేసులు కనుగొనబడలేదు.")
+        else:
+            combined_df = pd.concat(all_rows, ignore_index=True)
+            p_col = find_password_column(combined_df)
+            view_df = combined_df.drop(columns=[p_col], errors="ignore")
             updated_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "updated case"]
             if updated_cases_df.empty:
-                st.info("ఎటువంటి అప్‌డేట్ కేసులు (Updated Cases) కనుగొనబడలేదు.")
+                st.info("ఎటువంటి అప్‌డేట్ కేసులు కనుగొనబడలేదు.")
             else:
                 st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
                 st.dataframe(updated_cases_df, use_container_width=True)
 
-@st.dialog("📅 Day-wise Calendar View", width="large")
-def calendar_view_dialog(worker_filter=None):
-    st.info("💡 ఒక నిర్దిష్ట తేదీని (Date) సెలెక్ట్ చేసుకుని ఆ రోజు బుక్ అయిన లేదా అప్‌డేట్ అయిన కేసులను చూడండి:")
-    sheets = get_sheet_names()
-    selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select")
-    
-    df_cal = load_data(sheet_name=selected_cal_sheet)
-    if df_cal is None or df_cal.empty:
-        st.warning("ఈ షీట్‌లో డేటా అందుబాటులో లేదు.")
-        return
-        
-    # Find columns that look like date (contain 'date' or 'entty' or 'time')
-    date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day'])]
-    if not date_cols:
-        st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
-        return
-        
-    selected_date_col = st.selectbox("Select Date Column:", options=date_cols, key="cal_date_col_select")
-    
-    # Pick a date using st.date_input
-    selected_date = st.date_input("Select Target Date:", value=datetime.date.today(), key="cal_target_date")
-    
-    if df_cal is not None and not df_cal.empty:
-        # Filter by worker if called from worker dashboard
-        if worker_filter:
-            uc = find_username_column(df_cal)
-            df_cal = df_cal[df_cal[uc].astype(str).str.strip().str.lower() == worker_filter.lower()]
-            
-        # Convert selected date to string formats for flexible matching (e.g., YYYY-MM-DD)
-        date_str = selected_date.strftime("%Y-%m-%d")
-        
-        # Match rows where selected date column contains the selected date string
-        mask = df_cal[selected_date_col].astype(str).str.contains(date_str, na=False)
-        matched_df = df_cal[mask]
-        
-        st.write(f"📅 **{date_str}** తేదీకి సంబంధించిన కేసులు ({len(matched_df)} found):")
-        if matched_df.empty:
-            st.info(f"ఈ తేదీ ({date_str}) లో ఎటువంటి కేసులు నమోదు కాలేదు.")
-        else:
-            pc = find_password_column(matched_df)
-            uc = find_username_column(matched_df)
-            display_matched = matched_df.drop(columns=[pc], errors="ignore")
-            st.dataframe(display_matched, use_container_width=True)
+    with tab_cal:
+        st.write("📅 **తేదీ వారీగా ఫిల్టర్ చేసి చూడండి:**")
+        selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select_tab")
+        df_cal = load_data(sheet_name=selected_cal_sheet)
+        if df_cal is not None and not df_cal.empty:
+            date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day'])]
+            if date_cols:
+                selected_date_col = st.selectbox("Select Date Column:", options=date_cols, key="cal_date_col_tab")
+                selected_date = st.date_input("Select Target Date:", value=datetime.date.today(), key="cal_target_date_tab")
+                date_str = selected_date.strftime("%Y-%m-%d")
+                
+                mask = df_cal[selected_date_col].astype(str).str.contains(date_str, na=False)
+                matched_df = df_cal[mask]
+                st.write(f"📅 **{date_str}** తేదీకి సంబంధించిన రికార్డులు ({len(matched_df)} found):")
+                if matched_df.empty:
+                    st.info(f"ఈ తేదీ ({date_str}) లో ఎటువంటి రికార్డులు నమోదు కాలేదు.")
+                else:
+                    pc = find_password_column(matched_df)
+                    display_matched = matched_df.drop(columns=[pc], errors="ignore")
+                    st.dataframe(display_matched, use_container_width=True)
+            else:
+                st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
 
 @st.dialog("🔑 Admin పాస్‌వర్డ్ మార్చుకోండి", width="medium")
 def admin_password_dialog():
@@ -666,12 +650,6 @@ if st.session_state["open_dialog"] == "permissions":
 elif st.session_state["open_dialog"] == "admin_updated_cases":
     admin_updated_cases_dialog()
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "calendar_view":
-    calendar_view_dialog()
-    st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "worker_calendar_view":
-    calendar_view_dialog(worker_filter=st.session_state.get("username", ""))
-    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "admin_password":
     admin_password_dialog()
     st.session_state["open_dialog"] = None
@@ -778,20 +756,16 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4 = st.columns(4)
+    col_btn_1, col_btn_2, col_btn_3 = st.columns(3)
     with col_btn_1:
         if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
     with col_btn_2:
-        if st.button("📋 New / Updated Cases", use_container_width=True, key="admin_upd_cases_btn"):
+        if st.button("📋 New / Updated Cases & Calendar", use_container_width=True, key="admin_upd_cases_btn"):
             st.session_state["open_dialog"] = "admin_updated_cases"
             st.rerun()
     with col_btn_3:
-        if st.button("📅 Day-wise Calendar", use_container_width=True, key="admin_cal_btn"):
-            st.session_state["open_dialog"] = "calendar_view"
-            st.rerun()
-    with col_btn_4:
         if st.button("🔑 Change Password", use_container_width=True, key="admin_pw_btn"):
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
@@ -916,7 +890,7 @@ else:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_w_btn1, col_w_btn2, col_w_btn3, col_w_btn4 = st.columns(4)
+    col_w_btn1, col_w_btn2, col_w_btn3 = st.columns(3)
     with col_w_btn1:
         if st.button("🔑 పాస్‌వర్డ్", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
@@ -929,13 +903,6 @@ else:
         else:
             st.button("🚫 పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_add_disabled")
     with col_w_btn3:
-        if worker_perm.get("can_search", True):
-            if st.button("📅 Day-wise Calendar", use_container_width=True, key="worker_cal_btn"):
-                st.session_state["open_dialog"] = "worker_calendar_view"
-                st.rerun()
-        else:
-            st.button("🚫 పర్మిషన్ లేదు", disabled=True, use_container_width=True, key="worker_cal_disabled")
-    with col_w_btn4:
         if worker_perm.get("can_search", True):
             if st.button("🔍 Main Search", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
