@@ -554,38 +554,74 @@ def render_clickable_table(df, display_c, p_col):
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
 
-# 🌟 Day-wise Calendar Dialog View
-@st.dialog("📅 Day-wise Calendar View", width="large")
-def calendar_view_dialog():
-    st.info("💡 Select a date to view cases booked or updated on that specific day:")
+# 🌟 Combined New/Updated Cases & Calendar Dialog View
+@st.dialog("📋 New / Updated Cases & Calendar", width="large")
+def admin_updated_cases_dialog():
+    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు తేదీల వారీగా (**Calendar View**) చూడవచ్చు:")
     sheets = get_sheet_names()
-    selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select")
+    all_rows = []
     
-    df_cal = load_data(sheet_name=selected_cal_sheet)
-    if df_cal is None or df_cal.empty:
-        st.warning("No data available in this sheet.")
-        return
-        
-    date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day'])]
-    if not date_cols:
-        st.warning("No date column found in this sheet.")
-        return
-        
-    selected_date_col = st.selectbox("Select Date Column:", options=date_cols, key="cal_date_col_select")
-    selected_date = st.date_input("Select Target Date:", value=datetime.date.today(), key="cal_target_date")
+    for s in sheets:
+        df_s = load_data(sheet_name=s)
+        if df_s is not None and not df_s.empty and "Updated_By" in df_s.columns:
+            upd_rows = df_s[df_s["Updated_By"].astype(str).str.strip() != ""]
+            if not upd_rows.empty:
+                upd_rows = upd_rows.copy()
+                upd_rows.insert(0, "Sheet_Name", s)
+                all_rows.append(upd_rows)
+                
+    tab_new, tab_upd, tab_cal = st.tabs(["➕ న్యూ కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసిన కేసులు (Updated Cases)", "📅 డే-వైజ్ క్యాలెండర్ (Calendar View)"])
     
-    if df_cal is not None and not df_cal.empty:
-        date_str = selected_date.strftime("%Y-%m-%d")
-        mask = df_cal[selected_date_col].astype(str).str.contains(date_str, na=False)
-        matched_df = df_cal[mask]
-        
-        st.write(f"📅 Cases on **{date_str}** ({len(matched_df)} found):")
-        if matched_df.empty:
-            st.info(f"No records found for date ({date_str}).")
+    with tab_new:
+        if not all_rows:
+            st.info("ఎటువంటి కొత్త కేసులు (New Cases) కనుగొనబడలేదు.")
         else:
-            display_c = find_display_username_column(matched_df)
-            p_col = find_password_column(matched_df)
-            render_clickable_table(matched_df, display_c, p_col)
+            combined_df = pd.concat(all_rows, ignore_index=True)
+            p_col = find_password_column(combined_df)
+            view_df = combined_df.drop(columns=[p_col], errors="ignore")
+            new_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "new case"]
+            if new_cases_df.empty:
+                st.info("ఎటువంటి కొత్త కేసులు కనుగొనబడలేదు.")
+            else:
+                st.success(f"మొత్తం కొత్త కేసులు: {len(new_cases_df)}")
+                render_clickable_table(new_cases_df, find_display_username_column(new_cases_df), p_col)
+                
+    with tab_upd:
+        if not all_rows:
+            st.info("ఎటువంటి అప్‌డేట్ కేసులు కనుగొనబడలేదు.")
+        else:
+            combined_df = pd.concat(all_rows, ignore_index=True)
+            p_col = find_password_column(combined_df)
+            view_df = combined_df.drop(columns=[p_col], errors="ignore")
+            updated_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "updated case"]
+            if updated_cases_df.empty:
+                st.info("ఎటువంటి అప్‌డేట్ కేసులు కనుగొనబడలేదు.")
+            else:
+                st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
+                render_clickable_table(updated_cases_df, find_display_username_column(updated_cases_df), p_col)
+
+    with tab_cal:
+        st.write("📅 **తేదీ వారీగా ఫిల్టర్ చేసి చూడండి:**")
+        selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select_tab")
+        df_cal = load_data(sheet_name=selected_cal_sheet)
+        if df_cal is not None and not df_cal.empty:
+            date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day'])]
+            if date_cols:
+                selected_date_col = st.selectbox("Select Date Column:", options=date_cols, key="cal_date_col_tab")
+                selected_date = st.date_input("Select Target Date:", value=datetime.date.today(), key="cal_target_date_tab")
+                date_str = selected_date.strftime("%Y-%m-%d")
+                
+                mask = df_cal[selected_date_col].astype(str).str.contains(date_str, na=False)
+                matched_df = df_cal[mask]
+                st.write(f"📅 **{date_str}** తేదీకి సంబంధించిన రికార్డులు ({len(matched_df)} found):")
+                if matched_df.empty:
+                    st.info(f"ఈ తేదీ ({date_str}) లో ఎటువంటి రికార్డులు నమోదు కాలేదు.")
+                else:
+                    pc = find_password_column(matched_df)
+                    display_c = find_display_username_column(matched_df)
+                    render_clickable_table(matched_df, display_c, pc)
+            else:
+                st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
 
 # 🌟 Other Modal Dialogs
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
@@ -817,33 +853,6 @@ def search_data_dialog():
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
-@st.dialog("📋 Updated & New Cases History", width="large")
-def updated_cases_history_dialog():
-    sheets = get_sheet_names()
-    selected_sh = st.selectbox("Select Sheet:", options=sheets, key="dlg_hist_sheet")
-    df_h = load_data(sheet_name=selected_sh)
-    if df_h is not None and not df_h.empty:
-        if "Updated_By" in df_h.columns:
-            updated_rows = df_h[df_h["Updated_By"].astype(str).str.strip() != ""]
-            if updated_rows.empty:
-                st.warning("No cases have been updated or added yet in this sheet.")
-            else:
-                tab_h1, tab_h2 = st.tabs(["➕ New Cases", "✏️ Updated Cases"])
-                with tab_h1:
-                    new_only = updated_rows[updated_rows["Action_Type"].astype(str).str.strip().str.lower() == "new case"]
-                    if new_only.empty:
-                        st.info("No new cases found.")
-                    else:
-                        st.success(f"Found {len(new_only)} new cases:")
-                        render_clickable_table(new_only, find_display_username_column(new_only), find_password_column(new_only))
-                with tab_h2:
-                    upd_only = updated_rows[updated_rows["Action_Type"].astype(str).str.strip().str.lower() == "updated case"]
-                    if upd_only.empty:
-                        st.info("No updated cases found.")
-                    else:
-                        st.success(f"Found {len(upd_only)} updated cases:")
-                        render_clickable_table(upd_only, find_display_username_column(upd_only), find_password_column(upd_only))
-
 # 🌟 Handle Dialog Execution securely via Session State
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
@@ -854,11 +863,8 @@ elif st.session_state["open_dialog"] == "admin_password":
 elif st.session_state["open_dialog"] == "sync_excel":
     sync_excel_dialog()
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "calendar_view":
-    calendar_view_dialog()
-    st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "updated_history":
-    updated_cases_history_dialog()
+elif st.session_state["open_dialog"] == "admin_updated_cases":
+    admin_updated_cases_dialog()
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
@@ -992,7 +998,7 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5 = st.columns(5)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4 = st.columns(4)
     with col_btn_1:
         if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
@@ -1006,12 +1012,8 @@ elif st.session_state["role"] == "admin":
             st.session_state["open_dialog"] = "sync_excel"
             st.rerun()
     with col_btn_4:
-        if st.button("📋 History", use_container_width=True, key="admin_upd_hist_btn"):
-            st.session_state["open_dialog"] = "updated_history"
-            st.rerun()
-    with col_btn_5:
-        if st.button("📅 Calendar", use_container_width=True, key="admin_cal_btn"):
-            st.session_state["open_dialog"] = "calendar_view"
+        if st.button("📋 New / Updated Cases & Calendar", use_container_width=True, key="admin_upd_cases_btn"):
+            st.session_state["open_dialog"] = "admin_updated_cases"
             st.rerun()
 
     st.divider()
@@ -1126,7 +1128,7 @@ else:
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
     has_sync_perm = worker_perm.get("can_sync", False)
-    w_cols = st.columns(6 if has_sync_perm else 5)
+    w_cols = st.columns(5 if has_sync_perm else 4)
     
     with w_cols[0]:
         if st.button("🔑 Password", use_container_width=True, key="worker_pw_btn"):
@@ -1147,13 +1149,6 @@ else:
         else:
             st.button("🚫 No Search", disabled=True, use_container_width=True, key="worker_search_disabled")
     with w_cols[3]:
-        if worker_perm.get("can_search", True):
-            if st.button("📅 Calendar", use_container_width=True, key="worker_cal_btn"):
-                st.session_state["open_dialog"] = "calendar_view"
-                st.rerun()
-        else:
-            st.button("🚫 No Calendar", disabled=True, use_container_width=True, key="worker_cal_disabled")
-    with w_cols[4]:
         if worker_perm.get("can_download", False):
             worker_buffer = io.BytesIO()
             with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
@@ -1182,7 +1177,7 @@ else:
             st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
             
     if has_sync_perm:
-        with w_cols[5]:
+        with w_cols[4]:
             if st.button("🔄 Sync", use_container_width=True, key="worker_sync_btn"):
                 st.session_state["open_dialog"] = "sync_excel"
                 st.rerun()
