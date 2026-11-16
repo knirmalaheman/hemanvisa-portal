@@ -11,6 +11,7 @@ ADMIN_FILE = "admin_config.txt"
 PERMS_FILE = "worker_permissions.json"
 NOTICE_FILE = "admin_notice.txt"
 LOGINS_FILE = "worker_logins_status.json"
+ATTENDANCE_FILE = "worker_attendance.json"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
@@ -113,15 +114,76 @@ def load_login_tracking():
             return {}
     return {}
 
+# 🌟 Attendance Functions for Day-by-Day tracking
+def load_attendance():
+    if os.path.exists(ATTENDANCE_FILE):
+        try:
+            with open(ATTENDANCE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def save_attendance(att_list):
+    with open(ATTENDANCE_FILE, "w") as f:
+        json.dump(att_list, f, indent=4)
+
 def record_worker_login(worker_name):
+    now_dt = datetime.datetime.now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+    full_timestamp = f"{today_str} {time_str}"
+    
+    # 1. Update current status
     logins = load_login_tracking()
-    # 🌟 12-Hour AM/PM Format
     logins[worker_name.strip()] = {
         "status": "Logged In",
-        "last_login": datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+        "last_login": full_timestamp
     }
     with open(LOGINS_FILE, "w") as f:
         json.dump(logins, f, indent=4)
+        
+    # 2. Update Daily Attendance Record
+    attendance = load_attendance()
+    found = False
+    for entry in attendance:
+        if entry.get("Worker", "").lower() == worker_name.strip().lower() and entry.get("Date") == today_str:
+            entry["Login_Time"] = time_str
+            entry["Status"] = "Active"
+            found = True
+            break
+    if not found:
+        attendance.append({
+            "Worker": worker_name.strip(),
+            "Date": today_str,
+            "Login_Time": time_str,
+            "Logout_Time": "-",
+            "Status": "Active"
+        })
+    save_attendance(attendance)
+
+def record_worker_logout(worker_name):
+    if not worker_name:
+        return
+    now_dt = datetime.datetime.now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+    
+    # 1. Update current status
+    logins = load_login_tracking()
+    if worker_name.strip() in logins:
+        logins[worker_name.strip()]["status"] = "Not Logged In"
+    with open(LOGINS_FILE, "w") as f:
+        json.dump(logins, f, indent=4)
+        
+    # 2. Update Daily Attendance Record for Logout
+    attendance = load_attendance()
+    for entry in attendance:
+        if entry.get("Worker", "").lower() == worker_name.strip().lower() and entry.get("Date") == today_str:
+            entry["Logout_Time"] = time_str
+            entry["Status"] = "Logged Out"
+            break
+    save_attendance(attendance)
 
 # Automatically record worker login if logged in
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
@@ -547,7 +609,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 else:
                     try:
                         df_full.at[row_idx, "Updated_By"] = current_user
-                        # 🌟 12-Hour AM/PM Format
                         df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
                         df_full.at[row_idx, "Action_Type"] = "Delete Request"
                         df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
@@ -593,7 +654,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if submitted:
                 try:
-                    # 🌟 12-Hour AM/PM Format
                     current_time = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
                     changed = False
                     for col_name, new_val in updated_values.items():
@@ -766,6 +826,33 @@ def admin_login_status_dialog():
                 with c1: st.write(f"👤 **{item['worker']}**")
                 with c2: st.error("🔴 Not Logged In")
                 with c3: st.text(item['time'])
+
+# 🌟 Admin Attendance History & Excel Download Dialog
+@st.dialog("📊 Case Worker Attendance Report", width="large")
+def admin_attendance_dialog():
+    st.info("💡 కేస్ వర్కర్ల రోజువారీ లాగిన్ మరియు లాగౌట్ సమయాల హాజరు (Attendance) వివరాలు:")
+    
+    attendance_data = load_attendance()
+    if not attendance_data:
+        st.warning("ఎటువంటి అటెండెన్స్ రికార్డులు కనుగొనబడలేదు.")
+    else:
+        df_att = pd.DataFrame(attendance_data)
+        df_att.index = range(1, len(df_att) + 1)
+        st.dataframe(df_att, use_container_width=True)
+        
+        # Excel Download Buffer
+        att_buffer = io.BytesIO()
+        with pd.ExcelWriter(att_buffer, engine='openpyxl') as writer:
+            df_att.to_excel(writer, sheet_name="Attendance", index=False)
+            
+        st.download_button(
+            label="📥 Download Attendance Report (.xlsx)",
+            data=att_buffer.getvalue(),
+            file_name="Case_Worker_Attendance.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="download_attendance_excel"
+        )
 
 # 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
@@ -1090,7 +1177,6 @@ def add_case_dialog(worker_name):
 
                 new_row[t_pass_col] = current_pass if final_assigned_user != "" else "admin123"
                 new_row["Updated_By"] = worker_name
-                # 🌟 12-Hour AM/PM Format
                 new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
                 new_row["Action_Type"] = "New Case"
                 new_row["Delete_Reason"] = ""
@@ -1148,6 +1234,9 @@ elif st.session_state["open_dialog"] == "admin_notice":
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "admin_login_status":
     admin_login_status_dialog()
+    st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_attendance":
+    admin_attendance_dialog()
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
@@ -1287,7 +1376,7 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6, col_btn_7 = st.columns(7)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6, col_btn_7, col_btn_8 = st.columns(8)
     with col_btn_1:
         if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
@@ -1315,6 +1404,10 @@ elif st.session_state["role"] == "admin":
     with col_btn_7:
         if st.button("👥 Worker Logins", use_container_width=True, key="admin_login_status_btn"):
             st.session_state["open_dialog"] = "admin_login_status"
+            st.rerun()
+    with col_btn_8:
+        if st.button("📊 Attendance", use_container_width=True, key="admin_attendance_btn"):
+            st.session_state["open_dialog"] = "admin_attendance"
             st.rerun()
 
     st.divider()
@@ -1386,6 +1479,7 @@ else:
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="worker_logout"):
+            record_worker_logout(current_user) # 🌟 Record Logout Time
             st.query_params.clear()
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
@@ -1489,21 +1583,4 @@ else:
     if has_sync_perm:
         with w_cols[4]:
             if st.button("🔄 Sync", use_container_width=True, key="worker_sync_btn"):
-                st.session_state["open_dialog"] = "sync_excel"
-                st.rerun()
-            
-    st.divider()
-
-    if sheets:
-        st.write("📑 **Sheets Switch:**")
-        st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
-            
-    st.divider()
-    
-    st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-
-    if user_rows.empty:
-        st.info("No cases assigned to you in this sheet.")
-    else:
-        st.caption("Click USERNAME inside the table to view, edit, or delete details.")
-        render_clickable_table(user_rows, display_c, p_col)
+                st.session_state["open_dialog"]
