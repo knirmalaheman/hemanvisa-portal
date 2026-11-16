@@ -471,7 +471,15 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             for i, col_name in enumerate(cols_to_show):
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
-                    updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
+                    if any(k in col_name.lower() for k in ['date', 'time', 'day']):
+                        try:
+                            parsed_d = datetime.datetime.strptime(str(row_data[col_name]).split()[0], "%Y-%m-%d").date()
+                        except:
+                            parsed_d = datetime.date.today()
+                        sel_d = st.date_input(f"{col_name}", value=parsed_d, key=f"popup_date_{row_idx}_{col_name}")
+                        updated_values[col_name] = sel_d.strftime("%Y-%m-%d")
+                    else:
+                        updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col_save, col_back = st.columns(2)
@@ -803,7 +811,11 @@ def add_case_dialog(worker_name):
         form_data = {}
         cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type"]]
         for col_name in cols:
-            form_data[col_name] = st.text_input(f"{col_name}")
+            if any(k in col_name.lower() for k in ['date', 'time', 'day']):
+                sel_date = st.date_input(f"{col_name}", value=datetime.date.today(), key=f"add_date_{col_name}")
+                form_data[col_name] = sel_date.strftime("%Y-%m-%d")
+            else:
+                form_data[col_name] = st.text_input(f"{col_name}", key=f"add_txt_{col_name}")
         
         if st.form_submit_button("🚀 Submit New Case", type="primary", use_container_width=True):
             try:
