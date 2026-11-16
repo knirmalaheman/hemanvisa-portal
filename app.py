@@ -112,7 +112,7 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# 🎨 Modern Professional CSS with Minimal Top Gap
+# 🎨 Modern Professional CSS & Custom Table Styling
 st.markdown("""
 <style>
     /* Hide Streamlit default top header bar */
@@ -305,6 +305,46 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
+    /* Custom Modern Table Styling */
+    .custom-table-container {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+        background-color: #ffffff;
+        border: 1px solid #e1e4e8;
+    }
+    .styled-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 13px;
+        text-align: left;
+        white-space: nowrap;
+    }
+    .styled-table thead tr {
+        background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%);
+        color: #ffffff;
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 0.8px;
+    }
+    .styled-table th, .styled-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #eef2f5;
+    }
+    .styled-table tbody tr {
+        transition: all 0.2s ease-in-out;
+    }
+    .styled-table tbody tr:nth-of-type(even) {
+        background-color: #f8fafc;
+    }
+    .styled-table tbody tr:hover {
+        background-color: #edf5fc;
+        transform: scale(1.001);
+    }
+
     div[data-testid="stExpander"] {
         width: 100% !important;
         max-width: 950px !important;
@@ -355,6 +395,17 @@ st.markdown(f"""
         </div>
     </div>
 """, unsafe_allow_html=True)
+
+def render_styled_table(df):
+    if df is None or df.empty:
+        st.info("డేటా అందుబాటులో లేదు.")
+        return
+    html_table = df.to_html(classes='styled-table', index=False, escape=False)
+    st.markdown(f"""
+    <div class="custom-table-container">
+        {html_table}
+    </div>
+    """, unsafe_allow_html=True)
 
 def update_admin_sheet():
     st.session_state["active_sheet"] = st.session_state["admin_sheet_radio"]
@@ -468,7 +519,7 @@ def admin_updated_cases_dialog():
                 st.info("ఎటువంటి కొత్త కేసులు కనుగొనబడలేదు.")
             else:
                 st.success(f"మొత్తం కొత్త కేసులు: {len(new_cases_df)}")
-                st.dataframe(new_cases_df, use_container_width=True)
+                render_styled_table(new_cases_df)
                 
     with tab_upd:
         if not all_rows:
@@ -482,7 +533,7 @@ def admin_updated_cases_dialog():
                 st.info("ఎటువంటి అప్‌డేట్ కేసులు కనుగొనబడలేదు.")
             else:
                 st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
-                st.dataframe(updated_cases_df, use_container_width=True)
+                render_styled_table(updated_cases_df)
 
     with tab_cal:
         st.write("📅 **తేదీ వారీగా ఫిల్టర్ చేసి చూడండి:**")
@@ -503,7 +554,7 @@ def admin_updated_cases_dialog():
                 else:
                     pc = find_password_column(matched_df)
                     display_matched = matched_df.drop(columns=[pc], errors="ignore")
-                    st.dataframe(display_matched, use_container_width=True)
+                    render_styled_table(display_matched)
             else:
                 st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
 
@@ -640,8 +691,7 @@ def search_data_dialog():
             else:
                 st.success(f"'{search_query}' కి సంబంధించిన ఫలితాలు ({len(found_data)} rows):")
                 view_only_df = found_data.drop(columns=[u_col, p_col, "Updated_By", "Updated_At", "Action_Type"], errors="ignore")
-                view_only_df.index = range(1, len(view_only_df) + 1)
-                st.dataframe(view_only_df, use_container_width=True)
+                render_styled_table(view_only_df)
 
 # 🌟 Handle Dialog Execution securely via Session State (Zero Logout)
 if st.session_state["open_dialog"] == "permissions":
@@ -980,5 +1030,4 @@ else:
     else:
         st.warning("⚠️ అడ్మిన్ ద్వారా మీకు ఈ కేసులను ఎడిట్ చేసి అప్‌డేట్ చేసే అనుమతి (Update Permission) నిలిపివేయబడింది.")
         view_only_user_df = user_rows.drop(columns=[user_col, pass_col, "Updated_By", "Updated_At", "Action_Type"], errors="ignore")
-        view_only_user_df.index = range(1, len(view_only_user_df) + 1)
-        st.dataframe(view_only_user_df, use_container_width=True)
+        render_styled_table(view_only_user_df)
