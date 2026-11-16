@@ -1654,6 +1654,10 @@ elif st.session_state["role"] == "admin":
 
         st.divider()
 
+    elif admin_dash_tab == "📂 Case Records & Search":
+        st.markdown("<div class='section-banner'>📂 Case Records & Management Hub</div>", unsafe_allow_html=True)
+        st.info("💡 అడ్మిన్ డాష్‌బోర్డ్ నుండి ప్రధాన టేబుల్ తొలగించబడింది. మీరు పైన ఉన్న టాబ్స్ మరియు బటన్స్ ద్వారా రికార్డులను, లాగిన్‌లను, మరియు అటెండెన్స్‌ను నిర్వహించవచ్చు.")
+
     elif admin_dash_tab == "ℹ️ System Guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
         g1, g2 = st.columns(2, gap="medium")
@@ -1679,22 +1683,6 @@ elif st.session_state["role"] == "admin":
                     <p>Broadcast scrolling marquee announcements directly to all active case worker screens using the 'Broadcast Notice' feature.</p>
                 </div>
             """, unsafe_allow_html=True)
-
-    if admin_dash_tab in ["📊 Dashboard & Quick Actions", "📂 Case Records & Search"]:
-        st.caption("💡 Click USERNAME inside the table to view, edit, or delete details.")
-        render_clickable_table(df, display_c, p_col)
-                    
-        if os.path.exists(EXCEL_FILE):
-            with open(EXCEL_FILE, "rb") as f:
-                excel_bytes = f.read()
-            st.download_button(
-                label="📥 Download Complete Excel File (All Sheets)", 
-                data=excel_bytes, 
-                file_name=EXCEL_FILE, 
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                use_container_width=True, 
-                key="admin_dl_all_btn"
-            )
 
 # 3. CASE WORKER DASHBOARD
 else:
