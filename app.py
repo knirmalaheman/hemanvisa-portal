@@ -503,6 +503,52 @@ st.markdown("""
         line-height: 1.1;
     }
 
+    /* 🎨 Compact Visa Category Cards for Case Records Tab */
+    .compact-kpi-card {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+        color: white;
+        padding: 10px 8px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+        text-align: center;
+        border-bottom: 3px solid #f59e0b;
+        margin-bottom: 8px;
+        height: 65px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        box-sizing: border-box;
+    }
+    .compact-kpi-card.gold {
+        background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
+        border-bottom: 3px solid #1e3a8a;
+    }
+    .compact-kpi-card.green {
+        background: linear-gradient(135deg, #047857 0%, #10b981 100%);
+        border-bottom: 3px solid #fde047;
+    }
+    .compact-kpi-card.purple {
+        background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%);
+        border-bottom: 3px solid #fde047;
+    }
+    .compact-kpi-title {
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        opacity: 0.95;
+        margin-bottom: 3px;
+        line-height: 1.1;
+        font-weight: 700;
+    }
+    .compact-kpi-value {
+        font-size: 18px;
+        font-weight: 800;
+        margin: 0;
+        line-height: 1;
+    }
+
     .section-banner {
         background: linear-gradient(90deg, #e0e7ff 0%, #f3e8ff 100%);
         border-left: 5px solid #4f46e5;
@@ -1618,7 +1664,7 @@ elif st.session_state["role"] == "admin":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
-        # 1. Core KPIs Row (4 columns)
+        # 1. Core KPIs Row (4 columns) - Visa category cards removed from here
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
@@ -1628,19 +1674,6 @@ elif st.session_state["role"] == "admin":
             st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
         with k4:
             st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
-
-        # 2. Visa Category Breakdown Grid (4 columns per row for clean professional look)
-        if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution</div>", unsafe_allow_html=True)
-            colors_list = ["gold", "purple", "green", "blue"]
-            visa_items = list(visa_counts.items())
-            for i in range(0, len(visa_items), 4):
-                row_items = visa_items[i:i+4]
-                v_cols = st.columns(4, gap="medium")
-                for idx, (v_name, v_count) in enumerate(row_items):
-                    c_class = colors_list[(i + idx) % len(colors_list)]
-                    with v_cols[idx]:
-                        st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
 
         st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
         r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4, gap="medium")
@@ -1685,7 +1718,7 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
-        # Display Visa Category Distribution KPI Cards here as well
+        # Display Compact Visa Category Distribution KPI Cards here
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution Summary</div>", unsafe_allow_html=True)
             colors_list = ["gold", "purple", "green", "blue"]
@@ -1696,7 +1729,7 @@ elif st.session_state["role"] == "admin":
                 for idx, (v_name, v_count) in enumerate(row_items):
                     c_class = colors_list[(i + idx) % len(colors_list)]
                     with v_cols[idx]:
-                        st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='compact-kpi-card {c_class}'><div class='compact-kpi-title'>✈️ {v_name}</div><div class='compact-kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
             st.divider()
 
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
