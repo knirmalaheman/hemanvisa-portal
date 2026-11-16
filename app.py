@@ -437,6 +437,34 @@ def permissions_dialog():
                         st.error(f"❌ సమస్య: {e}")
             st.write("")
 
+@st.dialog("📋 కేస్ వర్కర్స్ అప్‌డేట్ చేసిన / కొత్త కేసులు (All Sheets)", width="large")
+def admin_updated_cases_dialog():
+    st.info("💡 కేస్ వర్కర్స్ ద్వారా ఏయే కేసులు అప్‌డేట్ చేయబడ్డాయో లేదా కొత్తగా యాడ్ చేయబడ్డాయో ఇక్కడ అన్ని షీట్ల నుండి చూడవచ్చు:")
+    sheets = get_sheet_names()
+    all_updated_rows = []
+    
+    for s in sheets:
+        df_s = load_data(sheet_name=s)
+        if df_s is not None and not df_s.empty and "Updated_By" in df_s.columns:
+            # Updated_By ఖాళీగా లేని రోస్ ని ఫిల్టర్ చేయడం
+            upd_rows = df_s[df_s["Updated_By"].astype(str).str.strip() != ""]
+            if not upd_rows.empty:
+                upd_rows = upd_rows.copy()
+                upd_rows.insert(0, "Sheet_Name", s)
+                all_updated_rows.append(upd_rows)
+                
+    if not all_updated_rows:
+        st.warning("ఇంతవరకు కేస్ వర్కర్లు ఎటువంటి మార్పులు లేదా కొత్త కేసులు చేయలేదు.")
+    else:
+        combined_df = pd.concat(all_updated_rows, ignore_index=True)
+        u_col = find_username_column(combined_df)
+        p_col = find_password_column(combined_df)
+        
+        # అనవసరమైన పాస్‌వర్డ్ కాలమ్ ని దాచిపెట్టి చూపించడం
+        view_df = combined_df.drop(columns=[p_col], errors="ignore")
+        st.success(f"మొత్తం అప్‌డేట్ అయిన కేసులు: {len(view_df)}")
+        st.dataframe(view_df, use_container_width=True)
+
 @st.dialog("🔑 Admin పాస్‌వర్డ్ మార్చుకోండి", width="medium")
 def admin_password_dialog():
     with st.form("dlg_admin_pass_form"):
@@ -576,6 +604,9 @@ def search_data_dialog():
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_updated_cases":
+    admin_updated_cases_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "admin_password":
     admin_password_dialog()
     st.session_state["open_dialog"] = None
@@ -682,12 +713,16 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2 = st.columns(2)
+    col_btn_1, col_btn_2, col_btn_3 = st.columns(3)
     with col_btn_1:
-        if st.button("👥 Users, Passwords & Permissions (All Sheets)", use_container_width=True, key="admin_perm_btn"):
+        if st.button("👥 Users, Passwords & Permissions", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
     with col_btn_2:
+        if st.button("📋 View All Updated / New Cases", use_container_width=True, key="admin_upd_cases_btn"):
+            st.session_state["open_dialog"] = "admin_updated_cases"
+            st.rerun()
+    with col_btn_3:
         if st.button("🔑 Change Admin Password", use_container_width=True, key="admin_pw_btn"):
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
@@ -854,7 +889,6 @@ else:
                 orig_indices = user_rows.index.tolist()
                 df_updated = df.copy()
                 
-                # Remove original user rows to properly handle row deletions
                 df_updated = df_updated.drop(orig_indices)
 
                 new_rows_list = []
@@ -863,9 +897,9 @@ else:
                     new_row[user_col] = current_user
                     
                     curr_p_val = ""
-                    m_row = user_rows[user_rows[user_col].astype(str).str.strip().str.lower() == current_user.lower()]
-                    if not m_row.empty:
-                        curr_p_val = str(m_row.iloc[0][pass_col]).strip()
+                    m_user_row = user_rows[user_rows[user_col].astype(str).str.strip().str.lower() == current_user.lower()]
+                    if not m_user_row.empty:
+                        curr_p_val = str(m_user_row.iloc[0][pass_col]).strip()
                     new_row[pass_col] = curr_p_val
 
                     data_cols = [c for c in edited_df.columns if c not in [user_col, pass_col]]
