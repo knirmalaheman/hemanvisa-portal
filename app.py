@@ -16,9 +16,11 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Helper function for Local / Current System Time
+# 🌟 Perfect IST Timezone Helper (Cloud Server UTC to Indian Standard Time UTC +5:30 conversion)
 def get_ist_now():
-    return datetime.datetime.now()
+    utc_dt = datetime.datetime.now(datetime.timezone.utc)
+    ist_tz = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+    return utc_dt.astimezone(ist_tz).replace(tzinfo=None)
 
 def get_admin_creds():
     if os.path.exists(ADMIN_FILE):
