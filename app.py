@@ -39,6 +39,7 @@ if st.session_state["logged_in"] and "edit_row" in qp:
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
         st.session_state["is_editing_popup"] = False
+        st.session_state["is_delete_request_mode"] = False
         if "edit_row" in st.query_params:
             del st.query_params["edit_row"]
     except:
@@ -112,6 +113,8 @@ def load_data(sheet_name=0):
                 df["Updated_At"] = ""
             if "Action_Type" not in df.columns:
                 df["Action_Type"] = ""
+            if "Delete_Reason" not in df.columns:
+                df["Delete_Reason"] = ""
                 
             return df
         except Exception:
@@ -434,8 +437,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     if "is_editing_popup" not in st.session_state:
         st.session_state["is_editing_popup"] = False
+    if "is_delete_request_mode" not in st.session_state:
+        st.session_state["is_delete_request_mode"] = False
 
-    if not st.session_state["is_editing_popup"]:
+    if not st.session_state["is_editing_popup"] and not st.session_state["is_delete_request_mode"]:
         st.markdown("### 📄 Case Information")
         for col in df_full.columns:
             if col not in [p_col]:
@@ -463,23 +468,47 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         except Exception as e:
                             st.error(f"❌ Error deleting case: {e}")
                 else:
-                    if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req"):
-                        try:
-                            df_full.at[row_idx, "Updated_By"] = current_user
-                            df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            df_full.at[row_idx, "Action_Type"] = "Delete Request"
-                            save_data(df_full, sheet_name=sheet_name)
-                            st.session_state["selected_row_idx"] = None
-                            st.session_state["open_dialog"] = None
-                            st.success("✅ Delete request sent to Admin for approval!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error sending delete request: {e}")
+                    if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req_mode"):
+                        st.session_state["is_delete_request_mode"] = True
+                        st.rerun()
+
+    elif st.session_state["is_delete_request_mode"]:
+        st.markdown("### 🗑️ Request Delete Case")
+        with st.form(f"delete_reason_form_{row_idx}"):
+            del_reason = st.text_area("✍️ ఈ కేసును ఎందుకు డిలీట్ చేయాలనుకుంటున్నారు? (Reason required):", placeholder="కారణం ఇక్కడ రాయండి...")
+            col_sub_req, col_back_req = st.columns(2)
+            with col_sub_req:
+                submitted_req = st.form_submit_button("🚀 Submit Delete Request", type="primary", use_container_width=True)
+            with col_back_req:
+                cancelled_req = st.form_submit_button("↩️ Back", use_container_width=True)
+
+            if submitted_req:
+                if del_reason.strip() == "":
+                    st.warning("⚠️ దయచేసి డిలీట్ చేయడానికి తగిన కారణం (Reason) రాయండి.")
+                else:
+                    try:
+                        df_full.at[row_idx, "Updated_By"] = current_user
+                        df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        df_full.at[row_idx, "Action_Type"] = "Delete Request"
+                        df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
+                        save_data(df_full, sheet_name=sheet_name)
+                        st.session_state["is_delete_request_mode"] = False
+                        st.session_state["selected_row_idx"] = None
+                        st.session_state["open_dialog"] = None
+                        st.success("✅ Delete request sent to Admin with reason successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error: {e}")
+
+            if cancelled_req:
+                st.session_state["is_delete_request_mode"] = False
+                st.rerun()
+
     else:
         st.markdown("### ✏️ Edit Case Details")
         with st.form(f"popup_edit_form_{row_idx}"):
             updated_values = {}
-            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, p_col, "Updated_By", "Updated_At"]]
+            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, p_col, "Updated_By", "Updated_At", "Delete_Reason"]]
             
             f_col1, f_col2 = st.columns(2)
             for i, col_name in enumerate(cols_to_show):
@@ -645,11 +674,17 @@ def admin_updated_cases_dialog():
                 worker_name = r_dict.get("Updated_By", "Unknown")
                 req_time = r_dict.get("Updated_At", "")
                 
-                # Exclude internal metadata columns for clean view
-                clean_dict = {k: v for k, v in r_dict.items() if k not in ["Sheet_Name", "Original_Index", "password", "Password", "pass"]}
-                
-                with st.expander(f"📁 Sheet: {s_name} | Worker: {worker_name} | Time: {req_time}"):
-                    st.json(clean_dict)
+                # Fetch specific Username and Delete Reason as requested
+                df_temp = load_data(sheet_name=s_name)
+                disp_col = find_display_username_column(df_temp) if df_temp is not None else "USERNAME"
+                case_username = str(r_dict.get(disp_col, "N/A"))
+                delete_reason = str(r_dict.get("Delete_Reason", "Reason not specified"))
+
+                with st.expander(f"📁 Sheet: {s_name} | Case User: {case_username} | Worker: {worker_name}"):
+                    st.markdown(f"👤 **Case Username:** `{case_username}`")
+                    st.markdown(f"✍️ **Delete Reason:** `{delete_reason}`")
+                    st.caption(f"Requested Time: {req_time}")
+                    
                     col_acc, col_rej = st.columns(2)
                     with col_acc:
                         if st.button("✅ Accept Delete (Permanent Delete)", key=f"accept_del_{s_name}_{orig_idx}_{i}", type="primary", use_container_width=True):
@@ -666,6 +701,7 @@ def admin_updated_cases_dialog():
                                 df_target.at[orig_idx, "Action_Type"] = ""
                                 df_target.at[orig_idx, "Updated_By"] = ""
                                 df_target.at[orig_idx, "Updated_At"] = ""
+                                df_target.at[orig_idx, "Delete_Reason"] = ""
                                 save_data(df_target, sheet_name=s_name)
                                 st.success("❌ Delete request rejected. Case restored.")
                                 st.rerun()
@@ -871,7 +907,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type"]]
+        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"]]
         for col_name in cols:
             if any(k in col_name.lower() for k in ['date', 'time', 'day']):
                 sel_date = st.date_input(f"{col_name}", value=datetime.date.today(), key=f"add_date_{col_name}")
@@ -894,6 +930,7 @@ def add_case_dialog(worker_name):
                 new_row["Updated_By"] = worker_name
                 new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 new_row["Action_Type"] = "New Case"
+                new_row["Delete_Reason"] = ""
                 
                 for k, v in form_data.items():
                     new_row[k] = v
@@ -923,7 +960,7 @@ def search_data_dialog():
                 st.warning(f"No details found for '{search_query}'.")
             else:
                 st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
-                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type"], errors="ignore")
+                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"], errors="ignore")
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
