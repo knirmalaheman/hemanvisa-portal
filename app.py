@@ -115,7 +115,8 @@ def load_login_tracking():
 
 def record_worker_login(worker_name):
     logins = load_login_tracking()
-    logins[worker_name] = {
+    # Store with exact casing and normalized lowercase for robust matching
+    logins[worker_name.strip()] = {
         "status": "Logged In",
         "last_login": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
@@ -691,12 +692,11 @@ def admin_notice_dialog():
             st.success("✅ Notice cleared successfully!")
             st.rerun()
 
-# 🌟 Admin Worker Login Status Tracking Dialog
+# 🌟 Admin Worker Login Status Tracking Dialog (Professional Native DataFrame)
 @st.dialog("👥 Case Worker Login Status", width="large")
 def admin_login_status_dialog():
-    st.info("💡 ఏ కేస్ వర్కర్ లాగిన్ అయ్యారు, ఎవరూ కాలేదు అనే వివరాలు ఇక్కడ చూడవచ్చు:")
+    st.info("💡 కేస్ వర్కర్ల లాగిన్ వివరాలు (ఎవరు లాగిన్ అయ్యారు, ఎవరూ కాలేదు) క్రింద ఇవ్వబడ్డాయి:")
     
-    # Gather all case workers from all sheets
     sheets = get_sheet_names()
     all_workers = set()
     for s in sheets:
@@ -709,50 +709,28 @@ def admin_login_status_dialog():
                     all_workers.add(u)
                     
     login_records = load_login_tracking()
+    # Normalize keys to lowercase for robust case-insensitive comparison
+    normalized_login_records = {k.lower(): v for k, v in login_records.items()}
     
     status_data = []
     for w in sorted(list(all_workers)):
-        rec = login_records.get(w, {})
+        rec = normalized_login_records.get(w.lower(), {})
         status = rec.get("status", "Not Logged In")
         last_time = rec.get("last_login", "-")
+        
+        status_label = "🟢 Logged In" if status == "Logged In" else "🔴 Not Logged In"
+        
         status_data.append({
-            "Case Worker": w,
-            "Login Status": status,
-            "Last Login Time": last_time
+            "Case Worker Name": w,
+            "Login Status": status_label,
+            "Last Login Timestamp": last_time
         })
         
     if not status_data:
         st.warning("ఎటువంటి కేస్ వర్కర్లు కనుగొనబడలేదు.")
     else:
         df_status = pd.DataFrame(status_data)
-        
-        # Display styled table
-        html = """
-        <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e1e4e8; border-radius: 8px;">
-        <table style="width:100%; border-collapse: collapse; font-size: 14px; font-family: sans-serif;">
-            <thead>
-                <tr style="background-color: #0b3c65; color: white; position: sticky; top: 0;">
-                    <th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left;">Case Worker Name</th>
-                    <th style="padding: 10px; border: 1px solid #cbd5e1; text-align: center;">Status</th>
-                    <th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left;">Last Login Timestamp</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        for idx, row in df_status.iterrows():
-            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
-            is_logged = row["Login Status"] == "Logged In"
-            status_badge = '<span style="color: #15803d; font-weight: 700;">🟢 Logged In</span>' if is_logged else '<span style="color: #b91c1c; font-weight: 700;">🔴 Not Logged In</span>'
-            
-            html += f"""
-                <tr style="background-color: {bg};">
-                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">{row['Case Worker']}</td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">{status_badge}</td>
-                    <td style="padding: 10px; border: 1px solid #e2e8f0; color: #64748b;">{row['Last Login Time']}</td>
-                </tr>
-            """
-        html += "</tbody></table></div>"
-        st.markdown(html, unsafe_allow_html=True)
+        st.dataframe(df_status, use_container_width=True, hide_index=True)
 
 # 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
@@ -1174,7 +1152,7 @@ if not st.session_state["logged_in"]:
                         p_in = password_input.strip()
                         admin_u, admin_p = get_admin_creds()
                         
-                        if u_in == admin_u and p_in == admin_p:
+                        if u_in.lower() == admin_u.lower() and p_in == admin_p:
                             st.session_state["logged_in"] = True
                             st.session_state["username"] = admin_u
                             st.session_state["role"] = "admin"
@@ -1188,29 +1166,34 @@ if not st.session_state["logged_in"]:
                         else:
                             logged_in_success = False
                             matched_sheet = ""
+                            actual_matched_username = ""
                             for s in sheets:
                                 df_check = load_data(sheet_name=s)
                                 if df_check is not None and not df_check.empty:
                                     login_c = find_login_user_column(df_check)
                                     p_col = find_password_column(df_check)
-                                    user_rows = df_check[(df_check[login_c].astype(str).str.strip().str.lower() == u_in.lower()) & 
-                                                         (df_check[p_col].astype(str).str.strip() == p_in)]
-                                    if not user_rows.empty:
-                                        logged_in_success = True
-                                        matched_sheet = s
-                                        break
+                                    for _, r in df_check.iterrows():
+                                        db_user = str(r[login_c]).strip()
+                                        db_pass = str(r[p_col]).strip()
+                                        if db_user.lower() == u_in.lower() and db_pass == p_in:
+                                            logged_in_success = True
+                                            matched_sheet = s
+                                            actual_matched_username = db_user
+                                            break
+                                if logged_in_success:
+                                    break
                             
                             if logged_in_success:
-                                record_worker_login(u_in)  # 🌟 Record Login Status
+                                record_worker_login(actual_matched_username)  # 🌟 Record Login Status with exact case
                                 st.session_state["logged_in"] = True
-                                st.session_state["username"] = u_in
+                                st.session_state["username"] = actual_matched_username
                                 st.session_state["role"] = "worker"
                                 st.session_state["active_sheet"] = matched_sheet
                                 st.session_state["open_dialog"] = None
                                 st.session_state["selected_row_idx"] = None
                                 st.query_params.clear()
                                 st.query_params["logged_in"] = "true"
-                                st.query_params["username"] = u_in
+                                st.query_params["username"] = actual_matched_username
                                 st.query_params["role"] = "worker"
                                 st.query_params["active_sheet"] = matched_sheet
                                 st.rerun()
