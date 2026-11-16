@@ -278,7 +278,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Modern Professional CSS & Marquee Styling (Added margin-bottom for gap)
+# 🎨 Modern Professional Corporate CSS & Styling
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -304,7 +304,7 @@ st.markdown("""
         box-sizing: border-box;
     }
     .sticky-top-banner img {
-        max-height: 85px;
+        max-height: 80px;
         width: auto;
     }
     .banner-middle {
@@ -368,8 +368,53 @@ st.markdown("""
     }
 
     .block-container {
-        padding-top: 105px !important;
+        padding-top: 110px !important;
         padding-bottom: 2rem;
+    }
+
+    .hero-section {
+        background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%);
+        color: white;
+        padding: 50px 30px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 25px;
+        box-shadow: 0 6px 20px rgba(11, 60, 101, 0.2);
+    }
+    .hero-title {
+        font-size: 36px;
+        font-weight: 800;
+        margin-bottom: 15px;
+        letter-spacing: 0.5px;
+    }
+    .hero-subtitle {
+        font-size: 16px;
+        opacity: 0.9;
+        margin-bottom: 25px;
+        line-height: 1.6;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .corporate-card {
+        background: white;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+        border-top: 4px solid #1d6fa5;
+        height: 100%;
+        margin-bottom: 15px;
+    }
+    .corporate-card h3 {
+        color: #0b3c65;
+        font-size: 20px;
+        margin-bottom: 10px;
+    }
+    .corporate-card p {
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.5;
     }
 
     .marquee-container {
@@ -379,7 +424,7 @@ st.markdown("""
         border-radius: 6px;
         font-weight: 700;
         font-size: 14px;
-        margin-bottom: 18px !important; /* 🌟 Added clean gap below announcement banner */
+        margin-bottom: 18px !important;
         box-shadow: 0 2px 6px rgba(0,0,0,0.15);
         overflow: hidden;
         white-space: nowrap;
@@ -1258,75 +1303,203 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
 
-# 1. Login Screen
+# 1. Professional Public Website & Login Screen
 if not st.session_state["logged_in"]:
-    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
-    with col_l2:
-        with st.container(border=True):
-            st.markdown("<h3 style='text-align:center; color:#0b3c65;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
-            sheets = get_sheet_names()
-            if not sheets:
-                st.error(f"'{EXCEL_FILE}' file not found.")
-            else:
-                with st.form("login_form"):
-                    username_input = st.text_input("👤 Username", placeholder="Type your username")
-                    password_input = st.text_input("🔑 Password", type="password", placeholder="Type your password")
-                    submit_btn = st.form_submit_button("🚀 Login to Portal", type="primary", use_container_width=True)
-                    
-                    if submit_btn:
-                        u_in = username_input.strip()
-                        p_in = password_input.strip()
-                        admin_u, admin_p = get_admin_creds()
+    # Professional Corporate Navigation Bar / Radio
+    selected_page = st.radio(
+        "Navigation",
+        ["🏠 Home", "ℹ️ About Us", "✈️ Services", "⭐ Success Stories", "📞 Contact Us", "🔐 Portal Login"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
+    if selected_page == "🏠 Home":
+        st.markdown("""
+            <div class="hero-section">
+                <div class="hero-title">🌍 Welcome to HemanVisa Global Experts</div>
+                <div class="hero-subtitle">Your trusted partner for international study, work visas, permanent residency, and seamless global mobility. We empower your dreams with expert guidance and transparent processing.</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>🎓 Study Abroad</h3>
+                    <p>Secure admissions in top global universities with complete visa documentation and interview preparation support.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>💼 Work & Skilled Visas</h3>
+                    <p>Expand your career internationally with employer-sponsored work visas and skilled migration pathways.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c3:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>✈️ Permanent Residency</h3>
+                    <p>Settle abroad permanently with hassle-free PR processing, point-based assessments, and legal consulting.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    elif selected_page == "ℹ️ About Us":
+        st.markdown("<div class='section-banner'>ℹ️ About HemanVisa & Immigration Services</div>", unsafe_allow_html=True)
+        col_a1, col_a2 = st.columns([1.5, 1])
+        with col_a1:
+            st.write("""
+                HemanVisa is a premier global immigration and visa consulting firm dedicated to turning international aspirations into reality. 
+                With years of operational excellence, our seasoned case workers and migration experts deliver personalized solutions for students, professionals, and families.
+                
+                Our core mission is to maintain absolute transparency, precision in documentation, and end-to-end case tracking so every client experiences a smooth journey.
+            """)
+        with col_a2:
+            st.info("🌟 **Our Core Values:**\n* Transparency & Trust\n* 100% Document Verification\n* Dedicated Case Workers\n* Timely Processing")
+
+    elif selected_page == "✈️ Services":
+        st.markdown("<div class='section-banner'>✈️ Our Premium Global Services</div>", unsafe_allow_html=True)
+        s1, s2 = st.columns(2)
+        with s1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>📋 DS-160 & Visa Filing</h3>
+                    <p>Professional assistance with visa application forms, document verification, embassy appointment booking, and mock interview coaching.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🏖️ Tourist & Business Visas</h3>
+                    <p>Quick turnaround tourist visa processing for USA, UK, Canada, Europe, Australia, and rest of the world.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with s2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>📚 Student Career Counseling</h3>
+                    <p>Course selection, university applications, scholarship guidance, and financial documentation support.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🏢 Corporate Immigration</h3>
+                    <p>Seamless mobility solutions for multinational enterprises transferring talent across international borders.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    elif selected_page == "⭐ Success Stories":
+        st.markdown("<div class='section-banner'>⭐ Client Success Stories & Testimonials</div>", unsafe_allow_html=True)
+        t1, t2, t3 = st.columns(3)
+        with t1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <p>"HemanVisa made my Canada study visa process extremely smooth. The case workers were responsive and professional!"</p>
+                    <b style="color:#0b3c65;">— Rajesh K. (Canada PR)</b>
+                </div>
+            """, unsafe_allow_html=True)
+        with t2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <p>"Extremely grateful for the prompt documentation and regular status updates. Got my US work visa approved without any hassle."</p>
+                    <b style="color:#0b3c65;">— Sneha R. (USA Work Visa)</b>
+                </div>
+            """, unsafe_allow_html=True)
+        with t3:
+            st.markdown("""
+                <div class="corporate-card">
+                    <p>"Best consulting firm with transparent pricing and dedicated case officers. Highly recommended for anyone planning abroad."</p>
+                    <b style="color:#0b3c65;">— Anil M. (UK Student Visa)</b>
+                </div>
+            """, unsafe_allow_html=True)
+
+    elif selected_page == "📞 Contact Us":
+        st.markdown("<div class='section-banner'>📞 Get in Touch with Our Experts</div>", unsafe_allow_html=True)
+        c_col1, c_col2 = st.columns(2)
+        with c_col1:
+            st.write("""
+                **Corporate Headquarters:**  
+                🌐 Global Visa & Immigration Experts  
+                ✉️ Email: services@hemanvisa.com  
+                📞 Phone: +91 95338 40632  
+                
+                **Office Hours:**  
+                Monday – Saturday: 9:30 AM – 7:00 PM  
+            """)
+        with c_col2:
+            with st.form("contact_form"):
+                st.subheader("Send Us a Message")
+                st.text_input("Your Name")
+                st.text_input("Email / Phone")
+                st.text_area("Your Inquiry / Visa Requirement")
+                if st.form_submit_button("Submit Inquiry", type="primary", use_container_width=True):
+                    st.success("✅ Thank you! Our expert will contact you shortly.")
+
+    elif selected_page == "🔐 Portal Login":
+        col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+        with col_l2:
+            with st.container(border=True):
+                st.markdown("<h3 style='text-align:center; color:#0b3c65;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
+                sheets = get_sheet_names()
+                if not sheets:
+                    st.error(f"'{EXCEL_FILE}' file not found.")
+                else:
+                    with st.form("login_form"):
+                        username_input = st.text_input("👤 Username", placeholder="Type your username")
+                        password_input = st.text_input("🔑 Password", type="password", placeholder="Type your password")
+                        submit_btn = st.form_submit_button("🚀 Login to Portal", type="primary", use_container_width=True)
                         
-                        if u_in.lower() == admin_u.lower() and p_in == admin_p:
-                            st.session_state["logged_in"] = True
-                            st.session_state["username"] = admin_u
-                            st.session_state["role"] = "admin"
-                            st.session_state["open_dialog"] = None
-                            st.session_state["selected_row_idx"] = None
-                            st.query_params.clear()
-                            st.query_params["logged_in"] = "true"
-                            st.query_params["username"] = admin_u
-                            st.query_params["role"] = "admin"
-                            st.rerun()
-                        else:
-                            logged_in_success = False
-                            matched_sheet = ""
-                            actual_matched_username = ""
-                            for s in sheets:
-                                df_check = load_data(sheet_name=s)
-                                if df_check is not None and not df_check.empty:
-                                    login_c = find_login_user_column(df_check)
-                                    p_col = find_password_column(df_check)
-                                    for _, r in df_check.iterrows():
-                                        db_user = str(r[login_c]).strip()
-                                        db_pass = str(r[p_col]).strip()
-                                        if db_user.lower() == u_in.lower() and db_pass == p_in:
-                                            logged_in_success = True
-                                            matched_sheet = s
-                                            actual_matched_username = db_user
-                                            break
-                                if logged_in_success:
-                                    break
+                        if submit_btn:
+                            u_in = username_input.strip()
+                            p_in = password_input.strip()
+                            admin_u, admin_p = get_admin_creds()
                             
-                            if logged_in_success:
-                                record_worker_login(actual_matched_username)
+                            if u_in.lower() == admin_u.lower() and p_in == admin_p:
                                 st.session_state["logged_in"] = True
-                                st.session_state["username"] = actual_matched_username
-                                st.session_state["role"] = "worker"
-                                st.session_state["active_sheet"] = matched_sheet
-                                st.session_state["attendance_recorded"] = True
+                                st.session_state["username"] = admin_u
+                                st.session_state["role"] = "admin"
                                 st.session_state["open_dialog"] = None
                                 st.session_state["selected_row_idx"] = None
                                 st.query_params.clear()
                                 st.query_params["logged_in"] = "true"
-                                st.query_params["username"] = actual_matched_username
-                                st.query_params["role"] = "worker"
-                                st.query_params["active_sheet"] = matched_sheet
+                                st.query_params["username"] = admin_u
+                                st.query_params["role"] = "admin"
                                 st.rerun()
                             else:
-                                st.error("❌ Incorrect Username or Password!")
+                                logged_in_success = False
+                                matched_sheet = ""
+                                actual_matched_username = ""
+                                for s in sheets:
+                                    df_check = load_data(sheet_name=s)
+                                    if df_check is not None and not df_check.empty:
+                                        login_c = find_login_user_column(df_check)
+                                        p_col = find_password_column(df_check)
+                                        for _, r in df_check.iterrows():
+                                            db_user = str(r[login_c]).strip()
+                                            db_pass = str(r[p_col]).strip()
+                                            if db_user.lower() == u_in.lower() and db_pass == p_in:
+                                                logged_in_success = True
+                                                matched_sheet = s
+                                                actual_matched_username = db_user
+                                                break
+                                    if logged_in_success:
+                                        break
+                                
+                                if logged_in_success:
+                                    record_worker_login(actual_matched_username)
+                                    st.session_state["logged_in"] = True
+                                    st.session_state["username"] = actual_matched_username
+                                    st.session_state["role"] = "worker"
+                                    st.session_state["active_sheet"] = matched_sheet
+                                    st.session_state["attendance_recorded"] = True
+                                    st.session_state["open_dialog"] = None
+                                    st.session_state["selected_row_idx"] = None
+                                    st.query_params.clear()
+                                    st.query_params["logged_in"] = "true"
+                                    st.query_params["username"] = actual_matched_username
+                                    st.query_params["role"] = "worker"
+                                    st.query_params["active_sheet"] = matched_sheet
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Incorrect Username or Password!")
 
 # 2. ADMIN DASHBOARD
 elif st.session_state["role"] == "admin":
