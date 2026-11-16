@@ -1685,6 +1685,20 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
+        # Display Visa Category Distribution KPI Cards here as well
+        if visa_counts:
+            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution Summary</div>", unsafe_allow_html=True)
+            colors_list = ["gold", "purple", "green", "blue"]
+            visa_items = list(visa_counts.items())
+            for i in range(0, len(visa_items), 4):
+                row_items = visa_items[i:i+4]
+                v_cols = st.columns(4, gap="medium")
+                for idx, (v_name, v_count) in enumerate(row_items):
+                    c_class = colors_list[(i + idx) % len(colors_list)]
+                    with v_cols[idx]:
+                        st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
+            st.divider()
+
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
         with col_search:
             admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
