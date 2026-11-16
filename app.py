@@ -10,6 +10,7 @@ EXCEL_FILE = "Heman_Report.xlsx"
 ADMIN_FILE = "admin_config.txt"
 PERMS_FILE = "worker_permissions.json"
 NOTICE_FILE = "admin_notice.txt"
+LOGINS_FILE = "worker_logins_status.json"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
@@ -102,6 +103,24 @@ def get_admin_notice():
 def save_admin_notice(notice_text):
     with open(NOTICE_FILE, "w", encoding="utf-8") as f:
         f.write(notice_text.strip())
+
+def load_login_tracking():
+    if os.path.exists(LOGINS_FILE):
+        try:
+            with open(LOGINS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def record_worker_login(worker_name):
+    logins = load_login_tracking()
+    logins[worker_name] = {
+        "status": "Logged In",
+        "last_login": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    with open(LOGINS_FILE, "w") as f:
+        json.dump(logins, f, indent=4)
 
 def get_sheet_names():
     if os.path.exists(EXCEL_FILE):
@@ -466,7 +485,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[display_c]}**")
 
-    # Check if delete was rejected by admin
     action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
     if role == "worker" and action_type_val == "delete rejected":
         st.error("❌ మీ డిలీట్ రిక్వెస్ట్‌ను అడ్మిన్ గారు తిరస్కరించారు (Delete Request Rejected by Admin).")
@@ -672,6 +690,69 @@ def admin_notice_dialog():
             save_admin_notice("")
             st.success("✅ Notice cleared successfully!")
             st.rerun()
+
+# 🌟 Admin Worker Login Status Tracking Dialog
+@st.dialog("👥 Case Worker Login Status", width="large")
+def admin_login_status_dialog():
+    st.info("💡 ఏ కేస్ వర్కర్ లాగిన్ అయ్యారు, ఎవరూ కాలేదు అనే వివరాలు ఇక్కడ చూడవచ్చు:")
+    
+    # Gather all case workers from all sheets
+    sheets = get_sheet_names()
+    all_workers = set()
+    for s in sheets:
+        df_s = load_data(sheet_name=s)
+        if df_s is not None and not df_s.empty:
+            lc = find_login_user_column(df_s)
+            for _, r in df_s.iterrows():
+                u = str(r[lc]).strip()
+                if u != "" and u.lower() != "admin":
+                    all_workers.add(u)
+                    
+    login_records = load_login_tracking()
+    
+    status_data = []
+    for w in sorted(list(all_workers)):
+        rec = login_records.get(w, {})
+        status = rec.get("status", "Not Logged In")
+        last_time = rec.get("last_login", "-")
+        status_data.append({
+            "Case Worker": w,
+            "Login Status": status,
+            "Last Login Time": last_time
+        })
+        
+    if not status_data:
+        st.warning("ఎటువంటి కేస్ వర్కర్లు కనుగొనబడలేదు.")
+    else:
+        df_status = pd.DataFrame(status_data)
+        
+        # Display styled table
+        html = """
+        <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e1e4e8; border-radius: 8px;">
+        <table style="width:100%; border-collapse: collapse; font-size: 14px; font-family: sans-serif;">
+            <thead>
+                <tr style="background-color: #0b3c65; color: white; position: sticky; top: 0;">
+                    <th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left;">Case Worker Name</th>
+                    <th style="padding: 10px; border: 1px solid #cbd5e1; text-align: center;">Status</th>
+                    <th style="padding: 10px; border: 1px solid #cbd5e1; text-align: left;">Last Login Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for idx, row in df_status.iterrows():
+            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+            is_logged = row["Login Status"] == "Logged In"
+            status_badge = '<span style="color: #15803d; font-weight: 700;">🟢 Logged In</span>' if is_logged else '<span style="color: #b91c1c; font-weight: 700;">🔴 Not Logged In</span>'
+            
+            html += f"""
+                <tr style="background-color: {bg};">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">{row['Case Worker']}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">{status_badge}</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; color: #64748b;">{row['Last Login Time']}</td>
+                </tr>
+            """
+        html += "</tbody></table></div>"
+        st.markdown(html, unsafe_allow_html=True)
 
 # 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
@@ -1051,6 +1132,9 @@ elif st.session_state["open_dialog"] == "admin_delete_requests":
 elif st.session_state["open_dialog"] == "admin_notice":
     admin_notice_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_login_status":
+    admin_login_status_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
     st.session_state["open_dialog"] = None
@@ -1117,6 +1201,7 @@ if not st.session_state["logged_in"]:
                                         break
                             
                             if logged_in_success:
+                                record_worker_login(u_in)  # 🌟 Record Login Status
                                 st.session_state["logged_in"] = True
                                 st.session_state["username"] = u_in
                                 st.session_state["role"] = "worker"
@@ -1183,7 +1268,7 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6 = st.columns(6)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6, col_btn_7 = st.columns(7)
     with col_btn_1:
         if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
@@ -1207,6 +1292,10 @@ elif st.session_state["role"] == "admin":
     with col_btn_6:
         if st.button("📢 Add Notice", use_container_width=True, key="admin_notice_btn"):
             st.session_state["open_dialog"] = "admin_notice"
+            st.rerun()
+    with col_btn_7:
+        if st.button("👥 Worker Logins", use_container_width=True, key="admin_login_status_btn"):
+            st.session_state["open_dialog"] = "admin_login_status"
             st.rerun()
 
     st.divider()
