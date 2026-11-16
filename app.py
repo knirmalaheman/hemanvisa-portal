@@ -695,10 +695,10 @@ def admin_notice_dialog():
             st.success("✅ Notice cleared successfully!")
             st.rerun()
 
-# 🌟 Admin Worker Login Status Tracking Dialog (Professional Button Badges)
+# 🌟 Admin Worker Login Status Tracking Dialog (Professional Native Streamlit Components)
 @st.dialog("👥 Case Worker Login Status", width="large")
 def admin_login_status_dialog():
-    st.info("💡 కేస్ వర్కర్ల లాగిన్ వివరాలు (ఎవరు లాగిన్ అయ్యారు, ఎవరూ కాలేదు) క్రింద ప్రొఫెషనల్ బటన్స్ రూపంలో ఇవ్వబడ్డాయి:")
+    st.info("💡 కేస్ వర్కర్ల లాగిన్ వివరాలు (ఎవరు లాగిన్ అయ్యారు, ఎవరూ కాలేదు) క్రింద ప్రొఫెషనల్ స్టేటస్ బటన్స్ రూపంలో ఇవ్వబడ్డాయి:")
     
     sheets = get_sheet_names()
     all_workers = set()
@@ -714,50 +714,34 @@ def admin_login_status_dialog():
     login_records = load_login_tracking()
     normalized_login_records = {k.lower(): v for k, v in login_records.items()}
     
-    status_data = []
-    for w in sorted(list(all_workers)):
-        rec = normalized_login_records.get(w.lower(), {})
-        status = rec.get("status", "Not Logged In")
-        last_time = rec.get("last_login", "-")
-        status_data.append({
-            "worker": w,
-            "status": status,
-            "time": last_time
-        })
-        
-    if not status_data:
+    if not all_workers:
         st.warning("ఎటువంటి కేస్ వర్కర్లు కనుగొనబడలేదు.")
     else:
-        html = """
-        <div style="max-height: 420px; overflow-y: auto; border: 1px solid #e1e4e8; border-radius: 8px;">
-        <table style="width:100%; border-collapse: collapse; font-size: 14px; font-family: sans-serif;">
-            <thead>
-                <tr style="background-color: #0b3c65; color: white; position: sticky; top: 0; z-index: 1;">
-                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left;">Case Worker Name</th>
-                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: center;">Login Status Button</th>
-                    <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left;">Last Login Timestamp</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        for idx, item in enumerate(status_data):
-            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
-            is_logged = item["status"] == "Logged In"
+        # Table Header Layout
+        h1, h2, h3 = st.columns([2, 2, 2])
+        with h1:
+            st.markdown("**Case Worker Name**")
+        with h2:
+            st.markdown("**Login Status**")
+        with h3:
+            st.markdown("**Last Login Timestamp**")
+        st.divider()
+        
+        for w in sorted(list(all_workers)):
+            rec = normalized_login_records.get(w.lower(), {})
+            status = rec.get("status", "Not Logged In")
+            last_time = rec.get("last_login", "-")
             
-            if is_logged:
-                status_badge = '<span style="background-color: #dcfce7; color: #15803d; padding: 6px 16px; border-radius: 20px; font-weight: 700; border: 1px solid #bbf7d0; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">🟢 Logged In</span>'
-            else:
-                status_badge = '<span style="background-color: #fee2e2; color: #b91c1c; padding: 6px 16px; border-radius: 20px; font-weight: 700; border: 1px solid #fecaca; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">🔴 Not Logged In</span>'
-            
-            html += f"""
-                <tr style="background-color: {bg};">
-                    <td style="padding: 12px; border: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">{item['worker']}</td>
-                    <td style="padding: 12px; border: 1px solid #e2e8f0; text-align: center;">{status_badge}</td>
-                    <td style="padding: 12px; border: 1px solid #e2e8f0; color: #64748b; font-weight: 500;">{item['time']}</td>
-                </tr>
-            """
-        html += "</tbody></table></div>"
-        st.markdown(html, unsafe_allow_html=True)
+            c1, c2, c3 = st.columns([2, 2, 2])
+            with c1:
+                st.write(f"👤 **{w}**")
+            with c2:
+                if status == "Logged In":
+                    st.success("🟢 Logged In")
+                else:
+                    st.error("🔴 Not Logged In")
+            with c3:
+                st.text(last_time if last_time else "-")
 
 # 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
