@@ -110,6 +110,8 @@ def load_data(sheet_name=0):
                 df["Updated_By"] = ""
             if "Updated_At" not in df.columns:
                 df["Updated_At"] = ""
+            if "Action_Type" not in df.columns:
+                df["Action_Type"] = ""
                 
             return df
         except Exception:
@@ -349,7 +351,6 @@ st.markdown("""
         margin-bottom: 10px !important;
     }
 
-    /* True Text Hyperlink inside table */
     .username-hyperlink {
         color: #1d6fa5 !important;
         text-decoration: underline !important;
@@ -360,7 +361,6 @@ st.markdown("""
         color: #0b3c65 !important;
     }
 
-    /* 🌟 Admin Sheets Radio Button Single Line Fix */
     div[data-testid="stRadio"] > div {
         flex-direction: row !important;
         flex-wrap: nowrap !important;
@@ -418,8 +418,8 @@ def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
     st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
-# 🌟 Case Details View & Edit Popup Dialog
-@st.dialog("📋 Case Details & Edit", width="large")
+# 🌟 Case Details View, Edit & Delete Popup Dialog
+@st.dialog("📋 Case Details, Edit & Delete", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
     if df_full is None or row_idx not in df_full.index:
@@ -445,9 +445,22 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         if role == "worker" and not can_update:
             st.warning("⚠️ View Only Mode: Admin has disabled update permissions for your account.")
         else:
-            if st.button("✏️ Edit Case Details", type="primary", use_container_width=True, key="btn_trigger_edit"):
-                st.session_state["is_editing_popup"] = True
-                st.rerun()
+            col_act1, col_act2 = st.columns(2)
+            with col_act1:
+                if st.button("✏️ Edit Case Details", type="primary", use_container_width=True, key="btn_trigger_edit"):
+                    st.session_state["is_editing_popup"] = True
+                    st.rerun()
+            with col_act2:
+                if st.button("🗑️ Delete Case", type="secondary", use_container_width=True, key="btn_trigger_delete"):
+                    try:
+                        df_full = df_full.drop(row_idx)
+                        save_data(df_full, sheet_name=sheet_name)
+                        st.session_state["selected_row_idx"] = None
+                        st.session_state["open_dialog"] = None
+                        st.success("✅ Case deleted successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error deleting case: {e}")
     else:
         st.markdown("### ✏️ Edit Case Details")
         with st.form(f"popup_edit_form_{row_idx}"):
@@ -477,9 +490,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             changed = True
                         df_full.at[row_idx, col_name] = str(new_val).strip()
 
-                    if changed and role == "worker":
+                    if changed:
                         df_full.at[row_idx, "Updated_By"] = current_user
                         df_full.at[row_idx, "Updated_At"] = current_time
+                        df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
                     save_data(df_full, sheet_name=sheet_name)
                     st.session_state["is_editing_popup"] = False
@@ -539,6 +553,39 @@ def render_clickable_table(df, display_c, p_col):
 
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
+
+# 🌟 Day-wise Calendar Dialog View
+@st.dialog("📅 Day-wise Calendar View", width="large")
+def calendar_view_dialog():
+    st.info("💡 Select a date to view cases booked or updated on that specific day:")
+    sheets = get_sheet_names()
+    selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select")
+    
+    df_cal = load_data(sheet_name=selected_cal_sheet)
+    if df_cal is None or df_cal.empty:
+        st.warning("No data available in this sheet.")
+        return
+        
+    date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day'])]
+    if not date_cols:
+        st.warning("No date column found in this sheet.")
+        return
+        
+    selected_date_col = st.selectbox("Select Date Column:", options=date_cols, key="cal_date_col_select")
+    selected_date = st.date_input("Select Target Date:", value=datetime.date.today(), key="cal_target_date")
+    
+    if df_cal is not None and not df_cal.empty:
+        date_str = selected_date.strftime("%Y-%m-%d")
+        mask = df_cal[selected_date_col].astype(str).str.contains(date_str, na=False)
+        matched_df = df_cal[mask]
+        
+        st.write(f"📅 Cases on **{date_str}** ({len(matched_df)} found):")
+        if matched_df.empty:
+            st.info(f"No records found for date ({date_str}).")
+        else:
+            display_c = find_display_username_column(matched_df)
+            p_col = find_password_column(matched_df)
+            render_clickable_table(matched_df, display_c, p_col)
 
 # 🌟 Other Modal Dialogs
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
@@ -718,7 +765,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At"]]
+        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type"]]
         for col_name in cols:
             form_data[col_name] = st.text_input(f"{col_name}")
         
@@ -736,6 +783,7 @@ def add_case_dialog(worker_name):
                 new_row[t_pass_col] = current_pass if final_assigned_user != "" else "admin123"
                 new_row["Updated_By"] = worker_name
                 new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                new_row["Action_Type"] = "New Case"
                 
                 for k, v in form_data.items():
                     new_row[k] = v
@@ -765,11 +813,11 @@ def search_data_dialog():
                 st.warning(f"No details found for '{search_query}'.")
             else:
                 st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
-                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At"], errors="ignore")
+                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type"], errors="ignore")
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
-@st.dialog("📋 Updated Cases & Editors History", width="large")
+@st.dialog("📋 Updated & New Cases History", width="large")
 def updated_cases_history_dialog():
     sheets = get_sheet_names()
     selected_sh = st.selectbox("Select Sheet:", options=sheets, key="dlg_hist_sheet")
@@ -778,12 +826,23 @@ def updated_cases_history_dialog():
         if "Updated_By" in df_h.columns:
             updated_rows = df_h[df_h["Updated_By"].astype(str).str.strip() != ""]
             if updated_rows.empty:
-                st.warning("No cases have been updated yet in this sheet.")
+                st.warning("No cases have been updated or added yet in this sheet.")
             else:
-                st.success(f"Found {len(updated_rows)} updated cases in '{selected_sh}':")
-                display_hist = updated_rows[["Updated_By", "Updated_At"] + [c for c in updated_rows.columns if c not in ["Updated_By", "Updated_At"]]]
-                display_hist.index = range(1, len(display_hist) + 1)
-                st.dataframe(display_hist, use_container_width=True)
+                tab_h1, tab_h2 = st.tabs(["➕ New Cases", "✏️ Updated Cases"])
+                with tab_h1:
+                    new_only = updated_rows[updated_rows["Action_Type"].astype(str).str.strip().str.lower() == "new case"]
+                    if new_only.empty:
+                        st.info("No new cases found.")
+                    else:
+                        st.success(f"Found {len(new_only)} new cases:")
+                        render_clickable_table(new_only, find_display_username_column(new_only), find_password_column(new_only))
+                with tab_h2:
+                    upd_only = updated_rows[updated_rows["Action_Type"].astype(str).str.strip().str.lower() == "updated case"]
+                    if upd_only.empty:
+                        st.info("No updated cases found.")
+                    else:
+                        st.success(f"Found {len(upd_only)} updated cases:")
+                        render_clickable_table(upd_only, find_display_username_column(upd_only), find_password_column(upd_only))
 
 # 🌟 Handle Dialog Execution securely via Session State
 if st.session_state["open_dialog"] == "permissions":
@@ -795,6 +854,12 @@ elif st.session_state["open_dialog"] == "admin_password":
 elif st.session_state["open_dialog"] == "sync_excel":
     sync_excel_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "calendar_view":
+    calendar_view_dialog()
+    st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "updated_history":
+    updated_cases_history_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
     st.session_state["open_dialog"] = None
@@ -803,9 +868,6 @@ elif st.session_state["open_dialog"] == "add_case":
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "search_data":
     search_data_dialog()
-    st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "updated_history":
-    updated_cases_history_dialog()
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
@@ -930,29 +992,32 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4 = st.columns(4)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5 = st.columns(5)
     with col_btn_1:
-        if st.button("👥 Users, Passwords & Permissions", use_container_width=True, key="admin_perm_btn"):
+        if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
             st.rerun()
     with col_btn_2:
-        if st.button("🔑 Change Admin Password", use_container_width=True, key="admin_pw_btn"):
+        if st.button("🔑 Change Password", use_container_width=True, key="admin_pw_btn"):
             st.session_state["open_dialog"] = "admin_password"
             st.rerun()
     with col_btn_3:
-        if st.button("🔄 Sync Local Excel", use_container_width=True, key="admin_sync_btn"):
+        if st.button("🔄 Sync Excel", use_container_width=True, key="admin_sync_btn"):
             st.session_state["open_dialog"] = "sync_excel"
             st.rerun()
     with col_btn_4:
-        if st.button("📋 View Updated Cases", use_container_width=True, key="admin_upd_hist_btn"):
+        if st.button("📋 History", use_container_width=True, key="admin_upd_hist_btn"):
             st.session_state["open_dialog"] = "updated_history"
+            st.rerun()
+    with col_btn_5:
+        if st.button("📅 Calendar", use_container_width=True, key="admin_cal_btn"):
+            st.session_state["open_dialog"] = "calendar_view"
             st.rerun()
 
     st.divider()
     
     st.markdown(f"<div class='section-banner'>🔍 Admin Search & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
     
-    # 🌟 Admin Search Bar & Sheets Switch side-by-side in one row
     col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
     with col_search:
         admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
@@ -969,7 +1034,7 @@ elif st.session_state["role"] == "admin":
         display_df = df
 
     st.markdown("---")
-    st.caption("Click USERNAME inside the table to view and edit details.")
+    st.caption("Click USERNAME inside the table to view, edit, or delete details.")
 
     render_clickable_table(display_df, display_c, p_col)
                 
@@ -1061,27 +1126,34 @@ else:
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
     has_sync_perm = worker_perm.get("can_sync", False)
-    w_cols = st.columns(5 if has_sync_perm else 4)
+    w_cols = st.columns(6 if has_sync_perm else 5)
     
     with w_cols[0]:
-        if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
+        if st.button("🔑 Password", use_container_width=True, key="worker_pw_btn"):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
     with w_cols[1]:
         if worker_perm.get("can_add", True):
-            if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
+            if st.button("➕ Add Case", use_container_width=True, key="worker_add_btn"):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
         else:
-            st.button("🚫 No Add Permission", disabled=True, use_container_width=True, key="worker_add_disabled")
+            st.button("🚫 No Add", disabled=True, use_container_width=True, key="worker_add_disabled")
     with w_cols[2]:
         if worker_perm.get("can_search", True):
-            if st.button("🔍 Search Main Data", use_container_width=True, key="worker_search_btn"):
+            if st.button("🔍 Search", use_container_width=True, key="worker_search_btn"):
                 st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
-            st.button("🚫 No Search Permission", disabled=True, use_container_width=True, key="worker_search_disabled")
+            st.button("🚫 No Search", disabled=True, use_container_width=True, key="worker_search_disabled")
     with w_cols[3]:
+        if worker_perm.get("can_search", True):
+            if st.button("📅 Calendar", use_container_width=True, key="worker_cal_btn"):
+                st.session_state["open_dialog"] = "calendar_view"
+                st.rerun()
+        else:
+            st.button("🚫 No Calendar", disabled=True, use_container_width=True, key="worker_cal_disabled")
+    with w_cols[4]:
         if worker_perm.get("can_download", False):
             worker_buffer = io.BytesIO()
             with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
@@ -1099,7 +1171,7 @@ else:
                     user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
             
             st.download_button(
-                label="📥 Download Excel", 
+                label="📥 Download", 
                 data=worker_buffer.getvalue(), 
                 file_name=f"{current_user}_all_sheets_cases.xlsx", 
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
@@ -1107,11 +1179,11 @@ else:
                 key="worker_dl_btn"
             )
         else:
-            st.button("🚫 No Download Permission", disabled=True, use_container_width=True, key="worker_dl_disabled")
+            st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
             
     if has_sync_perm:
-        with w_cols[4]:
-            if st.button("🔄 Sync Local Excel", use_container_width=True, key="worker_sync_btn"):
+        with w_cols[5]:
+            if st.button("🔄 Sync", use_container_width=True, key="worker_sync_btn"):
                 st.session_state["open_dialog"] = "sync_excel"
                 st.rerun()
             
@@ -1128,5 +1200,5 @@ else:
     if user_rows.empty:
         st.info("No cases assigned to you in this sheet.")
     else:
-        st.caption("Click USERNAME inside the table to view and edit details.")
+        st.caption("Click USERNAME inside the table to view, edit, or delete details.")
         render_clickable_table(user_rows, display_c, p_col)
