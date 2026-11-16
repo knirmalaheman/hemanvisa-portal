@@ -278,7 +278,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Executive SaaS Corporate UI & Spacious Dashboard Styling
+# 🎨 Multi-Color Executive SaaS Styling & Professional Palette
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -295,7 +295,7 @@ st.markdown("""
         background-image: radial-gradient(#d0e1f9 1px, transparent 1px), linear-gradient(to right, rgba(29,111,165,0.03), rgba(243,156,18,0.03));
         background-size: 20px 20px;
         padding: 8px 28px;
-        border-bottom: 3px solid #1e3a8a;
+        border-bottom: 3px solid #0f172a;
         box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
         display: flex;
         align-items: center;
@@ -351,19 +351,6 @@ st.markdown("""
         max-height: 22px !important;
     }
 
-    @media (prefers-color-scheme: dark) {
-        .sticky-top-banner {
-            background-color: #0e1117;
-            border-bottom: 3px solid #3b82f6;
-        }
-        .world-map-title {
-            color: #f8fafc;
-        }
-        .banner-info, .banner-info a {
-            color: #e2e8f0;
-        }
-    }
-
     .block-container {
         padding-top: 112px !important;
         padding-bottom: 2.5rem;
@@ -371,13 +358,13 @@ st.markdown("""
     }
 
     .hero-section {
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
         color: white;
         padding: 52px 32px;
         border-radius: 14px;
         text-align: center;
         margin-bottom: 26px;
-        box-shadow: 0 10px 28px rgba(30, 58, 138, 0.22);
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
     }
     .hero-title {
         font-size: 36px;
@@ -401,7 +388,7 @@ st.markdown("""
         border-radius: 12px;
         box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
         border: 1px solid #e2e8f0;
-        border-top: 4px solid #2563eb;
+        border-top: 4px solid #0f172a;
         height: 100%;
         margin-bottom: 14px;
     }
@@ -419,17 +406,17 @@ st.markdown("""
     }
 
     .marquee-container {
-        background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
+        background: linear-gradient(90deg, #0f172a 0%, #334155 100%);
         color: white;
         padding: 12px 18px;
         border-radius: 10px;
         font-weight: 700;
         font-size: 14px;
         margin-bottom: 20px !important;
-        box-shadow: 0 4px 14px rgba(30, 58, 138, 0.2);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
         overflow: hidden;
         white-space: nowrap;
-        border-left: 5px solid #f59e0b;
+        border-left: 5px solid #d97706;
     }
 
     .sticky-control-panel {
@@ -441,21 +428,15 @@ st.markdown("""
         border-bottom: 1px solid #e2e8f0;
         margin-bottom: 14px;
     }
-    @media (prefers-color-scheme: dark) {
-        .sticky-control-panel {
-            background-color: #0e1117;
-            border-bottom: 1px solid #30363d;
-        }
-    }
 
     .kpi-card {
-        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+        background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
         color: white;
         padding: 18px 14px;
         border-radius: 12px;
-        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.18);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
         text-align: center;
-        border-bottom: 4px solid #fbbf24;
+        border-bottom: 4px solid #d97706;
         margin-bottom: 12px;
         height: 100px;
         width: 100%;
@@ -466,15 +447,15 @@ st.markdown("""
         box-sizing: border-box;
     }
     .kpi-card.gold {
-        background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
-        border-bottom: 4px solid #1e3a8a;
+        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+        border-bottom: 4px solid #0f172a;
     }
     .kpi-card.green {
-        background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
         border-bottom: 4px solid #fde047;
     }
     .kpi-card.purple {
-        background: linear-gradient(135deg, #581c87 0%, #7e22ce 100%);
+        background: linear-gradient(135deg, #581c87 0%, #6b21a8 100%);
         border-bottom: 4px solid #fde047;
     }
     .kpi-title {
@@ -495,7 +476,7 @@ st.markdown("""
 
     .section-banner {
         background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 100%);
-        border-left: 5px solid #1e3a8a;
+        border-left: 5px solid #0f172a;
         padding: 11px 18px;
         border-radius: 8px;
         margin: 8px 0px;
@@ -504,24 +485,17 @@ st.markdown("""
         font-size: 16px;
         box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
     }
-    @media (prefers-color-scheme: dark) {
-        .section-banner {
-            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-            border-left: 5px solid #3b82f6;
-            color: #f8fafc;
-        }
-    }
 
     .action-group-title {
         font-size: 13px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.8px;
-        color: #475569;
+        color: #334155;
         margin: 10px 0 6px 2px;
     }
 
-    /* Spacious, Clean Executive Action Buttons */
+    /* 🎨 Distinct Professional Button Palettes (No More All-Blue) */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 46px !important;
@@ -530,24 +504,48 @@ st.markdown("""
         font-size: 14px !important;
         padding: 10px 16px !important;
         color: #ffffff !important;
-        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
-        border: 1px solid rgba(255,255,255,0.12) !important;
-        box-shadow: 0 4px 10px rgba(30, 58, 138, 0.18);
+        border: 1px solid rgba(255,255,255,0.15) !important;
+        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
         white-space: nowrap !important;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
     }
+
+    /* 🟢 Teal / Emerald for New Cases & Login Status */
+    button[aria-label*="New / Updated"], button[aria-label*="Login Status"] {
+        background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%) !important;
+    }
+    /* 🔴 Crimson / Red for Delete Requests */
+    button[aria-label*="Delete Requests"] {
+        background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%) !important;
+    }
+    /* 🔵 Slate / Navy for Sync & Attendance */
+    button[aria-label*="Sync"], button[aria-label*="Attendance"] {
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%) !important;
+    }
+    /* 🟠 Warm Amber for Notices */
+    button[aria-label*="Notice"] {
+        background: linear-gradient(135deg, #b45309 0%, #d97706 100%) !important;
+    }
+    /* 🟣 Deep Purple for Users & Permissions */
+    button[aria-label*="Users & Permissions"] {
+        background: linear-gradient(135deg, #581c87 0%, #7e22ce 100%) !important;
+    }
+    /* ⚙️ Charcoal / Dark Slate for Passwords & Refresh */
+    button[aria-label*="Password"], button[aria-label*="Refresh"] {
+        background: linear-gradient(135deg, #334155 0%, #475569 100%) !important;
+    }
+    /* 🚪 Logout Button Accent */
+    button[aria-label*="Logout"] {
+        background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%) !important;
+    }
+
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 7px 16px rgba(37, 99, 235, 0.32);
-        background: linear-gradient(135deg, #172554 0%, #1d4ed8 100%) !important;
-    }
-    .stButton > button:disabled {
-        background: #94a3b8 !important;
-        opacity: 0.7;
-        transform: none !important;
-        box-shadow: none !important;
+        box-shadow: 0 7px 16px rgba(15, 23, 42, 0.28);
+        opacity: 0.92;
     }
 
     .username-hyperlink {
@@ -557,7 +555,7 @@ st.markdown("""
         cursor: pointer !important;
     }
     .username-hyperlink:hover {
-        color: #1e3a8a !important;
+        color: #0f172a !important;
     }
 
     div[data-testid="stRadio"] > div {
@@ -594,7 +592,7 @@ if found_logo:
 else:
     logo_html = '<h2 style="margin:0; color:#0b3c65;">HemanVisa</h2>'
 
-st.markdown(f"""
+st.markdown(f`
     <div class="sticky-top-banner">
         <div>{logo_html}</div>
         <div class="banner-middle">
@@ -611,7 +609,7 @@ st.markdown(f"""
             </div>
         </div>
     </div>
-""", unsafe_allow_html=True)
+`, unsafe_allow_html=True)
 
 def update_admin_sheet():
     st.session_state["active_sheet"] = st.session_state["admin_sheet_radio"]
@@ -781,7 +779,7 @@ def render_clickable_table(df, display_c, p_col):
     <div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">
     <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
         <thead>
-            <tr style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); color: white; position: sticky; top: 0; z-index: 1;">
+            <tr style="background: linear-gradient(135deg, #0f172a 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">
                 <th style="padding: 12px 10px; border: 1px solid #334155; text-align: center;">#</th>
     """
     for col in display_cols:
@@ -1463,7 +1461,7 @@ if not st.session_state["logged_in"]:
         col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
         with col_l2:
             with st.container(border=True):
-                st.markdown("<h3 style='text-align:center; color:#1e3a8a;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='text-align:center; color:#0f172a;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
                 sheets = get_sheet_names()
                 if not sheets:
