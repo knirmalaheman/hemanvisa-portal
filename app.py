@@ -419,7 +419,7 @@ def update_admin_sheet():
 
 def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
-    st.query_params["active_sheet"] = st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
+    st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
 # 🌟 Case Details View, Edit & Delete / Request Delete Popup Dialog
 @st.dialog("📋 Case Details, Edit & Delete", width="large")
@@ -434,6 +434,11 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     p_col = find_password_column(df_full)
 
     st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[display_c]}**")
+
+    # Check if delete was rejected by admin
+    action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
+    if role == "worker" and action_type_val == "delete rejected":
+        st.error("❌ మీ డిలీట్ రిక్వెస్ట్‌ను అడ్మిన్ గారు తిరస్కరించారు (Delete Request Rejected by Admin).")
 
     if "is_editing_popup" not in st.session_state:
         st.session_state["is_editing_popup"] = False
@@ -587,6 +592,12 @@ def render_clickable_table(df, display_c, p_col):
 
     for idx, row in df.iterrows():
         row_bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+        
+        # Highlight row if delete was rejected
+        act_t = str(row.get("Action_Type", "")).strip().lower()
+        if act_t == "delete rejected":
+            row_bg = "#fee2e2" # Light red tint for rejected cases
+
         html += f'<tr style="background-color: {row_bg};">'
         html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>'
         
@@ -594,6 +605,8 @@ def render_clickable_table(df, display_c, p_col):
             val = str(row[col])
             if col == display_c:
                 display_val = val.strip() if val.strip() != "" else "Not Assigned"
+                if act_t == "delete rejected":
+                    display_val += " ❌ (Rejected)"
                 link_url = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row={idx}"
                 cell_content = f'<a href="{link_url}" target="_self" class="username-hyperlink">{display_val}</a>'
             else:
@@ -724,12 +737,9 @@ def admin_delete_requests_dialog():
                     if st.button("❌ Reject Delete (Restore Case)", key=f"reject_del_{s_name}_{orig_idx}_{i}", use_container_width=True):
                         df_target = load_data(sheet_name=s_name)
                         if df_target is not None and orig_idx in df_target.index:
-                            df_target.at[orig_idx, "Action_Type"] = ""
-                            df_target.at[orig_idx, "Updated_By"] = ""
-                            df_target.at[orig_idx, "Updated_At"] = ""
-                            df_target.at[orig_idx, "Delete_Reason"] = ""
+                            df_target.at[orig_idx, "Action_Type"] = "Delete Rejected"
                             save_data(df_target, sheet_name=s_name)
-                            st.success("❌ Delete request rejected. Case restored.")
+                            st.success("❌ Delete request rejected. Marked as Rejected for worker.")
                             st.rerun()
 
 # 🌟 Other Modal Dialogs
