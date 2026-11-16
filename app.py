@@ -9,6 +9,7 @@ import json
 EXCEL_FILE = "Heman_Report.xlsx"
 ADMIN_FILE = "admin_config.txt"
 PERMS_FILE = "worker_permissions.json"
+NOTICE_FILE = "admin_notice.txt"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
@@ -89,6 +90,19 @@ def save_permissions(perms_dict):
     with open(PERMS_FILE, "w") as f:
         json.dump(perms_dict, f, indent=4)
 
+def get_admin_notice():
+    if os.path.exists(NOTICE_FILE):
+        try:
+            with open(NOTICE_FILE, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception:
+            return ""
+    return ""
+
+def save_admin_notice(notice_text):
+    with open(NOTICE_FILE, "w", encoding="utf-8") as f:
+        f.write(notice_text.strip())
+
 def get_sheet_names():
     if os.path.exists(EXCEL_FILE):
         try:
@@ -168,7 +182,7 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-# 🎨 Modern Professional CSS
+# 🎨 Modern Professional CSS & Marquee Styling
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -260,6 +274,23 @@ st.markdown("""
     .block-container {
         padding-top: 105px !important;
         padding-bottom: 2rem;
+    }
+
+    .marquee-container {
+        background: linear-gradient(90deg, #d35400 0%, #f39c12 100%);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 14px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .marquee-container marquee {
+        font-weight: 700;
+        letter-spacing: 0.5px;
     }
 
     .sticky-control-panel {
@@ -612,13 +643,35 @@ def render_clickable_table(df, display_c, p_col):
             
             html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
         
-        # Status at the end of the row
         status_display = "Rejected" if act_t == "delete rejected" else "-"
         html += f'<td style="padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: 700; white-space: nowrap;">{status_display}</td>'
         html += "</tr>"
 
     html += "</tbody></table></div>"
     st.markdown(html, unsafe_allow_html=True)
+
+# 🌟 Admin Add/Edit Notice Dialog
+@st.dialog("📢 Add / Update Notice (Scrolling Announcement)", width="medium")
+def admin_notice_dialog():
+    current_notice = get_admin_notice()
+    st.info("💡 కేస్ వర్కర్ల స్క్రీన్ పై స్క్రోల్ అయ్యే నోటీసును ఇక్కడ రాయండి లేదా అప్‌డేట్ చేయండి:")
+    
+    with st.form("admin_notice_form"):
+        notice_input = st.text_area("Notice Text:", value=current_notice, placeholder="ఉదాహరణకు: అందరూ ఈరోజు కల్లా పెండింగ్ కేసులు పూర్తి చేయాలి...")
+        col_save_n, col_clear_n = st.columns(2)
+        with col_save_n:
+            submitted_notice = st.form_submit_button("💾 Save Notice", type="primary", use_container_width=True)
+        with col_clear_n:
+            cleared_notice = st.form_submit_button("🗑️ Clear Notice", use_container_width=True)
+
+        if submitted_notice:
+            save_admin_notice(notice_input)
+            st.success("✅ Notice updated successfully for all case workers!")
+            st.rerun()
+        if cleared_notice:
+            save_admin_notice("")
+            st.success("✅ Notice cleared successfully!")
+            st.rerun()
 
 # 🌟 Combined New/Updated Cases & Calendar Dialog View
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
@@ -995,6 +1048,9 @@ elif st.session_state["open_dialog"] == "admin_updated_cases":
 elif st.session_state["open_dialog"] == "admin_delete_requests":
     admin_delete_requests_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_notice":
+    admin_notice_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
     st.session_state["open_dialog"] = None
@@ -1127,7 +1183,7 @@ elif st.session_state["role"] == "admin":
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5 = st.columns(5)
+    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6 = st.columns(6)
     with col_btn_1:
         if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
             st.session_state["open_dialog"] = "permissions"
@@ -1141,12 +1197,16 @@ elif st.session_state["role"] == "admin":
             st.session_state["open_dialog"] = "sync_excel"
             st.rerun()
     with col_btn_4:
-        if st.button("📋 New / Updated & Calendar", use_container_width=True, key="admin_upd_cases_btn"):
+        if st.button("📋 New / Updated", use_container_width=True, key="admin_upd_cases_btn"):
             st.session_state["open_dialog"] = "admin_updated_cases"
             st.rerun()
     with col_btn_5:
         if st.button("🗑️ Delete Requests", use_container_width=True, key="admin_del_req_btn"):
             st.session_state["open_dialog"] = "admin_delete_requests"
+            st.rerun()
+    with col_btn_6:
+        if st.button("📢 Add Notice", use_container_width=True, key="admin_notice_btn"):
+            st.session_state["open_dialog"] = "admin_notice"
             st.rerun()
 
     st.divider()
@@ -1226,6 +1286,15 @@ else:
             st.session_state["selected_row_idx"] = None
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # 📢 Scrolling Marquee Notice for Case Workers
+    admin_notice = get_admin_notice()
+    if admin_notice:
+        st.markdown(f"""
+            <div class="marquee-container">
+                <marquee scrollamount="5">📢 <b>Admin Announcement / Note:</b> {admin_notice}</marquee>
+            </div>
+        """, unsafe_allow_html=True)
 
     my_total = len(user_rows)
     my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
