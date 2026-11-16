@@ -278,24 +278,24 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Multi-Color Executive SaaS Styling & Professional Palette
+# 🎨 Vibrant, High-End & Attractive SaaS Color Palette
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
         display: none !important;
     }
 
-    /* 🌟 Luxurious Dark Gradient Header with Logo Shifted Right */
+    /* 🌟 Gorgeous Vibrant Dark Blue & Gold Gradient Header */
     .sticky-top-banner {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         z-index: 999999;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+        background: linear-gradient(135deg, #090d16 0%, #1e1b4b 50%, #172554 100%);
         padding: 10px 28px;
-        border-bottom: 3px solid #d97706;
-        box-shadow: 0 6px 25px rgba(15, 23, 42, 0.35);
+        border-bottom: 3px solid #f59e0b;
+        box-shadow: 0 8px 30px rgba(15, 23, 42, 0.45);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -303,7 +303,7 @@ st.markdown("""
         box-sizing: border-box;
     }
     .logo-container {
-        margin-left: 25px; /* లోగోను కుడి వైపునకు జరపడానికి మార్జిన్ */
+        margin-left: 25px;
     }
     .sticky-top-banner img {
         max-height: 62px;
@@ -324,14 +324,14 @@ st.markdown("""
         letter-spacing: 1.2px;
         text-transform: uppercase;
         margin-bottom: 2px;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        text-shadow: 0 2px 6px rgba(0,0,0,0.5);
     }
     .world-map-subtitle {
         font-size: 12px;
         font-weight: 700;
         color: #fde047;
         letter-spacing: 1.5px;
-        text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        text-shadow: 0 1px 4px rgba(0,0,0,0.5);
     }
     .banner-info {
         display: flex;
@@ -340,11 +340,11 @@ st.markdown("""
         flex-wrap: wrap;
         font-size: 12px;
         font-weight: 600;
-        color: #cbd5e1;
+        color: #e2e8f0;
     }
     .banner-badge {
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
         padding: 6px 12px;
         border-radius: 8px;
         display: flex;
@@ -353,19 +353,19 @@ st.markdown("""
         transition: all 0.2s ease;
     }
     .banner-badge:hover {
-        background: rgba(255, 255, 255, 0.15);
-        border-color: #d97706;
+        background: rgba(255, 255, 255, 0.22);
+        border-color: #f59e0b;
     }
     .banner-info a {
-        color: #f8fafc;
+        color: #ffffff;
         text-decoration: none;
     }
     .social-icons {
         display: flex;
         gap: 8px;
         align-items: center;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
         padding: 5px 10px;
         border-radius: 8px;
     }
@@ -385,13 +385,13 @@ st.markdown("""
     }
 
     .hero-section {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #334155 100%);
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e3a8a 100%);
         color: white;
         padding: 52px 32px;
         border-radius: 14px;
         text-align: center;
         margin-bottom: 26px;
-        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
+        box-shadow: 0 10px 30px rgba(30, 27, 75, 0.3);
     }
     .hero-title {
         font-size: 36px;
@@ -401,7 +401,7 @@ st.markdown("""
     }
     .hero-subtitle {
         font-size: 16px;
-        opacity: 0.92;
+        opacity: 0.95;
         margin-bottom: 20px;
         line-height: 1.65;
         max-width: 800px;
@@ -413,37 +413,37 @@ st.markdown("""
         background: #ffffff;
         padding: 22px 24px;
         border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
-        border: 1px solid #e2e8f0;
-        border-top: 4px solid #0f172a;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid #cbd5e1;
+        border-top: 4px solid #3b82f6;
         height: 100%;
         margin-bottom: 14px;
     }
     .corporate-card h3 {
-        color: #0f172a;
+        color: #1e3a8a;
         font-size: 18px;
         font-weight: 700;
         margin-bottom: 8px;
     }
     .corporate-card p {
-        color: #475569;
+        color: #334155;
         font-size: 14px;
         line-height: 1.55;
         margin: 0;
     }
 
     .marquee-container {
-        background: linear-gradient(90deg, #0f172a 0%, #334155 100%);
+        background: linear-gradient(90deg, #1e1b4b 0%, #3730a3 100%);
         color: white;
         padding: 12px 18px;
         border-radius: 10px;
         font-weight: 700;
         font-size: 14px;
         margin-bottom: 20px !important;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+        box-shadow: 0 4px 14px rgba(49, 46, 129, 0.3);
         overflow: hidden;
         white-space: nowrap;
-        border-left: 5px solid #d97706;
+        border-left: 5px solid #f59e0b;
     }
 
     .sticky-control-panel {
@@ -452,18 +452,19 @@ st.markdown("""
         z-index: 99998;
         background-color: #ffffff;
         padding: 8px 0 10px 0;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 2px solid #e2e8f0;
         margin-bottom: 14px;
     }
 
+    /* 🎨 Gorgeous Vibrant KPI Cards */
     .kpi-card {
-        background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
         color: white;
         padding: 18px 14px;
         border-radius: 12px;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+        box-shadow: 0 8px 22px rgba(37, 99, 235, 0.25);
         text-align: center;
-        border-bottom: 4px solid #d97706;
+        border-bottom: 4px solid #f59e0b;
         margin-bottom: 12px;
         height: 100px;
         width: 100%;
@@ -474,22 +475,22 @@ st.markdown("""
         box-sizing: border-box;
     }
     .kpi-card.gold {
-        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
-        border-bottom: 4px solid #0f172a;
+        background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
+        border-bottom: 4px solid #1e3a8a;
     }
     .kpi-card.green {
-        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        background: linear-gradient(135deg, #047857 0%, #10b981 100%);
         border-bottom: 4px solid #fde047;
     }
     .kpi-card.purple {
-        background: linear-gradient(135deg, #581c87 0%, #6b21a8 100%);
+        background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%);
         border-bottom: 4px solid #fde047;
     }
     .kpi-title {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 1px;
-        opacity: 0.92;
+        opacity: 0.95;
         margin-bottom: 6px;
         line-height: 1.2;
         font-weight: 700;
@@ -502,15 +503,15 @@ st.markdown("""
     }
 
     .section-banner {
-        background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 100%);
-        border-left: 5px solid #0f172a;
+        background: linear-gradient(90deg, #e0e7ff 0%, #f3e8ff 100%);
+        border-left: 5px solid #4f46e5;
         padding: 11px 18px;
         border-radius: 8px;
         margin: 8px 0px;
         font-weight: 800;
-        color: #0f172a;
+        color: #1e1b4b;
         font-size: 16px;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+        box-shadow: 0 3px 10px rgba(79, 70, 229, 0.08);
     }
 
     .action-group-title {
@@ -518,11 +519,11 @@ st.markdown("""
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.8px;
-        color: #334155;
+        color: #312e81;
         margin: 10px 0 6px 2px;
     }
 
-    /* 🎨 Distinct Professional Button Palettes */
+    /* 🎨 Rich Vibrant Professional Buttons */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 46px !important;
@@ -531,48 +532,48 @@ st.markdown("""
         font-size: 14px !important;
         padding: 10px 16px !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.15) !important;
-        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        box-shadow: 0 4px 14px rgba(30, 58, 138, 0.2);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
         white-space: nowrap !important;
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+        background: linear-gradient(135deg, #2563eb 100%, #1d4ed8 0%) !important;
     }
 
-    /* 🟢 Teal / Emerald for New Cases & Login Status */
+    /* 🟢 Emerald for New Cases & Login Status */
     button[aria-label*="New / Updated"], button[aria-label*="Login Status"] {
-        background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%) !important;
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
     }
-    /* 🔴 Crimson / Red for Delete Requests */
+    /* 🔴 Crimson for Delete Requests */
     button[aria-label*="Delete Requests"] {
-        background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%) !important;
+        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
     }
-    /* 🔵 Slate / Navy for Sync & Attendance */
+    /* 🔵 Blue for Sync & Attendance */
     button[aria-label*="Sync"], button[aria-label*="Attendance"] {
-        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%) !important;
+        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
     }
-    /* 🟠 Warm Amber for Notices */
+    /* 🟠 Amber for Notices */
     button[aria-label*="Notice"] {
-        background: linear-gradient(135deg, #b45309 0%, #d97706 100%) !important;
+        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
     }
-    /* 🟣 Deep Purple for Users & Permissions */
+    /* 🟣 Purple for Users & Permissions */
     button[aria-label*="Users & Permissions"] {
-        background: linear-gradient(135deg, #581c87 0%, #7e22ce 100%) !important;
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%) !important;
     }
-    /* ⚙️ Charcoal / Dark Slate for Passwords & Refresh */
+    /* ⚙️ Slate for Passwords & Refresh */
     button[aria-label*="Password"], button[aria-label*="Refresh"] {
-        background: linear-gradient(135deg, #334155 0%, #475569 100%) !important;
+        background: linear-gradient(135deg, #475569 0%, #64748b 100%) !important;
     }
-    /* 🚪 Logout Button Accent */
+    /* 🚪 Logout Red Accent */
     button[aria-label*="Logout"] {
-        background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%) !important;
+        background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
     }
 
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 7px 16px rgba(15, 23, 42, 0.28);
-        opacity: 0.92;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+        opacity: 0.95;
     }
 
     .username-hyperlink {
@@ -582,7 +583,7 @@ st.markdown("""
         cursor: pointer !important;
     }
     .username-hyperlink:hover {
-        color: #0f172a !important;
+        color: #1e3a8a !important;
     }
 
     div[data-testid="stRadio"] > div {
@@ -592,7 +593,7 @@ st.markdown("""
         background: #f8fafc;
         padding: 8px 14px;
         border-radius: 10px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #cbd5e1;
     }
 
     div[data-testid="stExpander"] {
@@ -806,12 +807,12 @@ def render_clickable_table(df, display_c, p_col):
     <div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">
     <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
         <thead>
-            <tr style="background: linear-gradient(135deg, #0f172a 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">
-                <th style="padding: 12px 10px; border: 1px solid #334155; text-align: center;">#</th>
+            <tr style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; position: sticky; top: 0; z-index: 1;">
+                <th style="padding: 12px 10px; border: 1px solid #3b82f6; text-align: center;">#</th>
     """
     for col in display_cols:
-        html += f'<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
-    html += '<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
+        html += f'<th style="padding: 12px 10px; border: 1px solid #3b82f6; text-align: left; white-space: nowrap;">{col}</th>'
+    html += '<th style="padding: 12px 10px; border: 1px solid #3b82f6; text-align: left; white-space: nowrap;">Status</th>'
     html += "</tr></thead><tbody>"
 
     for idx, row in df.iterrows():
@@ -1444,21 +1445,21 @@ if not st.session_state["logged_in"]:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"HemanVisa made my Canada study visa process extremely smooth. The case workers were responsive and professional!"</p>
-                    <b style="color:#0b3c65;">— Rajesh K. (Canada PR)</b>
+                    <b style="color:#2563eb;">— Rajesh K. (Canada PR)</b>
                 </div>
             """, unsafe_allow_html=True)
         with t2:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"Extremely grateful for the prompt documentation and regular status updates. Got my US work visa approved without any hassle."</p>
-                    <b style="color:#0b3c65;">— Sneha R. (USA Work Visa)</b>
+                    <b style="color:#2563eb;">— Sneha R. (USA Work Visa)</b>
                 </div>
             """, unsafe_allow_html=True)
         with t3:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"Best consulting firm with transparent pricing and dedicated case officers. Highly recommended for anyone planning abroad."</p>
-                    <b style="color:#0b3c65;">— Anil M. (UK Student Visa)</b>
+                    <b style="color:#2563eb;">— Anil M. (UK Student Visa)</b>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -1488,7 +1489,7 @@ if not st.session_state["logged_in"]:
         col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
         with col_l2:
             with st.container(border=True):
-                st.markdown("<h3 style='text-align:center; color:#0f172a;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='text-align:center; color:#1e3a8a;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
                 sheets = get_sheet_names()
                 if not sheets:
