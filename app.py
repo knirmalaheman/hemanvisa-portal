@@ -278,7 +278,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Modern Professional CSS & Marquee Styling
+# 🎨 Modern Professional CSS & Marquee Styling (Added margin-bottom for gap)
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -375,11 +375,11 @@ st.markdown("""
     .marquee-container {
         background: linear-gradient(90deg, #d35400 0%, #f39c12 100%);
         color: white;
-        padding: 8px 12px;
+        padding: 10px 14px;
         border-radius: 6px;
         font-weight: 700;
         font-size: 14px;
-        margin-bottom: 12px;
+        margin-bottom: 18px !important; /* 🌟 Added clean gap below announcement banner */
         box-shadow: 0 2px 6px rgba(0,0,0,0.15);
         overflow: hidden;
         white-space: nowrap;
