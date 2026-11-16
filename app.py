@@ -278,7 +278,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Ultra-Modern Corporate UI & Dashboard Styling
+# 🎨 Executive SaaS Corporate UI & Spacious Dashboard Styling
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -294,9 +294,9 @@ st.markdown("""
         background: #ffffff;
         background-image: radial-gradient(#d0e1f9 1px, transparent 1px), linear-gradient(to right, rgba(29,111,165,0.03), rgba(243,156,18,0.03));
         background-size: 20px 20px;
-        padding: 6px 20px;
-        border-bottom: 3px solid #1d6fa5;
-        box-shadow: 0 4px 15px rgba(11, 60, 101, 0.15);
+        padding: 6px 24px;
+        border-bottom: 3px solid #1e3a8a;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -304,7 +304,7 @@ st.markdown("""
         box-sizing: border-box;
     }
     .sticky-top-banner img {
-        max-height: 80px;
+        max-height: 76px;
         width: auto;
     }
     .banner-middle {
@@ -315,33 +315,33 @@ st.markdown("""
     .world-map-title {
         font-size: 19px;
         font-weight: 800;
-        color: #0b3c65;
+        color: #0f172a;
         letter-spacing: 1px;
         text-transform: uppercase;
-        margin-bottom: 1px;
+        margin-bottom: 2px;
     }
     .world-map-subtitle {
         font-size: 12px;
         font-weight: 700;
-        color: #d35400;
-        letter-spacing: 1.5px;
+        color: #d97706;
+        letter-spacing: 1.4px;
     }
     .banner-info {
         display: flex;
         align-items: center;
-        gap: 15px;
+        gap: 16px;
         flex-wrap: wrap;
         font-size: 12px;
         font-weight: 600;
-        color: #0b3c65;
+        color: #1e293b;
     }
     .banner-info a {
-        color: #0b3c65;
+        color: #1e293b;
         text-decoration: none;
     }
     .social-icons {
         display: flex;
-        gap: 6px;
+        gap: 7px;
         align-items: center;
     }
     .social-icons img {
@@ -354,114 +354,110 @@ st.markdown("""
     @media (prefers-color-scheme: dark) {
         .sticky-top-banner {
             background-color: #0e1117;
-            border-bottom: 3px solid #4da6ff;
+            border-bottom: 3px solid #3b82f6;
         }
         .world-map-title {
-            color: #ffffff;
+            color: #f8fafc;
         }
-        .banner-info {
-            color: #e6edf3;
-        }
-        .banner-info a {
-            color: #e6edf3;
+        .banner-info, .banner-info a {
+            color: #e2e8f0;
         }
     }
 
     .block-container {
-        padding-top: 110px !important;
-        padding-bottom: 2rem;
+        padding-top: 108px !important;
+        padding-bottom: 2.5rem;
+        max-width: 1400px !important;
     }
 
     .hero-section {
-        background: linear-gradient(135deg, #0b3c65 0%, #1d6fa5 100%);
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
         color: white;
-        padding: 50px 30px;
-        border-radius: 12px;
+        padding: 52px 32px;
+        border-radius: 14px;
         text-align: center;
-        margin-bottom: 25px;
-        box-shadow: 0 6px 20px rgba(11, 60, 101, 0.2);
+        margin-bottom: 26px;
+        box-shadow: 0 10px 28px rgba(30, 58, 138, 0.22);
     }
     .hero-title {
         font-size: 36px;
         font-weight: 800;
-        margin-bottom: 15px;
-        letter-spacing: 0.5px;
+        margin-bottom: 14px;
+        letter-spacing: 0.4px;
     }
     .hero-subtitle {
         font-size: 16px;
-        opacity: 0.9;
-        margin-bottom: 25px;
-        line-height: 1.6;
+        opacity: 0.92;
+        margin-bottom: 20px;
+        line-height: 1.65;
         max-width: 800px;
         margin-left: auto;
         margin-right: auto;
     }
 
     .corporate-card {
-        background: white;
-        padding: 25px;
-        border-radius: 10px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.06);
-        border-top: 4px solid #1d6fa5;
+        background: #ffffff;
+        padding: 22px 24px;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+        border: 1px solid #e2e8f0;
+        border-top: 4px solid #2563eb;
         height: 100%;
-        margin-bottom: 15px;
+        margin-bottom: 14px;
     }
     .corporate-card h3 {
-        color: #0b3c65;
-        font-size: 20px;
-        margin-bottom: 10px;
+        color: #0f172a;
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 8px;
     }
     .corporate-card p {
         color: #475569;
         font-size: 14px;
-        line-height: 1.5;
+        line-height: 1.55;
+        margin: 0;
     }
 
     .marquee-container {
-        background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+        background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
         color: white;
         padding: 12px 18px;
-        border-radius: 8px;
+        border-radius: 10px;
         font-weight: 700;
         font-size: 14px;
-        margin-bottom: 22px !important;
-        box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+        margin-bottom: 20px !important;
+        box-shadow: 0 4px 14px rgba(30, 58, 138, 0.2);
         overflow: hidden;
         white-space: nowrap;
-        border-left: 5px solid #fbbf24;
-    }
-    .marquee-container marquee {
-        font-weight: 700;
-        letter-spacing: 0.5px;
+        border-left: 5px solid #f59e0b;
     }
 
     .sticky-control-panel {
         position: sticky;
-        top: 98px;
+        top: 94px;
         z-index: 99998;
         background-color: #ffffff;
-        padding-top: 6px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #e1e4e8;
-        margin-bottom: 15px;
+        padding: 8px 0 10px 0;
+        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 14px;
     }
     @media (prefers-color-scheme: dark) {
         .sticky-control-panel {
             background-color: #0e1117;
-            border-bottom: 2px solid #30363d;
+            border-bottom: 1px solid #30363d;
         }
     }
 
     .kpi-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
         color: white;
-        padding: 16px 12px;
-        border-radius: 10px;
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
+        padding: 18px 14px;
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.18);
         text-align: center;
-        border-left: 5px solid #fbbf24;
-        margin-bottom: 10px;
-        height: 95px;
+        border-bottom: 4px solid #fbbf24;
+        margin-bottom: 12px;
+        height: 100px;
         width: 100%;
         display: flex;
         flex-direction: column;
@@ -470,68 +466,88 @@ st.markdown("""
         box-sizing: border-box;
     }
     .kpi-card.gold {
-        background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%);
-        border-left: 5px solid #1e3a8a;
+        background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
+        border-bottom: 4px solid #1e3a8a;
     }
     .kpi-card.green {
-        background: linear-gradient(135deg, #047857 0%, #059669 100%);
-        border-left: 5px solid #facc15;
+        background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+        border-bottom: 4px solid #fde047;
     }
     .kpi-card.purple {
         background: linear-gradient(135deg, #581c87 0%, #7e22ce 100%);
-        border-left: 5px solid #facc15;
+        border-bottom: 4px solid #fde047;
     }
     .kpi-title {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 1px;
-        opacity: 0.95;
+        opacity: 0.92;
         margin-bottom: 6px;
         line-height: 1.2;
         font-weight: 700;
     }
     .kpi-value {
-        font-size: 22px;
+        font-size: 26px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
     }
 
     .section-banner {
-        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-        border-left: 6px solid #1e3a8a;
-        padding: 12px 18px;
+        background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 100%);
+        border-left: 5px solid #1e3a8a;
+        padding: 11px 18px;
         border-radius: 8px;
-        margin: 12px 0px;
+        margin: 8px 0px;
         font-weight: 800;
-        color: #1e3a8a;
-        font-size: 17px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        color: #0f172a;
+        font-size: 16px;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
     }
     @media (prefers-color-scheme: dark) {
         .section-banner {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            border-left: 6px solid #3b82f6;
+            background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
+            border-left: 5px solid #3b82f6;
             color: #f8fafc;
         }
     }
 
+    .action-group-title {
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #475569;
+        margin: 10px 0 6px 2px;
+    }
+
+    /* Spacious, Clean Executive Action Buttons */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
-        border-radius: 8px !important;
+        min-height: 46px !important;
+        border-radius: 10px !important;
         font-weight: 700 !important;
-        padding: 10px 14px !important;
+        font-size: 14px !important;
+        padding: 10px 16px !important;
         color: #ffffff !important;
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
-        border: none !important;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        border: 1px solid rgba(255,255,255,0.12) !important;
+        box-shadow: 0 4px 10px rgba(30, 58, 138, 0.18);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
-        transition: all 0.3s ease;
+        transition: all 0.22s ease;
+        white-space: nowrap !important;
     }
-    .stButton > button:hover {
+    .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+        box-shadow: 0 7px 16px rgba(37, 99, 235, 0.32);
+        background: linear-gradient(135deg, #172554 0%, #1d4ed8 100%) !important;
+    }
+    .stButton > button:disabled {
+        background: #94a3b8 !important;
+        opacity: 0.7;
+        transform: none !important;
+        box-shadow: none !important;
     }
 
     .username-hyperlink {
@@ -544,10 +560,15 @@ st.markdown("""
         color: #1e3a8a !important;
     }
 
+    /* Styled Pill Navigation Bar */
     div[data-testid="stRadio"] > div {
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 15px !important;
+        flex-wrap: wrap !important;
+        gap: 12px !important;
+        background: #f8fafc;
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
     }
 
     div[data-testid="stExpander"] {
@@ -555,11 +576,11 @@ st.markdown("""
         max-width: 950px !important;
     }
     [data-testid="stVerticalBlock"] {
-        gap: 0.3rem !important;
+        gap: 0.45rem !important;
     }
     hr {
-        margin-top: 0.8rem !important;
-        margin-bottom: 0.8rem !important;
+        margin-top: 0.9rem !important;
+        margin-bottom: 0.9rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -758,15 +779,15 @@ def render_clickable_table(df, display_c, p_col):
     curr_sheet = qp.get("active_sheet", st.session_state.get("active_sheet", ""))
 
     html = f"""
-    <div style="max-height: 480px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    <div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">
     <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
         <thead>
-            <tr style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white; position: sticky; top: 0; z-index: 1;">
-                <th style="padding: 12px; border: 1px solid #cbd5e1; text-align: center;">#</th>
+            <tr style="background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); color: white; position: sticky; top: 0; z-index: 1;">
+                <th style="padding: 12px 10px; border: 1px solid #334155; text-align: center;">#</th>
     """
     for col in display_cols:
-        html += f'<th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">{col}</th>'
-    html += '<th style="padding: 12px; border: 1px solid #cbd5e1; text-align: left; white-space: nowrap;">Status</th>'
+        html += f'<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
+    html += '<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
     html += "</tr></thead><tbody>"
 
     for idx, row in df.iterrows():
@@ -1523,7 +1544,7 @@ elif st.session_state["role"] == "admin":
     p_col = find_password_column(df)
     
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
+    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
         st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
     with top_col2:
@@ -1542,23 +1563,22 @@ elif st.session_state["role"] == "admin":
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 🌟 Added Professional Navigation / Sub-Pages inside Admin Dashboard
     admin_dash_tab = st.radio(
         "Admin Navigation",
-        ["📊 Dashboard Overview", "📂 Case Management & Search", "ℹ️ System Guidelines & Help"],
+        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
         horizontal=True,
         label_visibility="collapsed",
         key="admin_dash_tab_radio"
     )
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-    if admin_dash_tab == "📊 Dashboard Overview":
-        total_cases = len(df)
-        updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
-        unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
-        active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+    total_cases = len(df)
+    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
+    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
+    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
-        k1, k2, k3, k4 = st.columns(4)
+    if admin_dash_tab == "📊 Dashboard & Quick Actions":
+        k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
         with k2:
@@ -1568,27 +1588,49 @@ elif st.session_state["role"] == "admin":
         with k4:
             st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Case Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
 
-        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-        
-        c_ov1, c_ov2 = st.columns(2)
-        with c_ov1:
-            st.markdown("""
-                <div class="corporate-card">
-                    <h3>👑 Admin Quick Actions</h3>
-                    <p>Use the action bar below to manage user permissions, review worker attendance, track delete requests, and sync cloud data instantly.</p>
-                </div>
-            """, unsafe_allow_html=True)
-        with c_ov2:
-            st.markdown(f"""
-                <div class="corporate-card">
-                    <h3>📂 Current Active Sheet</h3>
-                    <p>You are currently managing <b>{current_sheet}</b> containing <b>{total_cases}</b> records. Switch sheets anytime using the Sheet Management tab.</p>
-                </div>
-            """, unsafe_allow_html=True)
+        st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
+        r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4, gap="medium")
+        with r1_c1:
+            if st.button("📋 New / Updated Cases", use_container_width=True, key="admin_upd_cases_btn"):
+                st.session_state["open_dialog"] = "admin_updated_cases"
+                st.rerun()
+        with r1_c2:
+            if st.button("🗑️ Delete Requests", use_container_width=True, key="admin_del_req_btn"):
+                st.session_state["open_dialog"] = "admin_delete_requests"
+                st.rerun()
+        with r1_c3:
+            if st.button("🔄 Sync Excel to Cloud", use_container_width=True, key="admin_sync_btn"):
+                st.session_state["open_dialog"] = "sync_excel"
+                st.rerun()
+        with r1_c4:
+            if st.button("📢 Broadcast Notice", use_container_width=True, key="admin_notice_btn"):
+                st.session_state["open_dialog"] = "admin_notice"
+                st.rerun()
 
-    elif admin_dash_tab == "ℹ️ System Guidelines & Help":
+        st.markdown("<div class='action-group-title'>🛡️ Team, Attendance & Security</div>", unsafe_allow_html=True)
+        r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4, gap="medium")
+        with r2_c1:
+            if st.button("👥 Users & Permissions", use_container_width=True, key="admin_perm_btn"):
+                st.session_state["open_dialog"] = "permissions"
+                st.rerun()
+        with r2_c2:
+            if st.button("🟢 Worker Login Status", use_container_width=True, key="admin_login_status_btn"):
+                st.session_state["open_dialog"] = "admin_login_status"
+                st.rerun()
+        with r2_c3:
+            if st.button("📊 Attendance Report", use_container_width=True, key="admin_attendance_btn"):
+                st.session_state["open_dialog"] = "admin_attendance"
+                st.rerun()
+        with r2_c4:
+            if st.button("🔑 Admin Password", use_container_width=True, key="admin_pw_btn"):
+                st.session_state["open_dialog"] = "admin_password"
+                st.rerun()
+
+        st.divider()
+
+    elif admin_dash_tab == "ℹ️ System Guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
-        g1, g2 = st.columns(2)
+        g1, g2 = st.columns(2, gap="medium")
         with g1:
             st.markdown("""
                 <div class="corporate-card">
@@ -1608,81 +1650,43 @@ elif st.session_state["role"] == "admin":
                 </div>
                 <div class="corporate-card">
                     <h3>📢 Live Announcements</h3>
-                    <p>Broadcast scrolling marquee announcements directly to all active case worker screens using the 'Add Notice' feature.</p>
+                    <p>Broadcast scrolling marquee announcements directly to all active case worker screens using the 'Broadcast Notice' feature.</p>
                 </div>
             """, unsafe_allow_html=True)
 
-    # Always Visible Admin Action Toolbar & Table
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    col_btn_1, col_btn_2, col_btn_3, col_btn_4, col_btn_5, col_btn_6, col_btn_7, col_btn_8 = st.columns(8)
-    with col_btn_1:
-        if st.button("👥 Users & Perms", use_container_width=True, key="admin_perm_btn"):
-            st.session_state["open_dialog"] = "permissions"
-            st.rerun()
-    with col_btn_2:
-        if st.button("🔑 Change Password", use_container_width=True, key="admin_pw_btn"):
-            st.session_state["open_dialog"] = "admin_password"
-            st.rerun()
-    with col_btn_3:
-        if st.button("🔄 Sync Excel", use_container_width=True, key="admin_sync_btn"):
-            st.session_state["open_dialog"] = "sync_excel"
-            st.rerun()
-    with col_btn_4:
-        if st.button("📋 New / Updated", use_container_width=True, key="admin_upd_cases_btn"):
-            st.session_state["open_dialog"] = "admin_updated_cases"
-            st.rerun()
-    with col_btn_5:
-        if st.button("🗑️ Delete Requests", use_container_width=True, key="admin_del_req_btn"):
-            st.session_state["open_dialog"] = "admin_delete_requests"
-            st.rerun()
-    with col_btn_6:
-        if st.button("📢 Add Notice", use_container_width=True, key="admin_notice_btn"):
-            st.session_state["open_dialog"] = "admin_notice"
-            st.rerun()
-    with col_btn_7:
-        if st.button("👥 Worker Logins", use_container_width=True, key="admin_login_status_btn"):
-            st.session_state["open_dialog"] = "admin_login_status"
-            st.rerun()
-    with col_btn_8:
-        if st.button("📊 Attendance", use_container_width=True, key="admin_attendance_btn"):
-            st.session_state["open_dialog"] = "admin_attendance"
-            st.rerun()
+    # Case Records & Search Section (Shown on Dashboard & Case Records tabs)
+    if admin_dash_tab in ["📊 Dashboard & Quick Actions", "📂 Case Records & Search"]:
+        st.markdown(f"<div class='section-banner'>🔍 Case Records & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
+        
+        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
+        with col_search:
+            admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
+        with col_sheets:
+            if sheets:
+                st.markdown("📑 **Sheets Switch:**")
+                st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
+        
+        if admin_search != "":
+            admin_search_mask = df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
+            display_df = df[admin_search_mask]
+            st.info(f"Results for '{admin_search}' ({len(display_df)} rows):")
+        else:
+            display_df = df
 
-    st.divider()
-    
-    st.markdown(f"<div class='section-banner'>🔍 Admin Search & Sheet Management ({current_sheet})</div>", unsafe_allow_html=True)
-    
-    col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
-    with col_search:
-        admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
-    with col_sheets:
-        if sheets:
-            st.markdown("📑 **Sheets Switch:**")
-            st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
-    
-    if admin_search != "":
-        admin_search_mask = df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
-        display_df = df[admin_search_mask]
-        st.info(f"Results for '{admin_search}' ({len(display_df)} rows):")
-    else:
-        display_df = df
-
-    st.markdown("---")
-    st.caption("Click USERNAME inside the table to view, edit, or delete details.")
-
-    render_clickable_table(display_df, display_c, p_col)
-                
-    if os.path.exists(EXCEL_FILE):
-        with open(EXCEL_FILE, "rb") as f:
-            excel_bytes = f.read()
-        st.download_button(
-            label="📥 Download Complete Excel File (All Sheets)", 
-            data=excel_bytes, 
-            file_name=EXCEL_FILE, 
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-            use_container_width=True, 
-            key="admin_dl_all_btn"
-        )
+        st.caption("💡 Click USERNAME inside the table to view, edit, or delete details.")
+        render_clickable_table(display_df, display_c, p_col)
+                    
+        if os.path.exists(EXCEL_FILE):
+            with open(EXCEL_FILE, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label="📥 Download Complete Excel File (All Sheets)", 
+                data=excel_bytes, 
+                file_name=EXCEL_FILE, 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="admin_dl_all_btn"
+            )
 
 # 3. CASE WORKER DASHBOARD
 else:
@@ -1707,9 +1711,9 @@ else:
     user_rows = df[user_mask]
         
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6, 1, 1], gap="small")
+    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.session_state["open_dialog"] = None
@@ -1717,7 +1721,7 @@ else:
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="worker_logout"):
-            record_worker_logout(current_user) # 🌟 Record Logout Time
+            record_worker_logout(current_user)
             st.query_params.clear()
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
@@ -1728,18 +1732,16 @@ else:
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # 🌟 Added Professional Navigation Tabs inside Worker Dashboard
     worker_dash_tab = st.radio(
         "Worker Navigation",
-        ["📊 My Dashboard", "ℹ️ Case Worker Guide & Help"],
+        ["📊 My Workspace", "ℹ️ Case Worker Guide"],
         horizontal=True,
         label_visibility="collapsed",
         key="worker_dash_tab_radio"
     )
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-    if worker_dash_tab == "📊 My Dashboard":
-        # 📢 Scrolling Marquee Notice for Case Workers
+    if worker_dash_tab == "📊 My Workspace":
         admin_notice = get_admin_notice()
         if admin_notice:
             st.markdown(f"""
@@ -1765,7 +1767,7 @@ else:
                     visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
         total_metrics = 2 + len(visa_counts)
-        kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2)
+        kpi_cols = st.columns(total_metrics if total_metrics > 0 else 2, gap="medium")
 
         with kpi_cols[0]:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
@@ -1777,11 +1779,82 @@ else:
             c_class = colors_list[idx % len(colors_list)]
             with kpi_cols[2 + idx]:
                 st.markdown(f"<div class='kpi-card {c_class}'><div class='kpi-title'>✈️ {v_name}</div><div class='kpi-value'>{v_count}</div></div>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
-    elif worker_dash_tab == "ℹ️ Case Worker Guide & Help":
+        st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
+        has_sync_perm = worker_perm.get("can_sync", False)
+        w_cols = st.columns(5 if has_sync_perm else 4, gap="medium")
+        
+        with w_cols[0]:
+            if worker_perm.get("can_add", True):
+                if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
+                    st.session_state["open_dialog"] = "add_case"
+                    st.rerun()
+            else:
+                st.button("🚫 No Add Access", disabled=True, use_container_width=True, key="worker_add_disabled")
+        with w_cols[1]:
+            if worker_perm.get("can_search", True):
+                if st.button("🔍 Search Records", use_container_width=True, key="worker_search_btn"):
+                    st.session_state["open_dialog"] = "search_data"
+                    st.rerun()
+            else:
+                st.button("🚫 No Search Access", disabled=True, use_container_width=True, key="worker_search_disabled")
+        with w_cols[2]:
+            if worker_perm.get("can_download", False):
+                worker_buffer = io.BytesIO()
+                with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
+                    has_user_data = False
+                    for s in sheets:
+                        df_s = load_data(sheet_name=s)
+                        if df_s is not None and not df_s.empty:
+                            login_cs = find_login_user_column(df_s)
+                            u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
+                            if not u_rows_s.empty:
+                                has_user_data = True
+                                u_rows_s.to_excel(writer, sheet_name=s, index=False)
+                    
+                    if not has_user_data:
+                        user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
+                
+                st.download_button(
+                    label="📥 Export My Excel", 
+                    data=worker_buffer.getvalue(), 
+                    file_name=f"{current_user}_all_sheets_cases.xlsx", 
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                    use_container_width=True, 
+                    key="worker_dl_btn"
+                )
+            else:
+                st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
+        with w_cols[3]:
+            if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
+                st.session_state["open_dialog"] = "worker_password"
+                st.rerun()
+
+        if has_sync_perm:
+            with w_cols[4]:
+                if st.button("🔄 Sync Excel", use_container_width=True, key="worker_sync_btn"):
+                    st.session_state["open_dialog"] = "sync_excel"
+                    st.rerun()
+                
+        st.divider()
+
+        if sheets:
+            st.write("📑 **Sheets Switch:**")
+            st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
+                
+        st.divider()
+        
+        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
+
+        if user_rows.empty:
+            st.info("No cases assigned to you in this sheet.")
+        else:
+            st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
+            render_clickable_table(user_rows, display_c, p_col)
+
+    elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
-        w_g1, w_g2 = st.columns(2)
+        w_g1, w_g2 = st.columns(2, gap="medium")
         with w_g1:
             st.markdown("""
                 <div class="corporate-card">
@@ -1790,7 +1863,7 @@ else:
                 </div>
                 <div class="corporate-card">
                     <h3>➕ Adding New Cases</h3>
-                    <p>Use the 'Add Case' button in the toolbar to create new records directly in your designated sheet with automatic timestamping.</p>
+                    <p>Use the 'Add New Case' button in the toolbar to create new records directly in your designated sheet with automatic timestamping.</p>
                 </div>
             """, unsafe_allow_html=True)
         with w_g2:
@@ -1801,79 +1874,6 @@ else:
                 </div>
                 <div class="corporate-card">
                     <h3>🔒 Security & Password</h3>
-                    <p>Keep your account secure by changing your password periodically using the 'Password' button in the toolbar.</p>
+                    <p>Keep your account secure by changing your password periodically using the 'Change Password' button in the toolbar.</p>
                 </div>
             """, unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-
-    has_sync_perm = worker_perm.get("can_sync", False)
-    w_cols = st.columns(5 if has_sync_perm else 4)
-    
-    with w_cols[0]:
-        if st.button("🔑 Password", use_container_width=True, key="worker_pw_btn"):
-            st.session_state["open_dialog"] = "worker_password"
-            st.rerun()
-    with w_cols[1]:
-        if worker_perm.get("can_add", True):
-            if st.button("➕ Add Case", use_container_width=True, key="worker_add_btn"):
-                st.session_state["open_dialog"] = "add_case"
-                st.rerun()
-        else:
-            st.button("🚫 No Add", disabled=True, use_container_width=True, key="worker_add_disabled")
-    with w_cols[2]:
-        if worker_perm.get("can_search", True):
-            if st.button("🔍 Search", use_container_width=True, key="worker_search_btn"):
-                st.session_state["open_dialog"] = "search_data"
-                st.rerun()
-        else:
-            st.button("🚫 No Search", disabled=True, use_container_width=True, key="worker_search_disabled")
-    with w_cols[3]:
-        if worker_perm.get("can_download", False):
-            worker_buffer = io.BytesIO()
-            with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
-                has_user_data = False
-                for s in sheets:
-                    df_s = load_data(sheet_name=s)
-                    if df_s is not None and not df_s.empty:
-                        login_cs = find_login_user_column(df_s)
-                        u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
-                        if not u_rows_s.empty:
-                            has_user_data = True
-                            u_rows_s.to_excel(writer, sheet_name=s, index=False)
-                
-                if not has_user_data:
-                    user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
-            
-            st.download_button(
-                label="📥 Download", 
-                data=worker_buffer.getvalue(), 
-                file_name=f"{current_user}_all_sheets_cases.xlsx", 
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                use_container_width=True, 
-                key="worker_dl_btn"
-            )
-        else:
-            st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
-
-    if has_sync_perm:
-        with w_cols[4]:
-            if st.button("🔄 Sync", use_container_width=True, key="worker_sync_btn"):
-                st.session_state["open_dialog"] = "sync_excel"
-                st.rerun()
-            
-    st.divider()
-
-    if sheets:
-        st.write("📑 **Sheets Switch:**")
-        st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
-            
-    st.divider()
-    
-    st.markdown(f"<div class='section-banner'>✏️ Your Login Cases ({current_sheet} — Total: {len(user_rows)})</div>", unsafe_allow_html=True)
-
-    if user_rows.empty:
-        st.info("No cases assigned to you in this sheet.")
-    else:
-        st.caption("Click USERNAME inside the table to view, edit, or delete details.")
-        render_clickable_table(user_rows, display_c, p_col)
