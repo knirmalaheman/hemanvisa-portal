@@ -115,9 +115,10 @@ def load_login_tracking():
 
 def record_worker_login(worker_name):
     logins = load_login_tracking()
+    # 🌟 12-Hour AM/PM Format
     logins[worker_name.strip()] = {
         "status": "Logged In",
-        "last_login": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "last_login": datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
     }
     with open(LOGINS_FILE, "w") as f:
         json.dump(logins, f, indent=4)
@@ -546,7 +547,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 else:
                     try:
                         df_full.at[row_idx, "Updated_By"] = current_user
-                        df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        # 🌟 12-Hour AM/PM Format
+                        df_full.at[row_idx, "Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
                         df_full.at[row_idx, "Action_Type"] = "Delete Request"
                         df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
                         save_data(df_full, sheet_name=sheet_name)
@@ -591,7 +593,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if submitted:
                 try:
-                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    # 🌟 12-Hour AM/PM Format
+                    current_time = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
                     changed = False
                     for col_name, new_val in updated_values.items():
                         old_val = str(df_full.at[row_idx, col_name]).strip()
@@ -1087,7 +1090,8 @@ def add_case_dialog(worker_name):
 
                 new_row[t_pass_col] = current_pass if final_assigned_user != "" else "admin123"
                 new_row["Updated_By"] = worker_name
-                new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # 🌟 12-Hour AM/PM Format
+                new_row["Updated_At"] = datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
                 new_row["Action_Type"] = "New Case"
                 new_row["Delete_Reason"] = ""
                 
