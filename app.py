@@ -24,10 +24,16 @@ if "logged_in" not in st.session_state:
     st.session_state["username"] = ""
     st.session_state["role"] = ""
 
+if "attendance_recorded" not in st.session_state:
+    st.session_state["attendance_recorded"] = False
+
 if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
     st.session_state["logged_in"] = True
     st.session_state["username"] = qp.get("username", "")
     st.session_state["role"] = qp.get("role", "worker")
+    if qp.get("role") == "worker" and not st.session_state["attendance_recorded"]:
+        record_worker_login(qp.get("username", ""))
+        st.session_state["attendance_recorded"] = True
 
 if "open_dialog" not in st.session_state:
     st.session_state["open_dialog"] = None
@@ -128,6 +134,8 @@ def save_attendance(att_list):
         json.dump(att_list, f, indent=4)
 
 def record_worker_login(worker_name):
+    if not worker_name:
+        return
     now_dt = datetime.datetime.now()
     today_str = now_dt.strftime("%Y-%m-%d")
     time_str = now_dt.strftime("%I:%M:%S %p")
@@ -145,7 +153,9 @@ def record_worker_login(worker_name):
     found = False
     for entry in attendance:
         if entry.get("Worker", "").lower() == worker_name.strip().lower() and entry.get("Date") == today_str:
-            entry["Login_Time"] = time_str
+            # Login_Time ఇప్పటికే ఉంటే దానిని మార్చకుండా ఉంచండి (హోస్ట్/మార్నింగ్ లాగిన్ టైమ్ పదిలంగా ఉంటుంది)
+            if not entry.get("Login_Time") or entry.get("Login_Time") == "-":
+                entry["Login_Time"] = time_str
             entry["Status"] = "Active"
             found = True
             break
@@ -180,8 +190,11 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
+# ఒక సెషన్‌లో ఒక్కసారే అటెండెన్స్ రికార్డ్ అయ్యేలా చెక్ చేయండి
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
-    record_worker_login(st.session_state["username"])
+    if not st.session_state.get("attendance_recorded", False):
+        record_worker_login(st.session_state["username"])
+        st.session_state["attendance_recorded"] = True
 
 def get_sheet_names():
     if os.path.exists(EXCEL_FILE):
@@ -1300,6 +1313,7 @@ if not st.session_state["logged_in"]:
                                 st.session_state["username"] = actual_matched_username
                                 st.session_state["role"] = "worker"
                                 st.session_state["active_sheet"] = matched_sheet
+                                st.session_state["attendance_recorded"] = True
                                 st.session_state["open_dialog"] = None
                                 st.session_state["selected_row_idx"] = None
                                 st.query_params.clear()
@@ -1470,6 +1484,7 @@ else:
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
+            st.session_state["attendance_recorded"] = False
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
