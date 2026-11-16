@@ -16,9 +16,9 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Helper function for Indian Standard Time (IST)
+# 🌟 Helper function for Local / Current System Time
 def get_ist_now():
-    return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+    return datetime.datetime.now()
 
 def get_admin_creds():
     if os.path.exists(ADMIN_FILE):
