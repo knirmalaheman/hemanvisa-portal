@@ -281,7 +281,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Vibrant, High-End & Attractive SaaS Color Palette (Logo & Name shifted right)
+# 🎨 Vibrant, High-End & Attractive SaaS Color Palette + Exact Pill & Workspace Button Styles
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -527,7 +527,7 @@ st.markdown("""
         margin: 10px 0 6px 2px;
     }
 
-    /* 🎨 Rich Vibrant Professional Buttons */
+    /* 🎨 Default Professional Buttons */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 46px !important;
@@ -537,29 +537,80 @@ st.markdown("""
         padding: 10px 16px !important;
         color: #ffffff !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
-        box-shadow: 0 4px 14px rgba(30, 58, 138, 0.2);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
         white-space: nowrap !important;
-        background: linear-gradient(135deg, #2563eb 100%, #1d4ed8 0%) !important;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
     }
 
-    /* 🎨 Soft Pastel Visa Filter Buttons Color Combination */
-    button[aria-label*="H1B"] {
-        background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%) !important;
-        color: #0369a1 !important;
-        border: 1px solid #7dd3fc !important;
+    /* 🌟 EXACT IMAGE STYLE: Visa Category Pill Buttons (Full Rounded 999px + Soft Pastel Colors) */
+    .visa-filter-row [data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(1) .stButton > button,
+    div[data-testid="stVerticalBlock"]:has(.visa-anchor) + div [data-testid="column"]:nth-child(1) .stButton > button {
+        background: #e6f0fd !important;
+        color: #1e3a8a !important;
+        border: 1.5px solid #93c5fd !important;
+        border-radius: 999px !important;
+        font-size: 15px !important;
+        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.12) !important;
     }
-    button[aria-label*="PENDING"] {
-        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
-        color: #b45309 !important;
-        border: 1px solid #fcd34d !important;
+
+    .visa-filter-row [data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(2) .stButton > button,
+    div[data-testid="stVerticalBlock"]:has(.visa-anchor) + div [data-testid="column"]:nth-child(2) .stButton > button {
+        background: #fef3c7 !important;
+        color: #92400e !important;
+        border: 1.5px solid #fcd34d !important;
+        border-radius: 999px !important;
+        font-size: 15px !important;
+        box-shadow: 0 2px 6px rgba(245, 158, 11, 0.12) !important;
     }
-    button[aria-label*="B1/B2"] {
-        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%) !important;
-        color: #047857 !important;
-        border: 1px solid #6ee7b7 !important;
+
+    .visa-filter-row [data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(3) .stButton > button,
+    div[data-testid="stVerticalBlock"]:has(.visa-anchor) + div [data-testid="column"]:nth-child(3) .stButton > button {
+        background: #d1fae5 !important;
+        color: #065f46 !important;
+        border: 1.5px solid #6ee7b7 !important;
+        border-radius: 999px !important;
+        font-size: 15px !important;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12) !important;
+    }
+
+    .visa-filter-row [data-testid="stHorizontalBlock"] [data-testid="column"]:nth-child(4) .stButton > button,
+    div[data-testid="stVerticalBlock"]:has(.visa-anchor) + div [data-testid="column"]:nth-child(4) .stButton > button {
+        background: #f3e8ff !important;
+        color: #5b21b6 !important;
+        border: 1.5px solid #d8b4fe !important;
+        border-radius: 999px !important;
+        font-size: 15px !important;
+        box-shadow: 0 2px 6px rgba(139, 92, 246, 0.12) !important;
+    }
+
+    /* 🌟 EXACT IMAGE STYLE: Workspace Tools Row Buttons */
+    div[data-testid="stVerticalBlock"]:has(.workspace-anchor) + div [data-testid="column"]:nth-child(1) .stButton > button {
+        background: #0d6efd !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 10px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.workspace-anchor) + div [data-testid="column"]:nth-child(2) .stButton > button {
+        background: #ffffff !important;
+        color: #0d6efd !important;
+        border: 1.5px solid #0d6efd !important;
+        border-radius: 10px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.workspace-anchor) + div [data-testid="column"]:nth-child(3) .stButton > button:disabled {
+        background: #e2e8f0 !important;
+        color: #94a3b8 !important;
+        border: none !important;
+        border-radius: 10px !important;
+        opacity: 1 !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.workspace-anchor) + div [data-testid="column"]:nth-child(4) .stButton > button {
+        background: #e2e8f0 !important;
+        color: #334155 !important;
+        border: none !important;
+        border-radius: 10px !important;
     }
 
     /* 🟢 Emerald for New Cases & Login Status */
@@ -593,8 +644,8 @@ st.markdown("""
 
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
-        opacity: 0.95;
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22) !important;
+        opacity: 0.96;
     }
 
     .username-hyperlink {
@@ -1694,7 +1745,7 @@ elif st.session_state["role"] == "admin":
         
         # Display Interactive Visa Category Buttons in Exactly 2 Rows for Admin
         if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
+            st.markdown("<div class='action-group-title visa-anchor'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
             mid = (len(visa_items) + 1) // 2
             rows = [visa_items[:mid], visa_items[mid:]]
@@ -1864,16 +1915,17 @@ else:
         with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-        # 2. Worker Visa Category Breakdown in EXACTLY ONE SINGLE LINE (Interactive Buttons)
+        # 2. Worker Visa Category Breakdown in EXACTLY ONE SINGLE LINE (Interactive Pill Buttons)
         if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
+            st.markdown("<div class='action-group-title visa-anchor'>✈️ MY VISA CATEGORY DISTRIBUTION (CLICK ANY BUTTON TO FILTER):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
             
             if visa_items:
                 w_cols = st.columns(len(visa_items), gap="medium")
                 for idx, (v_name, v_count) in enumerate(visa_items):
                     with w_cols[idx]:
-                        btn_label = f"✈️ {v_name}: {v_count}"
+                        icon_prefix = "⏳" if "PEND" in v_name else "🌐" if "B1" in v_name else "🛂"
+                        btn_label = f"{icon_prefix} {v_name}: {v_count}"
                         if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
                             if st.session_state["selected_visa_filter"] == v_name:
                                 st.session_state["selected_visa_filter"] = "All"
@@ -1886,7 +1938,7 @@ else:
                     st.session_state["selected_visa_filter"] = "All"
                     st.rerun()
 
-        st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
+        st.markdown("<div class='action-group-title workspace-anchor'>⚡ WORKSPACE TOOLS</div>", unsafe_allow_html=True)
         has_sync_perm = worker_perm.get("can_sync", False)
         w_cols = st.columns(5 if has_sync_perm else 4, gap="medium")
         
