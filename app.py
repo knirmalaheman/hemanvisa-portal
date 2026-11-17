@@ -527,56 +527,55 @@ st.markdown("""
         margin: 10px 0 6px 2px;
     }
 
-    /* 🎨 Rich Vibrant Professional Buttons */
+    /* 🎨 Rich Professional Soft Styled Buttons to Match Visa Filter Cards */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 46px !important;
         border-radius: 10px !important;
         font-weight: 700 !important;
-        font-size: 14px !important;
-        padding: 10px 16px !important;
-        color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        box-shadow: 0 4px 14px rgba(30, 58, 138, 0.2);
+        font-size: 13.5px !important;
+        padding: 10px 14px !important;
+        color: #1e293b !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05) !important;
         margin-top: 4px !important;
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
         white-space: nowrap !important;
-        background: linear-gradient(135deg, #2563eb 100%, #1d4ed8 0%) !important;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
     }
 
-    /* 🟢 Emerald for New Cases & Login Status */
-    button[aria-label*="New / Updated"], button[aria-label*="Login Status"] {
-        background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+    /* 🔵 Custom Soft Blue / Indigo Styling to Match Visa Category Buttons Style */
+    button[aria-label*="Add New Case"], button[aria-label*="Search Records"], button[aria-label*="Sync"], button[aria-label*="Attendance"] {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+        color: #1d4ed8 !important;
+        border-color: #93c5fd !important;
     }
-    /* 🔴 Crimson for Delete Requests */
-    button[aria-label*="Delete Requests"] {
-        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
+    
+    /* ⚪ Muted Gray for Download / Disabled / Secondary */
+    button[aria-label*="No Download"], button[aria-label*="Export My Excel"] {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+        color: #475569 !important;
+        border-color: #cbd5e1 !important;
     }
-    /* 🔵 Blue for Sync & Attendance */
-    button[aria-label*="Sync"], button[aria-label*="Attendance"] {
-        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
+
+    /* ⚙️ Soft Slate / Purple for Password & Settings */
+    button[aria-label*="Change Password"], button[aria-label*="Refresh"] {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+        color: #334155 !important;
+        border-color: #cbd5e1 !important;
     }
-    /* 🟠 Amber for Notices */
-    button[aria-label*="Notice"] {
-        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
-    }
-    /* 🟣 Purple for Users & Permissions */
-    button[aria-label*="Users & Permissions"] {
-        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%) !important;
-    }
-    /* ⚙️ Slate for Passwords & Refresh */
-    button[aria-label*="Password"], button[aria-label*="Refresh"] {
-        background: linear-gradient(135deg, #475569 0%, #64748b 100%) !important;
-    }
-    /* 🚪 Logout Red Accent */
+
+    /* 🚪 Logout Accent */
     button[aria-label*="Logout"] {
-        background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+        color: #b91c1c !important;
+        border-color: #fca5a5 !important;
     }
 
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
         opacity: 0.95;
     }
 
