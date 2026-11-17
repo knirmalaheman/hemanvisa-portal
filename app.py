@@ -285,7 +285,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 STYLING
+# 🌟 SUBDUED, SOPHISTICATED & PROFESSIONAL CORPORATE STYLING
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -466,6 +466,8 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
+    
+    /* 🌟 ELITE GLASSMORPHIC KPI CARDS WITH PROFESSIONAL MUTED TONES */
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -520,6 +522,7 @@ st.markdown("""
         text-shadow: 0 2px 4px rgba(0,0,0,0.25);
     }
 
+    /* 🌟 SOPHISTICATED SUBDUED PROFESSIONAL BUTTONS (ELEGANT SLATE & NAVY PALETTE) */
     div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
@@ -1259,29 +1262,6 @@ def permissions_dialog():
 
     current_perms = load_permissions()
     
-    # 🌟 Bulk Block / Unblock All Feature
-    st.markdown("### ⚡ Bulk Quick Actions")
-    col_bulk1, col_bulk2 = st.columns(2)
-    with col_bulk1:
-        if st.button("🔒 Block All Case Workers Login", type="secondary", use_container_width=True, key="bulk_block_all"):
-            for u in all_users_dict.keys():
-                if u not in current_perms:
-                    current_perms[u] = {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False}
-                current_perms[u]["block_login"] = True
-            save_permissions(current_perms)
-            st.success("🔒 All case workers login have been blocked successfully!")
-            st.rerun()
-    with col_bulk2:
-        if st.button("🔓 Unblock All Case Workers Login", type="primary", use_container_width=True, key="bulk_unblock_all"):
-            for u in all_users_dict.keys():
-                if u not in current_perms:
-                    current_perms[u] = {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False}
-                current_perms[u]["block_login"] = False
-            save_permissions(current_perms)
-            st.success("🔓 All case workers login have been unblocked successfully!")
-            st.rerun()
-    st.divider()
-
     if not all_users_dict:
         st.warning("No case workers found.")
     else:
@@ -1718,6 +1698,7 @@ if not st.session_state["logged_in"]:
                                 st.query_params["role"] = "admin"
                                 st.rerun()
                             else:
+                                # Check if worker login is blocked by admin
                                 all_perms = load_permissions()
                                 is_blocked = False
                                 for w_key, w_val in all_perms.items():
@@ -1887,12 +1868,6 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
-        # 🌟 SWITCH SHEET ADDED TO ADMIN DASHBOARD
-        if sheets:
-            st.write("📑 **Sheets Switch:**")
-            st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
-            st.divider()
-
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
@@ -1922,7 +1897,14 @@ elif st.session_state["role"] == "admin":
                     st.rerun()
             st.divider()
 
-        admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
+        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
+        with col_search:
+            admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
+        with col_sheets:
+            if sheets:
+                st.markdown("📑 **Sheets Switch:**")
+                st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
+        
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
         display_df = df
@@ -1956,7 +1938,7 @@ elif st.session_state["role"] == "admin":
             st.markdown("""
                 <div class="corporate-card">
                     <h3>👥 User & Permission Management</h3>
-                    <p>Assign specific privileges (Update, Add, Search, Download, Sync, Block Login) to case workers to maintain strict security and accountability across all sheets. You can also block or unblock all workers instantly using bulk actions.</p>
+                    <p>Assign specific privileges (Update, Add, Search, Download, Sync, Block Login) to case workers to maintain strict security and accountability across all sheets.</p>
                 </div>
                 <div class="corporate-card">
                     <h3>🗑️ Delete Request Approvals</h3>
