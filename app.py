@@ -285,7 +285,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 HIGH-END CORPORATE STYLING & ROBUST STYLING FOR ALL BUTTONS
+# 🌟 SUBDUED, SOPHISTICATED & PROFESSIONAL CORPORATE STYLING
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -445,14 +445,14 @@ st.markdown("""
         margin: 0;
     }
     .marquee-container {
-        background: linear-gradient(90deg, #0f1c3f 0%, #172554 100%);
+        background: linear-gradient(90deg, #1e293b 0%, #334155 100%);
         color: white;
         padding: 12px 18px;
         border-radius: 10px;
         font-weight: 700;
         font-size: 14px;
         margin-bottom: 20px !important;
-        box-shadow: 0 6px 18px rgba(15, 28, 63, 0.3);
+        box-shadow: 0 6px 18px rgba(15, 28, 63, 0.2);
         overflow: hidden;
         white-space: nowrap;
         border-left: 5px solid #d4af37;
@@ -467,16 +467,16 @@ st.markdown("""
         margin-bottom: 16px;
     }
     
-    /* 🌟 ELITE GLASSMORPHIC KPI CARDS */
+    /* 🌟 ELITE GLASSMORPHIC KPI CARDS WITH PROFESSIONAL MUTED TONES */
     .kpi-card {
-        background: linear-gradient(135deg, #0f1c3f 0%, #172554 100%);
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
         padding: 22px 16px;
-        border-radius: 16px;
-        box-shadow: 0 10px 30px rgba(15, 28, 63, 0.3);
+        border-radius: 14px;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.15);
         text-align: center;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-bottom: 4px solid #3b82f6;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom: 4px solid #64748b;
         margin-bottom: 12px;
         height: 115px;
         width: 100%;
@@ -488,21 +488,20 @@ st.markdown("""
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .kpi-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 16px 35px rgba(23, 37, 84, 0.4);
-        border-color: rgba(255, 255, 255, 0.3);
+        transform: translateY(-3px);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
     }
     .kpi-card.gold {
-        background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
-        border-bottom: 4px solid #fbbf24;
+        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+        border-bottom: 4px solid #d97706;
     }
     .kpi-card.green {
-        background: linear-gradient(135deg, #064e3b 0%, #047857 100%);
-        border-bottom: 4px solid #34d399;
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        border-bottom: 4px solid #059669;
     }
     .kpi-card.purple {
-        background: linear-gradient(135deg, #312e81 0%, #4338ca 100%);
-        border-bottom: 4px solid #818cf8;
+        background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+        border-bottom: 4px solid #6366f1;
     }
     .kpi-title {
         font-size: 11px;
@@ -512,75 +511,75 @@ st.markdown("""
         margin-bottom: 6px;
         line-height: 1.2;
         font-weight: 700;
-        color: #f8fafc;
+        color: #f1f5f9;
     }
     .kpi-value {
-        font-size: 30px;
+        font-size: 28px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
         letter-spacing: 0.5px;
-        text-shadow: 0 2px 6px rgba(0,0,0,0.35);
+        text-shadow: 0 2px 4px rgba(0,0,0,0.25);
     }
 
-    /* 🌟 TARGETED STYLING FOR VISA & ADMIN BUTTONS WITH SAFE TEXT VISIBILITY */
+    /* 🌟 SOPHISTICATED SUBDUED PROFESSIONAL BUTTONS (ELEGANT SLATE & NAVY PALETTE) */
     div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%) !important;
-        border-bottom: 3px solid #93c5fd !important;
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+        border-bottom: 3px solid #60a5fa !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #047857 0%, #10b981 100%) !important;
-        border-bottom: 3px solid #6ee7b7 !important;
+        background: linear-gradient(135deg, #065f46 0%, #059669 100%) !important;
+        border-bottom: 3px solid #34d399 !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%) !important;
-        border-bottom: 3px solid #fcd34d !important;
+        background: linear-gradient(135deg, #92400e 0%, #d97706 100%) !important;
+        border-bottom: 3px solid #fbbf24 !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%) !important;
-        border-bottom: 3px solid #c4b5fd !important;
+        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
+        border-bottom: 3px solid #818cf8 !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #be185d 0%, #ec4899 100%) !important;
-        border-bottom: 3px solid #f9a8d4 !important;
+        background: linear-gradient(135deg, #831843 0%, #db2777 100%) !important;
+        border-bottom: 3px solid #f472b6 !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%) !important;
-        border-bottom: 3px solid #5eead4 !important;
+        background: linear-gradient(135deg, #115e59 0%, #0d9488 100%) !important;
+        border-bottom: 3px solid #2dd4bf !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
-        border-bottom: 3px solid #a5b4fc !important;
+        background: linear-gradient(135deg, #334155 100%, #475569 0%) !important;
+        border-bottom: 3px solid #94a3b8 !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%) !important;
-        border-bottom: 3px solid #fca5a5 !important;
+        background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%) !important;
+        border-bottom: 3px solid #f87171 !important;
         color: #ffffff !important;
     }
 
     .section-banner {
         background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
-        border-left: 5px solid #172554;
+        border-left: 5px solid #1e293b;
         padding: 12px 18px;
         border-radius: 8px;
         margin: 8px 0px;
         font-weight: 800;
-        color: #172554;
+        color: #1e293b;
         font-size: 16px;
         box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
         border: 1px solid #e2e8f0;
@@ -590,32 +589,32 @@ st.markdown("""
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.9px;
-        color: #1e293b;
+        color: #334155;
         margin: 12px 0 8px 2px;
     }
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
-        min-height: 46px !important;
+        min-height: 44px !important;
         border-radius: 10px !important;
-        font-weight: 700 !important;
-        font-size: 14px !important;
+        font-weight: 600 !important;
+        font-size: 13.5px !important;
         padding: 10px 16px !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.25) !important;
-        box-shadow: 0 4px 14px rgba(23, 37, 84, 0.2);
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
-        transition: all 0.22s ease;
+        transition: all 0.2s ease;
         white-space: nowrap !important;
-        background: linear-gradient(135deg, #172554 100%, #1e40af 0%) !important;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(23, 37, 84, 0.35);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
         opacity: 0.95;
     }
     .username-hyperlink {
-        color: #172554 !important;
+        color: #1e293b !important;
         text-decoration: underline !important;
         font-weight: 700 !important;
         cursor: pointer !important;
@@ -842,12 +841,12 @@ def render_clickable_table(df, display_c, p_col):
     <div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">
     <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
         <thead>
-            <tr style="background: linear-gradient(135deg, #172554 0%, #1e40af 100%); color: white; position: sticky; top: 0; z-index: 1;">
-                <th style="padding: 12px 10px; border: 1px solid #1e40af; text-align: center;">#</th>
+            <tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">
+                <th style="padding: 12px 10px; border: 1px solid #334155; text-align: center;">#</th>
     """
     for col in display_cols:
-        html += f'<th style="padding: 12px 10px; border: 1px solid #1e40af; text-align: left; white-space: nowrap;">{col}</th>'
-    html += '<th style="padding: 12px 10px; border: 1px solid #1e40af; text-align: left; white-space: nowrap;">Status</th>'
+        html += f'<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
+    html += '<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
     html += "</tr></thead><tbody>"
 
     for idx, row in df.iterrows():
@@ -1270,8 +1269,8 @@ def permissions_dialog():
             
             with st.container(border=True):
                 st.markdown(f"""
-                    <div style="background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%); border-left: 4px solid #172554; padding: 8px 14px; border-radius: 6px; margin-bottom: 10px;">
-                        <span style="font-size: 15px; font-weight: 800; color: #172554;">👤 Case Worker: {u_name}</span>
+                    <div style="background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%); border-left: 4px solid #1e293b; padding: 8px 14px; border-radius: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 15px; font-weight: 800; color: #1e293b;">👤 Case Worker: {u_name}</span>
                     </div>
                 """, unsafe_allow_html=True)
                 
@@ -1618,21 +1617,21 @@ if not st.session_state["logged_in"]:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"HemanVisa made my Canada study visa process extremely smooth. The case workers were responsive and professional!"</p>
-                    <b style="color:#172554;">— Rajesh K. (Canada PR)</b>
+                    <b style="color:#1e293b;">— Rajesh K. (Canada PR)</b>
                 </div>
             """, unsafe_allow_html=True)
         with t2:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"Extremely grateful for the prompt documentation and regular status updates. Got my US work visa approved without any hassle."</p>
-                    <b style="color:#172554;">— Sneha R. (USA Work Visa)</b>
+                    <b style="color:#1e293b;">— Sneha R. (USA Work Visa)</b>
                 </div>
             """, unsafe_allow_html=True)
         with t3:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"Best consulting firm with transparent pricing and dedicated case officers. Highly recommended for anyone planning abroad."</p>
-                    <b style="color:#172554;">— Anil M. (UK Student Visa)</b>
+                    <b style="color:#1e293b;">— Anil M. (UK Student Visa)</b>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -1662,7 +1661,7 @@ if not st.session_state["logged_in"]:
         col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
         with col_l2:
             with st.container(border=True):
-                st.markdown("<h3 style='text-align:center; color:#172554;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='text-align:center; color:#1e293b;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
                 sheets = get_sheet_names()
                 if not sheets:
