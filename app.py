@@ -2106,7 +2106,7 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace ({current_sheet})</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.session_state["open_dialog"] = None
@@ -2142,6 +2142,22 @@ else:
                     <marquee scrollamount="5">📢 <b>Admin Announcement / Note:</b> {admin_notice}</marquee>
                 </div>
             """, unsafe_allow_html=True)
+
+        # 🌟 Switch Sheet Buttons inside Case Worker Workspace (Same as Admin)
+        if sheets:
+            st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
+            w_sw_cols = st.columns(len(sheets), gap="small")
+            for idx, s_name in enumerate(sheets):
+                with w_sw_cols[idx]:
+                    is_active = (s_name == current_sheet)
+                    color_cls = "admin-btn-1" if is_active else "admin-btn-6"
+                    btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
+                    st.markdown(f'<span class="{color_cls}" style="display:none;"></span>', unsafe_allow_html=True)
+                    if st.button(btn_txt, key=f"worker_switch_sheet_{s_name}_{idx}", use_container_width=True):
+                        st.session_state["active_sheet"] = s_name
+                        st.query_params["active_sheet"] = s_name
+                        st.rerun()
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
         my_total = len(user_rows)
         my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
@@ -2246,12 +2262,6 @@ else:
                 if st.button("🔄 Sync Excel", use_container_width=True, key="worker_sync_btn"):
                     st.session_state["open_dialog"] = "sync_excel"
                     st.rerun()
-                
-        st.divider()
-
-        if sheets:
-            st.write("📑 **Sheets Switch:**")
-            st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
                 
         st.divider()
         
