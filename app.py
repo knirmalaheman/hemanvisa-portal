@@ -169,7 +169,7 @@ def load_data(sheet_name=0):
     return None
 
 def save_data(df_to_save, sheet_name=0):
-    if "Category" in df_to_save.columns:
+if "Category" in df_to_save.columns:
         df_to_save = df_to_save.rename(columns={"Category": ""})
     
     sheets_data = {}
@@ -192,7 +192,7 @@ def get_base64_image(image_path):
         return base64.b64encode(img_file.read()).decode()
 
 def find_login_user_column(df):
-    for col in df.columns:
+for col in df.columns:
         if col.strip() in ["username", "Case Worker", "DS-160 Case Worker"]:
             return col
     for col in df.columns:
@@ -201,7 +201,7 @@ def find_login_user_column(df):
     return df.columns[0]
 
 def find_display_username_column(df):
-    for col in df.columns:
+for col in df.columns:
         if col.strip() == "USERNAME":
             return col
     for col in df.columns:
@@ -210,7 +210,7 @@ def find_display_username_column(df):
     return find_login_user_column(df)
 
 def find_password_column(df):
-    for col in df.columns:
+for col in df.columns:
         if col.strip().lower() in ["password", "pass"]:
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
@@ -543,35 +543,6 @@ st.markdown("""
         transition: all 0.22s ease;
         white-space: nowrap !important;
         background: linear-gradient(135deg, #2563eb 100%, #1d4ed8 0%) !important;
-    }
-
-    /* 🟢 Emerald for New Cases & Login Status */
-    button[aria-label*="New / Updated"], button[aria-label*="Login Status"] {
-        background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
-    }
-    /* 🔴 Crimson for Delete Requests */
-    button[aria-label*="Delete Requests"] {
-        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
-    }
-    /* 🔵 Blue for Sync & Attendance */
-    button[aria-label*="Sync"], button[aria-label*="Attendance"] {
-        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
-    }
-    /* 🟠 Amber for Notices */
-    button[aria-label*="Notice"] {
-        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
-    }
-    /* 🟣 Purple for Users & Permissions */
-    button[aria-label*="Users & Permissions"] {
-        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%) !important;
-    }
-    /* ⚙️ Slate for Passwords & Refresh */
-    button[aria-label*="Password"], button[aria-label*="Refresh"] {
-        background: linear-gradient(135deg, #475569 0%, #64748b 100%) !important;
-    }
-    /* 🚪 Logout Red Accent */
-    button[aria-label*="Logout"] {
-        background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
     }
 
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
@@ -962,6 +933,59 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
+# 🌟 NEW: Case Worker-wise Report Dialog for Admin
+@st.dialog("📊 Case Worker-wise Booked Cases Report", width="large")
+def admin_worker_wise_report_dialog():
+    st.info("💡 అన్ని షీట్లలో కేస్‌వర్కర్ వారీగా బుక్ అయిన కేసుల పూర్తి వివరాలు మరియు గణాంకాలు:")
+    
+    sheets = get_sheet_names()
+    worker_stats = {}
+    
+    for s in sheets:
+        df_s = load_data(sheet_name=s)
+        if df_s is not None and not df_s.empty:
+            login_c = find_login_user_column(df_s)
+            for _, r in df_s.iterrows():
+                w_name = str(r.get(login_c, "Not Assigned")).strip()
+                if w_name == "" or w_name.lower() == "nan":
+                    w_name = "Not Assigned"
+                
+                if w_name not in worker_stats:
+                    worker_stats[w_name] = {"Total Cases": 0, "Sheets": set()}
+                
+                worker_stats[w_name]["Total Cases"] += 1
+                worker_stats[w_name]["Sheets"].add(s)
+                
+    if not worker_stats:
+        st.warning("ఎటువంటి రికార్డులు కనుగొనబడలేదు.")
+    else:
+        report_list = []
+        for w, data in worker_stats.items():
+            report_list.append({
+                "Case Worker": w,
+                "Total Booked Cases": data["Total Cases"],
+                "Active Sheets": ", ".join(list(data["Sheets"]))
+            })
+            
+        df_report = pd.DataFrame(report_list)
+        df_report.index = range(1, len(df_report) + 1)
+        
+        st.markdown("### 📋 Worker-wise Summary Table")
+        st.dataframe(df_report, use_container_width=True)
+        
+        rep_buffer = io.BytesIO()
+        with pd.ExcelWriter(rep_buffer, engine='openpyxl') as writer:
+            df_report.to_excel(writer, sheet_name="Worker_Wise_Report", index=False)
+            
+        st.download_button(
+            label="📥 Download Worker-wise Report (.xlsx)",
+            data=rep_buffer.getvalue(),
+            file_name="CaseWorker_Wise_Booked_Cases_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="download_worker_report_excel"
+        )
+
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
     st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
@@ -1343,6 +1367,9 @@ elif st.session_state["open_dialog"] == "admin_login_status":
 elif st.session_state["open_dialog"] == "admin_attendance":
     admin_attendance_dialog()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_worker_report":
+    admin_worker_wise_report_dialog()
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "worker_password":
     worker_password_dialog(st.session_state.get("username", ""))
     st.session_state["open_dialog"] = None
@@ -1606,7 +1633,6 @@ elif st.session_state["role"] == "admin":
     unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
     active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
-    # Calculate Visa Counts for Admin Dashboard
     visa_col = None
     for c in df.columns:
         if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
@@ -1621,7 +1647,6 @@ elif st.session_state["role"] == "admin":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
-        # 1. Core KPIs Row (4 columns)
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
@@ -1633,21 +1658,25 @@ elif st.session_state["role"] == "admin":
             st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
 
         st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
-        r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4, gap="medium")
+        r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5, gap="small")
         with r1_c1:
-            if st.button("📋 New / Updated Cases", use_container_width=True, key="admin_upd_cases_btn"):
+            if st.button("📋 New / Updated", use_container_width=True, key="admin_upd_cases_btn"):
                 st.session_state["open_dialog"] = "admin_updated_cases"
                 st.rerun()
         with r1_c2:
-            if st.button("🗑️ Delete Requests", use_container_width=True, key="admin_del_req_btn"):
-                st.session_state["open_dialog"] = "admin_delete_requests"
+            if st.button("📊 Worker Report", use_container_width=True, key="admin_worker_rep_btn"):
+                st.session_state["open_dialog"] = "admin_worker_report"
                 st.rerun()
         with r1_c3:
-            if st.button("🔄 Sync Excel to Cloud", use_container_width=True, key="admin_sync_btn"):
-                st.session_state["open_dialog"] = "sync_excel"
+            if st.button("🗑️ Delete Req", use_container_width=True, key="admin_del_req_btn"):
+                st.session_state["open_dialog"] = "admin_delete_requests"
                 st.rerun()
         with r1_c4:
-            if st.button("📢 Broadcast Notice", use_container_width=True, key="admin_notice_btn"):
+            if st.button("🔄 Sync Excel", use_container_width=True, key="admin_sync_btn"):
+                st.session_state["open_dialog"] = "sync_excel"
+                st.rerun()
+        with r1_c5:
+            if st.button("📢 Notice", use_container_width=True, key="admin_notice_btn"):
                 st.session_state["open_dialog"] = "admin_notice"
                 st.rerun()
 
@@ -1675,7 +1704,6 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
-        # Display Interactive Visa Category Buttons in Exactly 2 Rows for Admin
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
@@ -1711,7 +1739,6 @@ elif st.session_state["role"] == "admin":
         
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-        # Filter dataframe based on search and selected interactive visa filter button
         display_df = df
         if admin_search != "":
             admin_search_mask = display_df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
@@ -1840,14 +1867,12 @@ else:
                 if v_clean != "":
                     visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
-        # 1. Worker Core KPIs Row (2 columns)
         k1, k2 = st.columns(2, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
         with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-        # 2. Worker Visa Category Breakdown in EXACTLY ONE SINGLE LINE (Interactive Buttons)
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
