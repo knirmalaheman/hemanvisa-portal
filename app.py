@@ -918,7 +918,7 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 Updated Worker Report Dialog with Today's, Total, and Visa Type-wise Breakdown
+# 🌟 Worker Report Dialog with Today's, Total, and Visa Type-wise Breakdown
 @st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
     st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types:")
@@ -1166,9 +1166,15 @@ def admin_delete_requests_dialog():
                             st.success("❌ Delete request rejected. Marked as Rejected for worker.")
                             st.rerun()
 
+# 🌟 Updated Professional Card-Style Permissions Dialog
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
-    st.info("💡 Modify permissions for each case worker, then click the **💾 Save** button:")
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 5px solid #10b981; padding: 12px 18px; border-radius: 8px; margin-bottom: 16px; color: #065f46; font-size: 14px; font-weight: 600;">
+            💡 Manage case worker credentials and access permissions below. Make your changes and click <b>"Save All Changes & Passwords"</b> at the bottom.
+        </div>
+    """, unsafe_allow_html=True)
+
     sheets = get_sheet_names()
     all_users_dict = {}
     for s in sheets:
@@ -1189,28 +1195,58 @@ def permissions_dialog():
     if not all_users_dict:
         st.warning("No case workers found.")
     else:
-        for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
-            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
+        with st.form("master_permissions_form"):
+            updated_form_data = {}
             
-            col_u, col_p, col_upd, col_add, col_sch, col_dl, col_sync, col_btn = st.columns([1.4, 1.4, 0.85, 0.85, 0.85, 0.85, 0.85, 1.0])
-            
-            with col_u:
-                st.text_input("Username", value=u_name, disabled=True, key=f"dlg_u_{idx}", label_visibility="collapsed")
-            with col_p:
-                new_pwd_val = st.text_input("Password", value=curr_pwd, type="default", key=f"dlg_p_{idx}", label_visibility="collapsed")
-            with col_upd:
-                new_upd_val = st.checkbox("Update", value=w_perm.get("can_update", True), key=f"dlg_upd_{idx}")
-            with col_add:
-                new_add_val = st.checkbox("Add", value=w_perm.get("can_add", True), key=f"dlg_add_{idx}")
-            with col_sch:
-                new_sch_val = st.checkbox("Search", value=w_perm.get("can_search", True), key=f"dlg_sch_{idx}")
-            with col_dl:
-                new_dl_val = st.checkbox("Download", value=w_perm.get("can_download", False), key=f"dlg_dl_{idx}")
-            with col_sync:
-                new_sync_val = st.checkbox("Sync", value=w_perm.get("can_sync", False), key=f"dlg_sync_{idx}")
-            with col_btn:
-                if st.button("💾 Save", key=f"dlg_btn_{idx}", type="primary", use_container_width=True):
-                    try:
+            for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
+                w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
+                
+                st.markdown(f"""
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px 18px; border-radius: 10px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+                        <div style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px;">👤 Case Worker: {u_name}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 1, 1, 1, 1], gap="medium")
+                
+                with c1:
+                    new_pwd_val = st.text_input("Password", value=curr_pwd, type="default", key=f"dlg_p_{idx}")
+                with c2:
+                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                    st.markdown(f"<span style='font-size:13px; font-weight:600; color:#64748b;'>Assigned Name: <b>{u_name}</b></span>", unsafe_allow_html=True)
+                with c3:
+                    st.markdown("<div style='height: 22px;'></div>", unsafe_allow_html=True)
+                    new_upd_val = st.checkbox("Update", value=w_perm.get("can_update", True), key=f"dlg_upd_{idx}")
+                with c4:
+                    st.markdown("<div style='height: 22px;'></div>", unsafe_allow_html=True)
+                    new_add_val = st.checkbox("Add", value=w_perm.get("can_add", True), key=f"dlg_add_{idx}")
+                with c5:
+                    st.markdown("<div style='height: 22px;'></div>", unsafe_allow_html=True)
+                    new_sch_val = st.checkbox("Search", value=w_perm.get("can_search", True), key=f"dlg_sch_{idx}")
+                with c6:
+                    st.markdown("<div style='height: 22px;'></div>", unsafe_allow_html=True)
+                    new_dl_val = st.checkbox("Download", value=w_perm.get("can_download", False), key=f"dlg_dl_{idx}")
+                
+                c_sub1, c_sub2 = st.columns([1, 5])
+                with c_sub1:
+                    new_sync_val = st.checkbox("Sync Access", value=w_perm.get("can_sync", False), key=f"dlg_sync_{idx}")
+                
+                updated_form_data[u_name] = {
+                    "password": new_pwd_val,
+                    "can_update": new_upd_val,
+                    "can_add": new_add_val,
+                    "can_search": new_sch_val,
+                    "can_download": new_dl_val,
+                    "can_sync": new_sync_val
+                }
+                st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+            submitted_master = st.form_submit_button("💾 Save All Changes & Passwords", type="primary", use_container_width=True)
+
+            if submitted_master:
+                try:
+                    for u_name, data in updated_form_data.items():
                         all_sheets_data = {}
                         xls = pd.ExcelFile(EXCEL_FILE)
                         for s in xls.sheet_names:
@@ -1220,7 +1256,7 @@ def permissions_dialog():
                             if lc in df_s.columns and pc in df_s.columns:
                                 mask = df_s[lc].astype(str).str.strip().str.lower() == u_name.lower()
                                 if mask.any():
-                                    df_s.loc[mask, pc] = new_pwd_val.strip()
+                                    df_s.loc[mask, pc] = data["password"].strip()
                             all_sheets_data[s] = df_s
                         
                         with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
@@ -1228,17 +1264,18 @@ def permissions_dialog():
                                 df_val.to_excel(writer, sheet_name=str(s), index=False)
                         
                         current_perms[u_name] = {
-                            "can_update": new_upd_val,
-                            "can_add": new_add_val,
-                            "can_search": new_sch_val,
-                            "can_download": new_dl_val,
-                            "can_sync": new_sync_val
+                            "can_update": data["can_update"],
+                            "can_add": data["can_add"],
+                            "can_search": data["can_search"],
+                            "can_download": data["can_download"],
+                            "can_sync": data["can_sync"]
                         }
-                        save_permissions(current_perms)
-                        st.success(f"✅ Details updated for '{u_name}'!")
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-            st.write("")
+                    
+                    save_permissions(current_perms)
+                    st.success("✅ All case worker permissions and passwords updated successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error saving details: {e}")
 
 @st.dialog("🔑 Change Admin Password", width="medium")
 def admin_password_dialog():
