@@ -215,6 +215,12 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
+def find_visa_type_column(df):
+    for c in df.columns:
+        if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
+            return c
+    return None
+
 # 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
@@ -617,7 +623,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
     if role == "worker" and action_type_val == "delete rejected":
-        st.error("❌ మీ డిలీట్ రిక్వెస్ట్‌ను అడ్మిన్ గారు తిరస్కరించారు (Delete Request Rejected by Admin).")
+        st.error("❌ Your delete request was rejected by Admin.")
 
     if "is_editing_popup" not in st.session_state:
         st.session_state["is_editing_popup"] = False
@@ -659,7 +665,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     elif st.session_state["is_delete_request_mode"]:
         st.markdown("### 🗑️ Request Delete Case")
         with st.form(f"delete_reason_form_{row_idx}"):
-            del_reason = st.text_area("✍️ ఈ కేసును ఎందుకు డిలీట్ చేయాలనుకుంటున్నారు? (Reason required):", placeholder="కారణం ఇక్కడ రాయండి...")
+            del_reason = st.text_area("✍️ Reason for deletion (Required):", placeholder="Type your reason here...")
             col_sub_req, col_back_req = st.columns(2)
             with col_sub_req:
                 submitted_req = st.form_submit_button("🚀 Submit Delete Request", type="primary", use_container_width=True)
@@ -668,7 +674,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if submitted_req:
                 if del_reason.strip() == "":
-                    st.warning("⚠️ దయచేసి డిలీట్ చేయడానికి తగిన కారణం (Reason) రాయండి.")
+                    st.warning("⚠️ Please provide a reason for deletion.")
                 else:
                     try:
                         df_full.at[row_idx, "Updated_By"] = current_user
@@ -800,10 +806,10 @@ def render_clickable_table(df, display_c, p_col):
 @st.dialog("📢 Add / Update Notice (Scrolling Announcement)", width="medium")
 def admin_notice_dialog():
     current_notice = get_admin_notice()
-    st.info("💡 కేస్ వర్కర్ల స్క్రీన్ పై స్క్రోల్ అయ్యే నోటీసును ఇక్కడ రాయండి లేదా అప్‌డేట్ చేయండి:")
+    st.info("💡 Add or update the scrolling marquee notice for all case workers:")
     
     with st.form("admin_notice_form"):
-        notice_input = st.text_area("Notice Text:", value=current_notice, placeholder="ఉదాహరణకు: అందరూ ఈరోజు కల్లా పెండింగ్ కేసులు పూర్తి చేయాలి...")
+        notice_input = st.text_area("Notice Text:", value=current_notice, placeholder="e.g., All case workers must complete pending cases by today...")
         col_save_n, col_clear_n = st.columns(2)
         with col_save_n:
             submitted_notice = st.form_submit_button("💾 Save Notice", type="primary", use_container_width=True)
@@ -821,7 +827,7 @@ def admin_notice_dialog():
 
 @st.dialog("👥 Case Worker Login Status", width="large")
 def admin_login_status_dialog():
-    st.info("💡 కేస్ వర్కర్ల లాగిన్ స్టేటస్ వివరాలు క్రింది ట్యాబ్స్‌లో (Login / Not Login) విడివిడిగా చూడవచ్చు:")
+    st.info("💡 View real-time login and active status of all case workers:")
     
     sheets = get_sheet_names()
     all_workers = set()
@@ -855,11 +861,11 @@ def admin_login_status_dialog():
         else:
             not_logged_in_list.append(item)
             
-    tab_logged, tab_not_logged = st.tabs([f"🟢 Login ({len(logged_in_list)})", f"🔴 Not Login ({len(not_logged_in_list)})"])
+    tab_logged, tab_not_logged = st.tabs([f"🟢 Logged In ({len(logged_in_list)})", f"🔴 Not Logged In ({len(not_logged_in_list)})"])
     
     with tab_logged:
         if not logged_in_list:
-            st.warning("ప్రస్తుతం ఎటువంటి కేస్ వర్కర్లు లాగిన్ అయి లేరు.")
+            st.warning("Currently no case workers are logged in.")
         else:
             h1, h2, h3 = st.columns([2, 2, 2])
             with h1: st.markdown("**Case Worker Name**")
@@ -874,7 +880,7 @@ def admin_login_status_dialog():
                 
     with tab_not_logged:
         if not not_logged_in_list:
-            st.success("అందరూ కేస్ వర్కర్లు లాగిన్ అయి ఉన్నారు!")
+            st.success("All case workers are currently logged in!")
         else:
             h1, h2, h3 = st.columns([2, 2, 2])
             with h1: st.markdown("**Case Worker Name**")
@@ -889,11 +895,11 @@ def admin_login_status_dialog():
 
 @st.dialog("📊 Case Worker Attendance Report", width="large")
 def admin_attendance_dialog():
-    st.info("💡 కేస్ వర్కర్ల రోజువారీ లాగిన్ మరియు లాగౌట్ సమయాల హాజరు (Attendance) వివరాలు:")
+    st.info("💡 Daily login and logout attendance logs for case workers:")
     
     attendance_data = load_attendance()
     if not attendance_data:
-        st.warning("ఎటువంటి అటెండెన్స్ రికార్డులు కనుగొనబడలేదు.")
+        st.warning("No attendance records found.")
     else:
         df_att = pd.DataFrame(attendance_data)
         df_att.index = range(1, len(df_att) + 1)
@@ -912,21 +918,23 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 Updated Worker Report Dialog with Today's & Total Booked Cases Tabs
-@st.dialog("📊 Case Worker-wise Booked Cases Report", width="large")
+# 🌟 Updated Worker Report Dialog with Today's, Total, and Visa Type-wise Breakdown
+@st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
-    st.info("💡 కేస్‌వర్కర్ వారీగా **ఈరోజు బుక్ అయిన కేసులు (Today's Booked Cases)** మరియు **మొత్తం బుక్ అయిన కేసులు (Total Booked Cases)** వివరాలు:")
+    st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types:")
     
     sheets = get_sheet_names()
     today_str = get_ist_now().strftime("%Y-%m-%d")
     
     today_worker_stats = {}
     total_worker_stats = {}
+    visa_type_stats = {}
     
     for s in sheets:
         df_s = load_data(sheet_name=s)
         if df_s is not None and not df_s.empty:
             login_c = find_login_user_column(df_s)
+            visa_c = find_visa_type_column(df_s)
             date_cols = [c for c in df_s.columns if any(k in c.lower() for k in ['date', 'time', 'day', 'created'])]
             
             for _, r in df_s.iterrows():
@@ -934,11 +942,20 @@ def admin_worker_wise_report_dialog():
                 if w_name == "" or w_name.lower() == "nan":
                     w_name = "Not Assigned"
                 
-                # Total Cases Stats
+                v_type = str(r.get(visa_c, "Unspecified")).strip().upper() if visa_c else "Unspecified"
+                if v_type == "" or v_type == "NAN":
+                    v_type = "Unspecified"
+                
+                # Total Cases Stats (Worker-wise)
                 if w_name not in total_worker_stats:
                     total_worker_stats[w_name] = {"Total Cases": 0, "Sheets": set()}
                 total_worker_stats[w_name]["Total Cases"] += 1
                 total_worker_stats[w_name]["Sheets"].add(s)
+                
+                # Visa Type Stats
+                if v_type not in visa_type_stats:
+                    visa_type_stats[v_type] = 0
+                visa_type_stats[v_type] += 1
                 
                 # Today's Cases Check
                 is_today = False
@@ -957,16 +974,20 @@ def admin_worker_wise_report_dialog():
                     today_worker_stats[w_name]["Today Cases"] += 1
                     today_worker_stats[w_name]["Sheets"].add(s)
 
-    tab_today, tab_total = st.tabs(["📅 ఇవాళ బుక్ అయినవి (Today's Booked Cases)", "📈 మొత్తం బుక్ అయినవి (Total Booked Cases)"])
+    tab_today, tab_total, tab_visa = st.tabs([
+        "📅 Today's Booked Cases", 
+        "📈 Total Booked Cases", 
+        "✈️ Visa Type-wise Summary"
+    ])
     
     with tab_today:
         if not today_worker_stats:
-            st.warning(f"ఈరోజు ({today_str}) ఎటువంటి కేసులు బుక్ కాలేదు.")
+            st.warning(f"No cases booked today ({today_str}).")
         else:
             today_list = [{"Case Worker": w, "Today Booked Cases": data["Today Cases"], "Active Sheets": ", ".join(list(data["Sheets"]))} for w, data in today_worker_stats.items()]
             df_today = pd.DataFrame(today_list)
             df_today.index = range(1, len(df_today) + 1)
-            st.success(f"ఈరోజు మొత్తం బుక్ అయిన కేసులు: {df_today['Today Booked Cases'].sum()}")
+            st.success(f"Total Cases Booked Today: {df_today['Today Booked Cases'].sum()}")
             st.dataframe(df_today, use_container_width=True)
             
             buf_today = io.BytesIO()
@@ -976,12 +997,12 @@ def admin_worker_wise_report_dialog():
 
     with tab_total:
         if not total_worker_stats:
-            st.warning("ఎటువంటి రికార్డులు కనుగొనబడలేదు.")
+            st.warning("No records found.")
         else:
             total_list = [{"Case Worker": w, "Total Booked Cases": data["Total Cases"], "Active Sheets": ", ".join(list(data["Sheets"]))} for w, data in total_worker_stats.items()]
             df_total = pd.DataFrame(total_list)
             df_total.index = range(1, len(df_total) + 1)
-            st.success(f"మొత్తం బుక్ అయిన కేసులు: {df_total['Total Booked Cases'].sum()}")
+            st.success(f"Total Booked Cases across all workers: {df_total['Total Booked Cases'].sum()}")
             st.dataframe(df_total, use_container_width=True)
             
             buf_total = io.BytesIO()
@@ -989,9 +1010,25 @@ def admin_worker_wise_report_dialog():
                 df_total.to_excel(writer, sheet_name="Total_Booked_Report", index=False)
             st.download_button("📥 Download Total Report (.xlsx)", data=buf_total.getvalue(), file_name="Total_Booked_Cases_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, key="dl_total_rep")
 
+    with tab_visa:
+        if not visa_type_stats:
+            st.warning("No visa type data found.")
+        else:
+            visa_list = [{"Visa Type / Category": v, "Total Booked Cases": count} for v, count in visa_type_stats.items()]
+            df_visa = pd.DataFrame(visa_list)
+            df_visa = df_visa.sort_values(by="Total Booked Cases", ascending=False)
+            df_visa.index = range(1, len(df_visa) + 1)
+            st.success(f"Total Visa Categories: {len(df_visa)}")
+            st.dataframe(df_visa, use_container_width=True)
+            
+            buf_visa = io.BytesIO()
+            with pd.ExcelWriter(buf_visa, engine='openpyxl') as writer:
+                df_visa.to_excel(writer, sheet_name="Visa_Type_Summary", index=False)
+            st.download_button("📥 Download Visa Type Summary (.xlsx)", data=buf_visa.getvalue(), file_name="Visa_Type_Wise_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, key="dl_visa_rep")
+
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
-    st.info("💡 కేస్ వర్కర్స్ ద్వారా కొత్తగా జోడించబడినవి (**New Cases**), అప్‌డేట్ చేయబడినవి (**Updated Cases**) మరియు కాలెండర్ (**Calendar View**) చూడవచ్చు:")
+    st.info("💡 View newly added cases, updated cases, and date-wise calendar records:")
     sheets = get_sheet_names()
     all_rows = []
     
@@ -1004,38 +1041,38 @@ def admin_updated_cases_dialog():
                 upd_rows.insert(0, "Sheet_Name", s)
                 all_rows.append(upd_rows)
                 
-    tab_new, tab_upd, tab_cal = st.tabs(["➕ న్యూ కేసులు (New Cases)", "✏️ అప్‌డేట్ చేసినవి (Updated)", "📅 క్యాలెండర్ (Calendar)"])
+    tab_new, tab_upd, tab_cal = st.tabs(["➕ New Cases", "✏️ Updated Cases", "📅 Calendar View"])
     
     with tab_new:
         if not all_rows:
-            st.info("ఎటువంటి కొత్త కేసులు (New Cases) కనుగొనబడలేదు.")
+            st.info("No new cases found.")
         else:
             combined_df = pd.concat(all_rows, ignore_index=True)
             p_col = find_password_column(combined_df)
             view_df = combined_df.drop(columns=[p_col], errors="ignore")
             new_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "new case"]
             if new_cases_df.empty:
-                st.info("ఎటువంటి కొత్త కేసులు కనుగొనబడలేదు.")
+                st.info("No new cases found.")
             else:
-                st.success(f"మొత్తం కొత్త కేసులు: {len(new_cases_df)}")
+                st.success(f"Total New Cases: {len(new_cases_df)}")
                 render_clickable_table(new_cases_df, find_display_username_column(new_cases_df), p_col)
                 
     with tab_upd:
         if not all_rows:
-            st.info("ఎటువంటి అప్‌డేట్ కేసులు కనుగొనబడలేదు.")
+            st.info("No updated cases found.")
         else:
             combined_df = pd.concat(all_rows, ignore_index=True)
             p_col = find_password_column(combined_df)
             view_df = combined_df.drop(columns=[p_col], errors="ignore")
             updated_cases_df = view_df[view_df["Action_Type"].astype(str).str.strip().str.lower() == "updated case"]
             if updated_cases_df.empty:
-                st.info("ఎటువంటి అప్‌డేట్ కేసులు కనుగొనబడలేదు.")
+                st.info("No updated cases found.")
             else:
-                st.success(f"మొత్తం అప్‌డేట్ కేసులు: {len(updated_cases_df)}")
+                st.success(f"Total Updated Cases: {len(updated_cases_df)}")
                 render_clickable_table(updated_cases_df, find_display_username_column(updated_cases_df), p_col)
 
     with tab_cal:
-        st.write("📅 **తేదీ వారీగా ఫిల్టర్ చేసి చూడండి:**")
+        st.write("📅 **Filter records by specific date:**")
         selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select_tab")
         df_cal = load_data(sheet_name=selected_cal_sheet)
         if df_cal is not None and not df_cal.empty:
@@ -1047,19 +1084,19 @@ def admin_updated_cases_dialog():
                 
                 mask = df_cal[selected_date_col].astype(str).str.contains(date_str, na=False)
                 matched_df = df_cal[mask]
-                st.write(f"📅 **{date_str}** తేదీకి సంబంధించిన రికార్డులు ({len(matched_df)} found):")
+                st.write(f"📅 Records for date **{date_str}** ({len(matched_df)} found):")
                 if matched_df.empty:
-                    st.info(f"ఈ తేదీ ({date_str}) లో ఎటువంటి రికార్డులు నమోదు కాలేదు.")
+                    st.info(f"No records found for date ({date_str}).")
                 else:
                     pc = find_password_column(matched_df)
                     display_c = find_display_username_column(matched_df)
                     render_clickable_table(matched_df, display_c, pc)
             else:
-                st.warning("ఈ షీట్‌లో తేదీ (Date) కాలమ్ కనుగొనబడలేదు.")
+                st.warning("No date column found in this sheet.")
 
 @st.dialog("🗑️ Pending Delete Requests", width="large")
 def admin_delete_requests_dialog():
-    st.info("💡 కేస్ వర్కర్ల ద్వారా డిలీట్ చేయమని పంపబడిన రిక్వెస్ట్‌లు (Username మరియు Reason తో సహా):")
+    st.info("💡 Delete requests submitted by case workers along with their reasons:")
     sheets = get_sheet_names()
     del_reqs_list = []
     
@@ -1074,9 +1111,9 @@ def admin_delete_requests_dialog():
                     del_reqs_list.append(r_dict)
     
     if not del_reqs_list:
-        st.info("ఎటువంటి డిలీట్ రిక్వెస్ట్‌లు లేవు.")
+        st.info("No pending delete requests.")
     else:
-        st.success(f"మొత్తం పెండింగ్ డిలీట్ రిక్వెస్ట్‌లు: {len(del_reqs_list)}")
+        st.success(f"Total Pending Delete Requests: {len(del_reqs_list)}")
         for i, r_dict in enumerate(del_reqs_list):
             s_name = r_dict["Sheet_Name"]
             orig_idx = r_dict["Original_Index"]
@@ -1206,7 +1243,7 @@ def admin_password_dialog():
 
 @st.dialog("📤 Sync Local Excel File to Cloud", width="medium")
 def sync_excel_dialog():
-    st.info("💡 మీ లోకల్ సిస్టమ్‌లో సవరించిన ఎక్సెల్ ఫైల్‌ను ఇక్కడ అప్‌లోడ్ చేస్తే, అది వెంటనే క్లౌడ్‌లో అప్‌డేట్ అవుతుంది.")
+    st.info("💡 Upload your updated local Excel file here to instantly synchronize it with the cloud.")
     uploaded_excel = st.file_uploader("Upload Updated Excel File (.xlsx)", type=["xlsx"])
     
     if uploaded_excel is not None:
@@ -1214,7 +1251,7 @@ def sync_excel_dialog():
             try:
                 with open(EXCEL_FILE, "wb") as f:
                     f.write(uploaded_excel.getbuffer())
-                st.success("✅ క్లౌడ్ డేటా విజయవంతంగా అప్‌డేట్ చేయబడింది!")
+                st.success("✅ Cloud data updated successfully!")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {e}")
@@ -1633,12 +1670,7 @@ elif st.session_state["role"] == "admin":
     unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
     active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
-    visa_col = None
-    for c in df.columns:
-        if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
-            visa_col = c
-            break
-
+    visa_col = find_visa_type_column(df)
     visa_counts = {}
     if visa_col and not df.empty:
         for val in df[visa_col].astype(str):
@@ -1853,12 +1885,7 @@ else:
         my_total = len(user_rows)
         my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
-        visa_col = None
-        for c in user_rows.columns:
-            if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
-                visa_col = c
-                break
-
+        visa_col = find_visa_type_column(user_rows)
         visa_counts = {}
         if visa_col and not user_rows.empty:
             for val in user_rows[visa_col].astype(str):
