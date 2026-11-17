@@ -215,6 +215,7 @@ def find_password_column(df):
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
+
 # 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
@@ -243,6 +244,7 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
+# Handle Hyperlink Click from URL Query Params securely
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
@@ -279,13 +281,14 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Custom CSS Styles including Reference Design Button Styles
+# 🎨 Vibrant, High-End & Attractive SaaS Color Palette (Logo & Name shifted right)
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
         display: none !important;
     }
 
+    /* 🌟 Gorgeous Vibrant Dark Blue & Gold Gradient Header */
     .sticky-top-banner {
         position: fixed;
         top: 0;
@@ -351,6 +354,11 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 6px;
+        transition: all 0.2s ease;
+    }
+    .banner-badge:hover {
+        background: rgba(255, 255, 255, 0.22);
+        border-color: #f59e0b;
     }
     .banner-info a {
         color: #ffffff;
@@ -393,6 +401,7 @@ st.markdown("""
         font-size: 36px;
         font-weight: 800;
         margin-bottom: 14px;
+        letter-spacing: 0.4px;
     }
     .hero-subtitle {
         font-size: 16px;
@@ -451,6 +460,7 @@ st.markdown("""
         margin-bottom: 14px;
     }
 
+    /* 🎨 Gorgeous Vibrant KPI Cards */
     .kpi-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
         color: white;
@@ -486,12 +496,14 @@ st.markdown("""
         letter-spacing: 1px;
         opacity: 0.95;
         margin-bottom: 6px;
+        line-height: 1.2;
         font-weight: 700;
     }
     .kpi-value {
         font-size: 26px;
         font-weight: 800;
         margin: 0;
+        line-height: 1.1;
     }
 
     .section-banner {
@@ -503,6 +515,7 @@ st.markdown("""
         font-weight: 800;
         color: #1e1b4b;
         font-size: 16px;
+        box-shadow: 0 3px 10px rgba(79, 70, 229, 0.08);
     }
 
     .action-group-title {
@@ -514,47 +527,7 @@ st.markdown("""
         margin: 10px 0 6px 2px;
     }
 
-    /* 🎨 Dashboard buttons styled to match the supplied reference image */
-    [class*="st-key-worker_visa_btn"] button, [class*="st-key-admin_visa_card_btn"] button {
-        min-height: 48px !important; border-radius: 28px !important;
-        font-size: 17px !important; font-weight: 600 !important;
-        color: #243b53 !important; background: #dbeafe !important;
-        border: 1px solid #8db5dc !important;
-        box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08) !important;
-    }
-    [class*="st-key-worker_visa_btn_PENDING"] button, [class*="st-key-admin_visa_card_btn_PENDING"] button {
-        color: #8a6415 !important; background: #ffefc7 !important; border-color: #d9b85c !important;
-    }
-    [class*="st-key-worker_visa_btn_B1"] button,
-    [class*="st-key-worker_visa_btn_B2"] button,
-    [class*="st-key-admin_visa_card_btn_B1"] button,
-    [class*="st-key-admin_visa_card_btn_B2"] button {
-        color: #155e52 !important; background: #c9f0e8 !important; border-color: #65b7a8 !important;
-    }
-    [class*="st-key-worker_add_btn"] button, [class*="st-key-admin_upd_cases_btn"] button {
-        background: #0860df !important; border: 1px solid #0860df !important;
-        color: #fff !important; min-height: 58px !important; border-radius: 13px !important;
-        font-size: 17px !important; font-weight: 600 !important;
-    }
-    [class*="st-key-worker_search_btn"] button {
-        background: #fff !important; border: 2px solid #2365ad !important;
-        color: #245b98 !important; min-height: 58px !important; border-radius: 13px !important;
-        font-size: 17px !important; font-weight: 600 !important; box-shadow: none !important;
-    }
-    [class*="st-key-worker_dl_disabled"] button {
-        background: #e5e7eb !important; border: 1px solid #e5e7eb !important;
-        color: #9298a2 !important; min-height: 58px !important; border-radius: 13px !important;
-        font-size: 17px !important; font-weight: 600 !important; box-shadow: none !important; opacity: 1 !important;
-    }
-    [class*="st-key-worker_pw_btn"] button, [class*="st-key-admin_pw_btn"] button {
-        background: #e2e6ed !important; border: 1px solid #e2e6ed !important;
-        color: #3d4658 !important; min-height: 58px !important; border-radius: 13px !important;
-        font-size: 17px !important; font-weight: 600 !important; box-shadow: none !important;
-    }
-    [class*="st-key-worker_sync_btn"] button, [class*="st-key-admin_sync_btn"] button { 
-        min-height: 58px !important; border-radius: 13px !important; 
-    }
-
+    /* 🎨 Rich Vibrant Professional Buttons */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 46px !important;
@@ -568,7 +541,37 @@ st.markdown("""
         margin-top: 4px !important;
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
+        white-space: nowrap !important;
         background: linear-gradient(135deg, #2563eb 100%, #1d4ed8 0%) !important;
+    }
+
+    /* 🟢 Emerald for New Cases & Login Status */
+    button[aria-label*="New / Updated"], button[aria-label*="Login Status"] {
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+    }
+    /* 🔴 Crimson for Delete Requests */
+    button[aria-label*="Delete Requests"] {
+        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
+    }
+    /* 🔵 Blue for Sync & Attendance */
+    button[aria-label*="Sync"], button[aria-label*="Attendance"] {
+        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
+    }
+    /* 🟠 Amber for Notices */
+    button[aria-label*="Notice"] {
+        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
+    }
+    /* 🟣 Purple for Users & Permissions */
+    button[aria-label*="Users & Permissions"] {
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%) !important;
+    }
+    /* ⚙️ Slate for Passwords & Refresh */
+    button[aria-label*="Password"], button[aria-label*="Refresh"] {
+        background: linear-gradient(135deg, #475569 0%, #64748b 100%) !important;
+    }
+    /* 🚪 Logout Red Accent */
+    button[aria-label*="Logout"] {
+        background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
     }
 
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
@@ -595,6 +598,18 @@ st.markdown("""
         padding: 8px 14px;
         border-radius: 10px;
         border: 1px solid #cbd5e1;
+    }
+
+    div[data-testid="stExpander"] {
+        width: 100% !important;
+        max-width: 950px !important;
+    }
+    [data-testid="stVerticalBlock"] {
+        gap: 0.45rem !important;
+    }
+    hr {
+        margin-top: 0.9rem !important;
+        margin-bottom: 0.9rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -636,6 +651,7 @@ def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
     st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
+# 🌟 Case Details View, Edit & Delete / Request Delete Popup Dialog
 @st.dialog("📋 Case Details, Edit & Delete", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -1302,6 +1318,7 @@ def search_data_dialog():
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
+# 🌟 Handle Dialog Execution securely via Session State
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -1344,6 +1361,7 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
 
+# 1. Professional Public Website & Login Screen
 if not st.session_state["logged_in"]:
     selected_page = st.radio(
         "Navigation",
@@ -1540,6 +1558,7 @@ if not st.session_state["logged_in"]:
                                 else:
                                     st.error("❌ Incorrect Username or Password!")
 
+# 2. ADMIN DASHBOARD
 elif st.session_state["role"] == "admin":
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
@@ -1587,6 +1606,7 @@ elif st.session_state["role"] == "admin":
     unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
     active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
+    # Calculate Visa Counts for Admin Dashboard
     visa_col = None
     for c in df.columns:
         if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
@@ -1601,6 +1621,7 @@ elif st.session_state["role"] == "admin":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
+        # 1. Core KPIs Row (4 columns)
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
@@ -1654,6 +1675,7 @@ elif st.session_state["role"] == "admin":
     elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
+        # Display Interactive Visa Category Buttons in Exactly 2 Rows for Admin
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
@@ -1665,8 +1687,7 @@ elif st.session_state["role"] == "admin":
                     v_cols = st.columns(len(row_items), gap="medium")
                     for idx, (v_name, v_count) in enumerate(row_items):
                         with v_cols[idx]:
-                            visa_icon = "🪪" if "H1B" in v_name else ("⌛" if "PENDING" in v_name else ("🌐" if "B1" in v_name or "B2" in v_name else "✈️"))
-                            btn_label = f"{visa_icon} {v_name}: {v_count}"
+                            btn_label = f"✈️ {v_name}: {v_count}"
                             if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
                                 if st.session_state["selected_visa_filter"] == v_name:
                                     st.session_state["selected_visa_filter"] = "All"
@@ -1690,6 +1711,7 @@ elif st.session_state["role"] == "admin":
         
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
+        # Filter dataframe based on search and selected interactive visa filter button
         display_df = df
         if admin_search != "":
             admin_search_mask = display_df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
@@ -1740,6 +1762,7 @@ elif st.session_state["role"] == "admin":
                 </div>
             """, unsafe_allow_html=True)
 
+# 3. CASE WORKER DASHBOARD
 else:
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
@@ -1817,12 +1840,14 @@ else:
                 if v_clean != "":
                     visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
+        # 1. Worker Core KPIs Row (2 columns)
         k1, k2 = st.columns(2, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
         with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
+        # 2. Worker Visa Category Breakdown in EXACTLY ONE SINGLE LINE (Interactive Buttons)
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
@@ -1831,8 +1856,7 @@ else:
                 w_cols = st.columns(len(visa_items), gap="medium")
                 for idx, (v_name, v_count) in enumerate(visa_items):
                     with w_cols[idx]:
-                        visa_icon = "🪪" if "H1B" in v_name else ("⌛" if "PENDING" in v_name else ("🌐" if "B1" in v_name or "B2" in v_name else "✈️"))
-                        btn_label = f"{visa_icon} {v_name}: {v_count}"
+                        btn_label = f"✈️ {v_name}: {v_count}"
                         if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
                             if st.session_state["selected_visa_filter"] == v_name:
                                 st.session_state["selected_visa_filter"] = "All"
