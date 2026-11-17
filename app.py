@@ -778,7 +778,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             for i, col_name in enumerate(cols_to_show):
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
-                    # 🌟 Preferred Dates లేదా ఇతర తేదీ కాలమ్‌లకు కేలండర్ లేకుండా టెక్స్ట్ ఇన్‌పుట్ ఇవ్వబడింది
                     if any(k in col_name.lower() for k in ['time', 'day']) and 'date' not in col_name.lower():
                         try:
                             parsed_d = datetime.datetime.strptime(str(row_data[col_name]).split()[0], "%Y-%m-%d").date()
@@ -814,9 +813,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                     save_data(df_full, sheet_name=sheet_name)
                     st.session_state["is_editing_popup"] = False
                     st.session_state["selected_row_idx"] = None
-                    st.session_state["open_dialog"] = None  # 🌟 పాపప్ క్లోజ్ అవ్వడానికి
+                    st.session_state["open_dialog"] = None
                     st.success("✅ Case details updated successfully!")
-                    st.rerun() # 🌟 ఇమ్మీడియట్ రిఫ్రెష్
+                    st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
             
@@ -1431,7 +1430,6 @@ def add_case_dialog(worker_name):
         form_data = {}
         cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"]]
         for col_name in cols:
-            # 🌟 'preferred dates' లేదా ఇతర కాలమ్‌లకు కేలండర్ లేకుండా సాధారణ టెక్స్ట్ బాక్స్ వస్తుంది
             if any(k in col_name.lower() for k in ['time', 'day']) and 'date' not in col_name.lower():
                 sel_date = st.date_input(f"{col_name}", value=datetime.date.today(), key=f"add_date_{col_name}")
                 form_data[col_name] = sel_date.strftime("%Y-%m-%d")
@@ -1460,8 +1458,6 @@ def add_case_dialog(worker_name):
                     
                 updated_target_df = pd.concat([target_df, pd.DataFrame([new_row])], ignore_index=True)
                 save_data(updated_target_df, sheet_name=selected_target_sheet)
-                
-                # 🌟 కేస్ సేవ్ అయిన వెంటనే పాపప్ క్లోజ్ అయి స్క్రీన్ రిఫ్రెష్ అవ్వడానికి
                 st.session_state["open_dialog"] = None
                 st.success("✅ New case added successfully!")
                 st.rerun()
@@ -1590,4 +1586,567 @@ if not st.session_state["logged_in"]:
         with col_a2:
             st.info("🌟 **Our Core Values:**\n* Transparency & Trust\n* 100% Document Verification\n* Dedicated Case Workers\n* Timely Processing")
 
-    elif selected_page == "
+    elif selected_page == "✈️ Services":
+        st.markdown("<div class='section-banner'>✈️ Our Premium Global Services</div>", unsafe_allow_html=True)
+        s1, s2 = st.columns(2)
+        with s1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>📋 DS-160 & Visa Filing</h3>
+                    <p>Professional assistance with visa application forms, document verification, embassy appointment booking, and mock interview coaching.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🏖️ Tourist & Business Visas</h3>
+                    <p>Quick turnaround tourist visa processing for USA, UK, Canada, Europe, Australia, and rest of the world.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with s2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>📚 Student Career Counseling</h3>
+                    <p>Course selection, university applications, scholarship guidance, and financial documentation support.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🏢 Corporate Immigration</h3>
+                    <p>Seamless mobility solutions for multinational enterprises transferring talent across international borders.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    elif selected_page == "⭐ Success Stories":
+        st.markdown("<div class='section-banner'>⭐ Client Success Stories & Testimonials</div>", unsafe_allow_html=True)
+        t1, t2, t3 = st.columns(3)
+        with t1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <p>"HemanVisa made my Canada study visa process extremely smooth. The case workers were responsive and professional!"</p>
+                    <b style="color:#1e293b;">— Rajesh K. (Canada PR)</b>
+                </div>
+            """, unsafe_allow_html=True)
+        with t2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <p>"Extremely grateful for the prompt documentation and regular status updates. Got my US work visa approved without any hassle."</p>
+                    <b style="color:#1e293b;">— Sneha R. (USA Work Visa)</b>
+                </div>
+            """, unsafe_allow_html=True)
+        with t3:
+            st.markdown("""
+                <div class="corporate-card">
+                    <p>"Best consulting firm with transparent pricing and dedicated case officers. Highly recommended for anyone planning abroad."</p>
+                    <b style="color:#1e293b;">— Anil M. (UK Student Visa)</b>
+                </div>
+            """, unsafe_allow_html=True)
+
+    elif selected_page == "📞 Contact Us":
+        st.markdown("<div class='section-banner'>📞 Get in Touch with Our Experts</div>", unsafe_allow_html=True)
+        c_col1, c_col2 = st.columns(2)
+        with c_col1:
+            st.write("""
+                **Corporate Headquarters:**  
+                🌐 Global Visa & Immigration Experts  
+                ✉️ Email: services@hemanvisa.com  
+                📞 Phone: +91 95338 40632  
+                
+                **Office Hours:**  
+                Monday – Saturday: 9:30 AM – 7:00 PM  
+            """)
+        with c_col2:
+            with st.form("contact_form"):
+                st.subheader("Send Us a Message")
+                st.text_input("Your Name")
+                st.text_input("Email / Phone")
+                st.text_area("Your Inquiry / Visa Requirement")
+                if st.form_submit_button("Submit Inquiry", type="primary", use_container_width=True):
+                    st.success("✅ Thank you! Our expert will contact you shortly.")
+
+    elif selected_page == "🔐 Portal Login":
+        col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+        with col_l2:
+            with st.container(border=True):
+                st.markdown("<h3 style='text-align:center; color:#1e293b;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
+                sheets = get_sheet_names()
+                if not sheets:
+                    st.error(f"'{EXCEL_FILE}' file not found.")
+                else:
+                    with st.form("login_form"):
+                        username_input = st.text_input("👤 Username", placeholder="Type your username")
+                        password_input = st.text_input("🔑 Password", type="password", placeholder="Type your password")
+                        submit_btn = st.form_submit_button("🚀 Login to Portal", type="primary", use_container_width=True)
+                        
+                        if submit_btn:
+                            u_in = username_input.strip()
+                            p_in = password_input.strip()
+                            admin_u, admin_p = get_admin_creds()
+                            
+                            if u_in.lower() == admin_u.lower() and p_in == admin_p:
+                                st.session_state["logged_in"] = True
+                                st.session_state["username"] = admin_u
+                                st.session_state["role"] = "admin"
+                                st.session_state["open_dialog"] = None
+                                st.session_state["selected_row_idx"] = None
+                                st.query_params.clear()
+                                st.query_params["logged_in"] = "true"
+                                st.query_params["username"] = admin_u
+                                st.query_params["role"] = "admin"
+                                st.rerun()
+                            else:
+                                logged_in_success = False
+                                matched_sheet = ""
+                                actual_matched_username = ""
+                                for s in sheets:
+                                    df_check = load_data(sheet_name=s)
+                                    if df_check is not None and not df_check.empty:
+                                        login_c = find_login_user_column(df_check)
+                                        p_col = find_password_column(df_check)
+                                        for _, r in df_check.iterrows():
+                                            db_user = str(r[login_c]).strip()
+                                            db_pass = str(r[p_col]).strip()
+                                            if db_user.lower() == u_in.lower() and db_pass == p_in:
+                                                logged_in_success = True
+                                                matched_sheet = s
+                                                actual_matched_username = db_user
+                                                break
+                                    if logged_in_success:
+                                        break
+                                
+                                if logged_in_success:
+                                    record_worker_login(actual_matched_username)
+                                    st.session_state["logged_in"] = True
+                                    st.session_state["username"] = actual_matched_username
+                                    st.session_state["role"] = "worker"
+                                    st.session_state["active_sheet"] = matched_sheet
+                                    st.session_state["attendance_recorded"] = True
+                                    st.session_state["open_dialog"] = None
+                                    st.session_state["selected_row_idx"] = None
+                                    st.query_params.clear()
+                                    st.query_params["logged_in"] = "true"
+                                    st.query_params["username"] = actual_matched_username
+                                    st.query_params["role"] = "worker"
+                                    st.query_params["active_sheet"] = matched_sheet
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Incorrect Username or Password!")
+
+elif st.session_state["role"] == "admin":
+    sheets = get_sheet_names()
+    current_sheet = st.session_state["active_sheet"]
+    
+    if current_sheet not in sheets:
+        current_sheet = sheets[0]
+        st.session_state["active_sheet"] = current_sheet
+
+    df = load_data(sheet_name=current_sheet)
+    login_c = find_login_user_column(df)
+    display_c = find_display_username_column(df)
+    p_col = find_password_column(df)
+    
+    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
+    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
+    with top_col1:
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
+    with top_col2:
+        if st.button("🔄 Refresh", key="admin_refresh"):
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
+            st.rerun()
+    with top_col3:
+        if st.button("🚪 Logout", key="admin_logout"):
+            st.query_params.clear()
+            st.session_state["logged_in"] = False
+            st.session_state["username"] = ""
+            st.session_state["role"] = ""
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    admin_dash_tab = st.radio(
+        "Admin Navigation",
+        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="admin_dash_tab_radio"
+    )
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+    total_cases = len(df)
+    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
+    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
+    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+
+    visa_col = find_visa_type_column(df)
+    visa_counts = {}
+    if visa_col and not df.empty:
+        for val in df[visa_col].astype(str):
+            v_clean = val.strip().upper()
+            if v_clean != "":
+                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
+
+    if admin_dash_tab == "📊 Dashboard & Quick Actions":
+        k1, k2, k3, k4 = st.columns(4, gap="medium")
+        with k1:
+            st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
+        with k2:
+            st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated Cases</div><div class='kpi-value'>{updated_cases}</div></div>", unsafe_allow_html=True)
+        with k3:
+            st.markdown(f"<div class='kpi-card gold'><div class='kpi-title'>⚠️ Unassigned</div><div class='kpi-value'>{unassigned_cases}</div></div>", unsafe_allow_html=True)
+        with k4:
+            st.markdown(f"<div class='kpi-card purple'><div class='kpi-title'>👥 Workers</div><div class='kpi-value'>{active_workers}</div></div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
+        r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5, gap="small")
+        with r1_c1:
+            st.markdown('<span class="admin-btn-0" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("📋 New / Updated", use_container_width=True, key="admin_upd_cases_btn"):
+                st.session_state["open_dialog"] = "admin_updated_cases"
+                st.rerun()
+        with r1_c2:
+            st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("📊 Worker Report", use_container_width=True, key="admin_worker_rep_btn"):
+                st.session_state["open_dialog"] = "admin_worker_report"
+                st.rerun()
+        with r1_c3:
+            st.markdown('<span class="admin-btn-2" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🗑️ Delete Req", use_container_width=True, key="admin_del_req_btn"):
+                st.session_state["open_dialog"] = "admin_delete_requests"
+                st.rerun()
+        with r1_c4:
+            st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🔄 Sync Excel", use_container_width=True, key="admin_sync_btn"):
+                st.session_state["open_dialog"] = "sync_excel"
+                st.rerun()
+        with r1_c5:
+            st.markdown('<span class="admin-btn-4" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("📢 Notice", use_container_width=True, key="admin_notice_btn"):
+                st.session_state["open_dialog"] = "admin_notice"
+                st.rerun()
+
+        st.markdown("<div class='action-group-title'>🛡️ Team, Attendance & Security</div>", unsafe_allow_html=True)
+        r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4, gap="medium")
+        with r2_c1:
+            st.markdown('<span class="admin-btn-5" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("👥 Users & Permissions", use_container_width=True, key="admin_perm_btn"):
+                st.session_state["open_dialog"] = "permissions"
+                st.rerun()
+        with r2_c2:
+            st.markdown('<span class="admin-btn-6" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🟢 Worker Login Status", use_container_width=True, key="admin_login_status_btn"):
+                st.session_state["open_dialog"] = "admin_login_status"
+                st.rerun()
+        with r2_c3:
+            st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("📊 Attendance Report", use_container_width=True, key="admin_attendance_btn"):
+                st.session_state["open_dialog"] = "admin_attendance"
+                st.rerun()
+        with r2_c4:
+            st.markdown('<span class="admin-btn-0" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🔑 Admin Password", use_container_width=True, key="admin_pw_btn"):
+                st.session_state["open_dialog"] = "admin_password"
+                st.rerun()
+
+        st.divider()
+
+    elif admin_dash_tab == "📂 Case Records & Search":
+        st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
+        
+        if visa_counts:
+            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
+            visa_items = list(visa_counts.items())
+            mid = (len(visa_items) + 1) // 2
+            rows = [visa_items[:mid], visa_items[mid:]]
+            
+            btn_counter = 0
+            for row_items in rows:
+                if row_items:
+                    v_cols = st.columns(len(row_items), gap="medium")
+                    for idx, (v_name, v_count) in enumerate(row_items):
+                        with v_cols[idx]:
+                            btn_label = f"✈️ {v_name}: {v_count}"
+                            color_idx = btn_counter % 8
+                            st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
+                            if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
+                                if st.session_state["selected_visa_filter"] == v_name:
+                                    st.session_state["selected_visa_filter"] = "All"
+                                else:
+                                    st.session_state["selected_visa_filter"] = v_name
+                                st.rerun()
+                            btn_counter += 1
+            
+            if st.session_state["selected_visa_filter"] != "All":
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All Cases)", use_container_width=True, key="reset_visa_filter"):
+                    st.session_state["selected_visa_filter"] = "All"
+                    st.rerun()
+            st.divider()
+
+        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
+        with col_search:
+            admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
+        with col_sheets:
+            if sheets:
+                st.markdown("📑 **Sheets Switch:**")
+                st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
+        
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+        display_df = df
+        if admin_search != "":
+            admin_search_mask = display_df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
+            display_df = display_df[admin_search_mask]
+
+        if st.session_state["selected_visa_filter"] != "All" and visa_col:
+            target_visa = st.session_state["selected_visa_filter"]
+            display_df = display_df[display_df[visa_col].astype(str).str.strip().str.upper() == target_visa]
+
+        st.caption(f"💡 Showing {len(display_df)} cases. Click USERNAME inside the table to view, edit, or delete details.")
+        render_clickable_table(display_df, display_c, p_col)
+                    
+        if os.path.exists(EXCEL_FILE):
+            with open(EXCEL_FILE, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label="📥 Download Complete Excel File (All Sheets)", 
+                data=excel_bytes, 
+                file_name=EXCEL_FILE, 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True, 
+                key="admin_dl_all_btn"
+            )
+
+    elif admin_dash_tab == "ℹ️ System Guidelines":
+        st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
+        g1, g2 = st.columns(2, gap="medium")
+        with g1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>👥 User & Permission Management</h3>
+                    <p>Assign specific privileges (Update, Add, Search, Download, Sync) to case workers to maintain strict security and accountability across all sheets.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🗑️ Delete Request Approvals</h3>
+                    <p>When case workers request case deletions with reasons, review them in the 'Delete Requests' section to either permanently delete or reject the request.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with g2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>📊 Attendance & Login Tracking</h3>
+                    <p>Monitor real-time worker logins, active status, and automated daily attendance logs with instant Excel report exports.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>📢 Live Announcements</h3>
+                    <p>Broadcast scrolling marquee announcements directly to all active case worker screens using the 'Broadcast Notice' feature.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+else:
+    sheets = get_sheet_names()
+    current_sheet = st.session_state["active_sheet"]
+    
+    if current_sheet not in sheets:
+        current_sheet = sheets[0]
+        st.session_state["active_sheet"] = current_sheet
+
+    df = load_data(sheet_name=current_sheet)
+    current_user = st.session_state["username"].strip()
+    
+    all_perms = load_permissions()
+    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
+    
+    login_c = find_login_user_column(df)
+    display_c = find_display_username_column(df)
+    p_col = find_password_column(df)
+    
+    user_mask = df[login_c].astype(str).str.strip().str.lower() == current_user.lower()
+    user_rows = df[user_mask]
+        
+    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
+    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
+    with top_col1:
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+    with top_col2:
+        if st.button("🔄 Refresh", key="worker_refresh"):
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
+            st.rerun()
+    with top_col3:
+        if st.button("🚪 Logout", key="worker_logout"):
+            record_worker_logout(current_user)
+            st.query_params.clear()
+            st.session_state["logged_in"] = False
+            st.session_state["username"] = ""
+            st.session_state["role"] = ""
+            st.session_state["attendance_recorded"] = False
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    worker_dash_tab = st.radio(
+        "Worker Navigation",
+        ["📊 My Workspace", "ℹ️ Case Worker Guide"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="worker_dash_tab_radio"
+    )
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+    if worker_dash_tab == "📊 My Workspace":
+        admin_notice = get_admin_notice()
+        if admin_notice:
+            st.markdown(f"""
+                <div class="marquee-container">
+                    <marquee scrollamount="5">📢 <b>Admin Announcement / Note:</b> {admin_notice}</marquee>
+                </div>
+            """, unsafe_allow_html=True)
+
+        my_total = len(user_rows)
+        my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
+
+        visa_col = find_visa_type_column(user_rows)
+        visa_counts = {}
+        if visa_col and not user_rows.empty:
+            for val in user_rows[visa_col].astype(str):
+                v_clean = val.strip().upper()
+                if v_clean != "":
+                    visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
+
+        k1, k2 = st.columns(2, gap="medium")
+        with k1:
+            st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
+        with k2:
+            st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
+
+        if visa_counts:
+            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
+            visa_items = list(visa_counts.items())
+            
+            if visa_items:
+                w_cols = st.columns(len(visa_items), gap="medium")
+                for idx, (v_name, v_count) in enumerate(visa_items):
+                    with w_cols[idx]:
+                        btn_label = f"✈️ {v_name}: {v_count}"
+                        color_idx = idx % 8
+                        st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
+                            if st.session_state["selected_visa_filter"] == v_name:
+                                st.session_state["selected_visa_filter"] = "All"
+                            else:
+                                st.session_state["selected_visa_filter"] = v_name
+                            st.rerun()
+            
+            if st.session_state["selected_visa_filter"] != "All":
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All My Cases)", use_container_width=True, key="reset_worker_visa_filter"):
+                    st.session_state["selected_visa_filter"] = "All"
+                    st.rerun()
+
+        st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
+        has_sync_perm = worker_perm.get("can_sync", False)
+        w_cols = st.columns(5 if has_sync_perm else 4, gap="medium")
+        
+        with w_cols[0]:
+            if worker_perm.get("can_add", True):
+                st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
+                    st.session_state["open_dialog"] = "add_case"
+                    st.rerun()
+            else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+                st.button("🚫 No Add Access", disabled=True, use_container_width=True, key="worker_add_disabled")
+        with w_cols[1]:
+            if worker_perm.get("can_search", True):
+                st.markdown('<span class="admin-btn-2" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button("🔍 Search Records", use_container_width=True, key="worker_search_btn"):
+                    st.session_state["open_dialog"] = "search_data"
+                    st.rerun()
+            else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+                st.button("🚫 No Search Access", disabled=True, use_container_width=True, key="worker_search_disabled")
+        with w_cols[2]:
+            if worker_perm.get("can_download", False):
+                st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
+                worker_buffer = io.BytesIO()
+                with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
+                    has_user_data = False
+                    for s in sheets:
+                        df_s = load_data(sheet_name=s)
+                        if df_s is not None and not df_s.empty:
+                            login_cs = find_login_user_column(df_s)
+                            u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
+                            if not u_rows_s.empty:
+                                has_user_data = True
+                                u_rows_s.to_excel(writer, sheet_name=s, index=False)
+                    
+                    if not has_user_data:
+                        user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
+                
+                st.download_button(
+                    label="📥 Export My Excel", 
+                    data=worker_buffer.getvalue(), 
+                    file_name=f"{current_user}_all_sheets_cases.xlsx", 
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                    use_container_width=True, 
+                    key="worker_dl_btn"
+                )
+            else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+                st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
+        with w_cols[3]:
+            st.markdown('<span class="admin-btn-4" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
+                st.session_state["open_dialog"] = "worker_password"
+                st.rerun()
+
+        if has_sync_perm:
+            with w_cols[4]:
+                st.markdown('<span class="admin-btn-5" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button("🔄 Sync Excel", use_container_width=True, key="worker_sync_btn"):
+                    st.session_state["open_dialog"] = "sync_excel"
+                    st.rerun()
+                
+        st.divider()
+
+        if sheets:
+            st.write("📑 **Sheets Switch:**")
+            st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
+                
+        st.divider()
+        
+        display_user_rows = user_rows
+        if st.session_state["selected_visa_filter"] != "All" and visa_col:
+            target_visa = st.session_state["selected_visa_filter"]
+            display_user_rows = display_user_rows[display_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
+
+        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(display_user_rows)})</div>", unsafe_allow_html=True)
+
+        if display_user_rows.empty:
+            st.info("No cases found matching your criteria in this sheet.")
+        else:
+            st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
+            render_clickable_table(display_user_rows, display_c, p_col)
+
+    elif worker_dash_tab == "ℹ️ Case Worker Guide":
+        st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
+        w_g1, w_g2 = st.columns(2, gap="medium")
+        with w_g1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>✏️ Editing & Updating Cases</h3>
+                    <p>Click on any USERNAME inside your assigned cases table to open the pop-up modal. You can review all details and update information instantly.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>➕ Adding New Cases</h3>
+                    <p>Use the 'Add New Case' button in the toolbar to create new records directly in your designated sheet with automatic timestamping.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with w_g2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>🗑️ Requesting Case Deletions</h3>
+                    <p>If a case needs removal, click 'Request Delete' and provide a mandatory reason. The admin will review and approve or reject your request.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🔒 Security & Password</h3>
+                    <p>Keep your account secure by changing your password periodically using the 'Change Password' button in the toolbar.</p>
+                </div>
+            """, unsafe_allow_html=True)
