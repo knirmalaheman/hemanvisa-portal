@@ -285,7 +285,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 HIGH-END CORPORATE STYLING & CUSTOM ADMIN TOOL BUTTON COLORS
+# 🌟 HIGH-END CORPORATE STYLING & ROBUST STYLING FOR ALL BUTTONS
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -523,72 +523,54 @@ st.markdown("""
         text-shadow: 0 2px 6px rgba(0,0,0,0.35);
     }
 
-    /* 🌟 GUARANTEED COLORFUL VISA FILTER BUTTONS */
-    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button {
+    /* 🌟 TARGETED STYLING FOR VISA & ADMIN BUTTONS WITH SAFE TEXT VISIBILITY */
+    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%) !important;
         border-bottom: 3px solid #93c5fd !important;
+        color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button {
+    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #047857 0%, #10b981 100%) !important;
         border-bottom: 3px solid #6ee7b7 !important;
+        color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button {
+    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%) !important;
         border-bottom: 3px solid #fcd34d !important;
+        color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button {
+    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%) !important;
         border-bottom: 3px solid #c4b5fd !important;
+        color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button {
+    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #be185d 0%, #ec4899 100%) !important;
         border-bottom: 3px solid #f9a8d4 !important;
+        color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button {
+    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%) !important;
         border-bottom: 3px solid #5eead4 !important;
+        color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button {
+    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
         border-bottom: 3px solid #a5b4fc !important;
+        color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button {
+    div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%) !important;
         border-bottom: 3px solid #fca5a5 !important;
-    }
-
-    /* 🌟 STYLISH ADMIN ACTION & SECURITY BUTTONS (MULTI-COLOR GRADIENTS) */
-    div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;
-        border-bottom: 3px solid #93c5fd !important;
-    }
-    div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #065f46 0%, #10b981 100%) !important;
-        border-bottom: 3px solid #6ee7b7 !important;
-    }
-    div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #7c2d12 0%, #f97316 100%) !important;
-        border-bottom: 3px solid #fcd34d !important;
-    }
-    div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #312e81 0%, #6366f1 100%) !important;
-        border-bottom: 3px solid #a5b4fc !important;
-    }
-    div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #831843 0%, #ec4899 100%) !important;
-        border-bottom: 3px solid #f9a8d4 !important;
-    }
-    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #134e4a 0%, #14b8a6 100%) !important;
-        border-bottom: 3px solid #5eead4 !important;
-    }
-    div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #78350f 0%, #d97706 100%) !important;
-        border-bottom: 3px solid #fde68a !important;
-    }
-    div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #581c87 0%, #a855f7 100%) !important;
-        border-bottom: 3px solid #d8b4fe !important;
+        color: #ffffff !important;
     }
 
     .section-banner {
@@ -625,6 +607,7 @@ st.markdown("""
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
         white-space: nowrap !important;
+        background: linear-gradient(135deg, #172554 100%, #1e40af 0%) !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
@@ -2062,20 +2045,25 @@ else:
         
         with w_cols[0]:
             if worker_perm.get("can_add", True):
+                st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
                 if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
                     st.session_state["open_dialog"] = "add_case"
                     st.rerun()
             else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                 st.button("🚫 No Add Access", disabled=True, use_container_width=True, key="worker_add_disabled")
         with w_cols[1]:
             if worker_perm.get("can_search", True):
+                st.markdown('<span class="admin-btn-2" style="display:none;"></span>', unsafe_allow_html=True)
                 if st.button("🔍 Search Records", use_container_width=True, key="worker_search_btn"):
                     st.session_state["open_dialog"] = "search_data"
                     st.rerun()
             else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                 st.button("🚫 No Search Access", disabled=True, use_container_width=True, key="worker_search_disabled")
         with w_cols[2]:
             if worker_perm.get("can_download", False):
+                st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
                 worker_buffer = io.BytesIO()
                 with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
                     has_user_data = False
@@ -2100,14 +2088,17 @@ else:
                     key="worker_dl_btn"
                 )
             else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                 st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
         with w_cols[3]:
+            st.markdown('<span class="admin-btn-4" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
                 st.session_state["open_dialog"] = "worker_password"
                 st.rerun()
 
         if has_sync_perm:
             with w_cols[4]:
+                st.markdown('<span class="admin-btn-5" style="display:none;"></span>', unsafe_allow_html=True)
                 if st.button("🔄 Sync Excel", use_container_width=True, key="worker_sync_btn"):
                     st.session_state["open_dialog"] = "sync_excel"
                     st.rerun()
