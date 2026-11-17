@@ -285,7 +285,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 HIGH-END CORPORATE STYLING & GUARANTEED COLORFUL VISA BUTTONS
+# 🌟 HIGH-END CORPORATE STYLING & CUSTOM ADMIN TOOL BUTTON COLORS
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -523,7 +523,7 @@ st.markdown("""
         text-shadow: 0 2px 6px rgba(0,0,0,0.35);
     }
 
-    /* 🌟 GUARANTEED COLORFUL VISA FILTER BUTTONS USING :has() SELECTOR */
+    /* 🌟 GUARANTEED COLORFUL VISA FILTER BUTTONS */
     div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%) !important;
         border-bottom: 3px solid #93c5fd !important;
@@ -555,6 +555,40 @@ st.markdown("""
     div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%) !important;
         border-bottom: 3px solid #fca5a5 !important;
+    }
+
+    /* 🌟 STYLISH ADMIN ACTION & SECURITY BUTTONS (MULTI-COLOR GRADIENTS) */
+    div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;
+        border-bottom: 3px solid #93c5fd !important;
+    }
+    div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #065f46 0%, #10b981 100%) !important;
+        border-bottom: 3px solid #6ee7b7 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #7c2d12 0%, #f97316 100%) !important;
+        border-bottom: 3px solid #fcd34d !important;
+    }
+    div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #312e81 0%, #6366f1 100%) !important;
+        border-bottom: 3px solid #a5b4fc !important;
+    }
+    div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #831843 0%, #ec4899 100%) !important;
+        border-bottom: 3px solid #f9a8d4 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #134e4a 0%, #14b8a6 100%) !important;
+        border-bottom: 3px solid #5eead4 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #78350f 0%, #d97706 100%) !important;
+        border-bottom: 3px solid #fde68a !important;
+    }
+    div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #581c87 0%, #a855f7 100%) !important;
+        border-bottom: 3px solid #d8b4fe !important;
     }
 
     .section-banner {
@@ -591,7 +625,6 @@ st.markdown("""
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
         white-space: nowrap !important;
-        background: linear-gradient(135deg, #172554 100%, #1e40af 0%) !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
@@ -1780,22 +1813,27 @@ elif st.session_state["role"] == "admin":
         st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
         r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5, gap="small")
         with r1_c1:
+            st.markdown('<span class="admin-btn-0" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📋 New / Updated", use_container_width=True, key="admin_upd_cases_btn"):
                 st.session_state["open_dialog"] = "admin_updated_cases"
                 st.rerun()
         with r1_c2:
+            st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📊 Worker Report", use_container_width=True, key="admin_worker_rep_btn"):
                 st.session_state["open_dialog"] = "admin_worker_report"
                 st.rerun()
         with r1_c3:
+            st.markdown('<span class="admin-btn-2" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🗑️ Delete Req", use_container_width=True, key="admin_del_req_btn"):
                 st.session_state["open_dialog"] = "admin_delete_requests"
                 st.rerun()
         with r1_c4:
+            st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔄 Sync Excel", use_container_width=True, key="admin_sync_btn"):
                 st.session_state["open_dialog"] = "sync_excel"
                 st.rerun()
         with r1_c5:
+            st.markdown('<span class="admin-btn-4" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📢 Notice", use_container_width=True, key="admin_notice_btn"):
                 st.session_state["open_dialog"] = "admin_notice"
                 st.rerun()
@@ -1803,18 +1841,22 @@ elif st.session_state["role"] == "admin":
         st.markdown("<div class='action-group-title'>🛡️ Team, Attendance & Security</div>", unsafe_allow_html=True)
         r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4, gap="medium")
         with r2_c1:
+            st.markdown('<span class="admin-btn-5" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("👥 Users & Permissions", use_container_width=True, key="admin_perm_btn"):
                 st.session_state["open_dialog"] = "permissions"
                 st.rerun()
         with r2_c2:
+            st.markdown('<span class="admin-btn-6" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🟢 Worker Login Status", use_container_width=True, key="admin_login_status_btn"):
                 st.session_state["open_dialog"] = "admin_login_status"
                 st.rerun()
         with r2_c3:
+            st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📊 Attendance Report", use_container_width=True, key="admin_attendance_btn"):
                 st.session_state["open_dialog"] = "admin_attendance"
                 st.rerun()
         with r2_c4:
+            st.markdown('<span class="admin-btn-0" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔑 Admin Password", use_container_width=True, key="admin_pw_btn"):
                 st.session_state["open_dialog"] = "admin_password"
                 st.rerun()
