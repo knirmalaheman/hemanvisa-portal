@@ -100,7 +100,7 @@ def record_worker_login(worker_name):
     found = False
     for entry in attendance:
         if entry.get("Worker", "").lower() == worker_name.strip().lower() and entry.get("Date") == today_str:
-            if not entry.get("Login_Time") or entry.get("Login_Time"] == "-":
+            if not entry.get("Login_Time") or entry.get("Login_Time") == "-":
                 entry["Login_Time"] = time_str
             entry["Status"] = "Active"
             found = True
@@ -915,7 +915,7 @@ def admin_attendance_dialog():
 # 🌟 Updated Worker Report Dialog with Today's & Total Booked Cases Tabs
 @st.dialog("📊 Case Worker-wise Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
-    st.info("💡 కేస్‌వర్కర్ వారీగా **ఇవాళ బుక్ అయిన కేసులు (Today's Booked Cases)** మరియు **మొత్తం బుక్ అయిన కేసులు (Total Booked Cases)** వివరాలు:")
+    st.info("💡 కేస్‌వర్కర్ వారీగా **ఈరోజు బుక్ అయిన కేసులు (Today's Booked Cases)** మరియు **మొత్తం బుక్ అయిన కేసులు (Total Booked Cases)** వివరాలు:")
     
     sheets = get_sheet_names()
     today_str = get_ist_now().strftime("%Y-%m-%d")
