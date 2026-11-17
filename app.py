@@ -285,7 +285,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 HIGH-END CORPORATE STYLING & DYNAMIC VISA FILTER BUTTONS
+# 🌟 HIGH-END CORPORATE STYLING & GUARANTEED COLORFUL VISA BUTTONS
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -523,21 +523,38 @@ st.markdown("""
         text-shadow: 0 2px 6px rgba(0,0,0,0.35);
     }
 
-    /* 🌟 STYLISH MULTI-COLOR VISA FILTER BUTTONS */
-    div.stButton > button[key*="visa_card_btn"], div.stButton > button[key*="worker_visa_btn"] {
-        border-radius: 12px !important;
-        font-weight: 700 !important;
-        font-size: 13px !important;
-        padding: 12px 14px !important;
-        color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.25) !important;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
-        transition: all 0.25s ease;
+    /* 🌟 GUARANTEED COLORFUL VISA FILTER BUTTONS USING :has() SELECTOR */
+    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%) !important;
+        border-bottom: 3px solid #93c5fd !important;
     }
-    div.stButton > button[key*="visa_card_btn"]:hover, div.stButton > button[key*="worker_visa_btn"]:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
-        opacity: 0.95;
+    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #047857 0%, #10b981 100%) !important;
+        border-bottom: 3px solid #6ee7b7 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%) !important;
+        border-bottom: 3px solid #fcd34d !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 100%) !important;
+        border-bottom: 3px solid #c4b5fd !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #be185d 0%, #ec4899 100%) !important;
+        border-bottom: 3px solid #f9a8d4 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%) !important;
+        border-bottom: 3px solid #5eead4 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
+        border-bottom: 3px solid #a5b4fc !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #b91c1c 0%, #ef4444 100%) !important;
+        border-bottom: 3px solid #fca5a5 !important;
     }
 
     .section-banner {
@@ -1813,16 +1830,6 @@ elif st.session_state["role"] == "admin":
             mid = (len(visa_items) + 1) // 2
             rows = [visa_items[:mid], visa_items[mid:]]
             
-            # 🌟 Dynamic Multi-color Gradients for Visa Filter Buttons
-            gradient_colors = [
-                "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)", # Royal Blue
-                "linear-gradient(135deg, #065f46 0%, #10b981 100%)", # Emerald Green
-                "linear-gradient(135deg, #7c2d12 0%, #f97316 100%)", # Warm Orange
-                "linear-gradient(135deg, #581c87 0%, #8b5cf6 100%)", # Deep Purple
-                "linear-gradient(135deg, #831843 0%, #ec4899 100%)", # Rose Pink
-                "linear-gradient(135deg, #134e4a 0%, #14b8a6 100%)"  # Teal
-            ]
-            
             btn_counter = 0
             for row_items in rows:
                 if row_items:
@@ -1830,18 +1837,9 @@ elif st.session_state["role"] == "admin":
                     for idx, (v_name, v_count) in enumerate(row_items):
                         with v_cols[idx]:
                             btn_label = f"✈️ {v_name}: {v_count}"
-                            bg_grad = gradient_colors[btn_counter % len(gradient_colors)]
-                            btn_key = f"admin_visa_card_btn_{v_name}_{idx}"
-                            
-                            st.markdown(f"""
-                                <style>
-                                div.stButton > button[key="{btn_key}"] {{
-                                    background: {bg_grad} !important;
-                                }}
-                                </style>
-                            """, unsafe_allow_html=True)
-                            
-                            if st.button(btn_label, key=btn_key, use_container_width=True):
+                            color_idx = btn_counter % 8
+                            st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
+                            if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
                                 if st.session_state["selected_visa_filter"] == v_name:
                                     st.session_state["selected_visa_filter"] = "All"
                                 else:
@@ -1997,30 +1995,14 @@ else:
             st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
             
-            worker_gradients = [
-                "linear-gradient(135deg, #065f46 0%, #10b981 100%)",
-                "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
-                "linear-gradient(135deg, #7c2d12 0%, #f97316 100%)",
-                "linear-gradient(135deg, #581c87 0%, #8b5cf6 100%)"
-            ]
-            
             if visa_items:
                 w_cols = st.columns(len(visa_items), gap="medium")
                 for idx, (v_name, v_count) in enumerate(visa_items):
                     with w_cols[idx]:
                         btn_label = f"✈️ {v_name}: {v_count}"
-                        w_bg = worker_gradients[idx % len(worker_gradients)]
-                        w_btn_key = f"worker_visa_btn_{v_name}_{idx}"
-                        
-                        st.markdown(f"""
-                            <style>
-                            div.stButton > button[key="{w_btn_key}"] {{
-                                background: {w_bg} !important;
-                            }}
-                            </style>
-                        """, unsafe_allow_html=True)
-                        
-                        if st.button(btn_label, key=w_btn_key, use_container_width=True):
+                        color_idx = idx % 8
+                        st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
                             if st.session_state["selected_visa_filter"] == v_name:
                                 st.session_state["selected_visa_filter"] = "All"
                             else:
