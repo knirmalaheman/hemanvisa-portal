@@ -169,7 +169,7 @@ def load_data(sheet_name=0):
     return None
 
 def save_data(df_to_save, sheet_name=0):
-if "Category" in df_to_save.columns:
+    if "Category" in df_to_save.columns:
         df_to_save = df_to_save.rename(columns={"Category": ""})
     
     sheets_data = {}
@@ -192,7 +192,7 @@ def get_base64_image(image_path):
         return base64.b64encode(img_file.read()).decode()
 
 def find_login_user_column(df):
-for col in df.columns:
+    for col in df.columns:
         if col.strip() in ["username", "Case Worker", "DS-160 Case Worker"]:
             return col
     for col in df.columns:
@@ -201,7 +201,7 @@ for col in df.columns:
     return df.columns[0]
 
 def find_display_username_column(df):
-for col in df.columns:
+    for col in df.columns:
         if col.strip() == "USERNAME":
             return col
     for col in df.columns:
@@ -210,11 +210,10 @@ for col in df.columns:
     return find_login_user_column(df)
 
 def find_password_column(df):
-for col in df.columns:
+    for col in df.columns:
         if col.strip().lower() in ["password", "pass"]:
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
-
 
 # 🌟 Session State & Query Params Initialization
 qp = st.query_params
@@ -244,7 +243,6 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
-# Handle Hyperlink Click from URL Query Params securely
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
@@ -281,14 +279,11 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 Vibrant, High-End & Attractive SaaS Color Palette (Logo & Name shifted right)
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
         display: none !important;
     }
-
-    /* 🌟 Gorgeous Vibrant Dark Blue & Gold Gradient Header */
     .sticky-top-banner {
         position: fixed;
         top: 0;
@@ -381,13 +376,11 @@ st.markdown("""
         background: transparent !important;
         padding: 0 !important;
     }
-
     .block-container {
         padding-top: 112px !important;
         padding-bottom: 2.5rem;
         max-width: 1400px !important;
     }
-
     .hero-section {
         background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e3a8a 100%);
         color: white;
@@ -412,7 +405,6 @@ st.markdown("""
         margin-left: auto;
         margin-right: auto;
     }
-
     .corporate-card {
         background: #ffffff;
         padding: 22px 24px;
@@ -435,7 +427,6 @@ st.markdown("""
         line-height: 1.55;
         margin: 0;
     }
-
     .marquee-container {
         background: linear-gradient(90deg, #1e1b4b 0%, #3730a3 100%);
         color: white;
@@ -449,7 +440,6 @@ st.markdown("""
         white-space: nowrap;
         border-left: 5px solid #f59e0b;
     }
-
     .sticky-control-panel {
         position: sticky;
         top: 96px;
@@ -459,8 +449,6 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 14px;
     }
-
-    /* 🎨 Gorgeous Vibrant KPI Cards */
     .kpi-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
         color: white;
@@ -505,7 +493,6 @@ st.markdown("""
         margin: 0;
         line-height: 1.1;
     }
-
     .section-banner {
         background: linear-gradient(90deg, #e0e7ff 0%, #f3e8ff 100%);
         border-left: 5px solid #4f46e5;
@@ -517,7 +504,6 @@ st.markdown("""
         font-size: 16px;
         box-shadow: 0 3px 10px rgba(79, 70, 229, 0.08);
     }
-
     .action-group-title {
         font-size: 13px;
         font-weight: 700;
@@ -526,8 +512,6 @@ st.markdown("""
         color: #312e81;
         margin: 10px 0 6px 2px;
     }
-
-    /* 🎨 Rich Vibrant Professional Buttons */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 46px !important;
@@ -544,13 +528,11 @@ st.markdown("""
         white-space: nowrap !important;
         background: linear-gradient(135deg, #2563eb 100%, #1d4ed8 0%) !important;
     }
-
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
         opacity: 0.95;
     }
-
     .username-hyperlink {
         color: #2563eb !important;
         text-decoration: underline !important;
@@ -560,7 +542,6 @@ st.markdown("""
     .username-hyperlink:hover {
         color: #1e3a8a !important;
     }
-
     div[data-testid="stRadio"] > div {
         flex-direction: row !important;
         flex-wrap: wrap !important;
@@ -570,7 +551,6 @@ st.markdown("""
         border-radius: 10px;
         border: 1px solid #cbd5e1;
     }
-
     div[data-testid="stExpander"] {
         width: 100% !important;
         max-width: 950px !important;
@@ -622,7 +602,6 @@ def update_worker_sheet():
     st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
     st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
 
-# 🌟 Case Details View, Edit & Delete / Request Delete Popup Dialog
 @st.dialog("📋 Case Details, Edit & Delete", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -933,7 +912,6 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 NEW: Case Worker-wise Report Dialog for Admin
 @st.dialog("📊 Case Worker-wise Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
     st.info("💡 అన్ని షీట్లలో కేస్‌వర్కర్ వారీగా బుక్ అయిన కేసుల పూర్తి వివరాలు మరియు గణాంకాలు:")
@@ -1342,7 +1320,6 @@ def search_data_dialog():
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
-# 🌟 Handle Dialog Execution securely via Session State
 if st.session_state["open_dialog"] == "permissions":
     permissions_dialog()
     st.session_state["open_dialog"] = None
@@ -1388,7 +1365,6 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
 
-# 1. Professional Public Website & Login Screen
 if not st.session_state["logged_in"]:
     selected_page = st.radio(
         "Navigation",
@@ -1585,7 +1561,6 @@ if not st.session_state["logged_in"]:
                                 else:
                                     st.error("❌ Incorrect Username or Password!")
 
-# 2. ADMIN DASHBOARD
 elif st.session_state["role"] == "admin":
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
@@ -1789,7 +1764,6 @@ elif st.session_state["role"] == "admin":
                 </div>
             """, unsafe_allow_html=True)
 
-# 3. CASE WORKER DASHBOARD
 else:
     sheets = get_sheet_names()
     current_sheet = st.session_state["active_sheet"]
