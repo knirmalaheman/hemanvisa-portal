@@ -948,11 +948,12 @@ def admin_worker_wise_report_dialog():
                 
                 # Total Cases Stats (Worker-wise)
                 if w_name not in total_worker_stats:
-                    total_worker_stats[w_name] = {"Total Cases": 0, "Sheets": set()}
+                    total_worker_stats[w_name] = {"Total Cases": 0, "Visa_Breakdown": {}, "Sheets": set()}
                 total_worker_stats[w_name]["Total Cases"] += 1
                 total_worker_stats[w_name]["Sheets"].add(s)
+                total_worker_stats[w_name]["Visa_Breakdown"][v_type] = total_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
                 
-                # Visa Type Stats
+                # Visa Type Stats (Global)
                 if v_type not in visa_type_stats:
                     visa_type_stats[v_type] = 0
                 visa_type_stats[v_type] += 1
@@ -970,9 +971,10 @@ def admin_worker_wise_report_dialog():
 
                 if is_today:
                     if w_name not in today_worker_stats:
-                        today_worker_stats[w_name] = {"Today Cases": 0, "Sheets": set()}
+                        today_worker_stats[w_name] = {"Today Cases": 0, "Visa_Breakdown": {}, "Sheets": set()}
                     today_worker_stats[w_name]["Today Cases"] += 1
                     today_worker_stats[w_name]["Sheets"].add(s)
+                    today_worker_stats[w_name]["Visa_Breakdown"][v_type] = today_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
 
     tab_today, tab_total, tab_visa = st.tabs([
         "📅 Today's Booked Cases", 
@@ -984,7 +986,15 @@ def admin_worker_wise_report_dialog():
         if not today_worker_stats:
             st.warning(f"No cases booked today ({today_str}).")
         else:
-            today_list = [{"Case Worker": w, "Today Booked Cases": data["Today Cases"], "Active Sheets": ", ".join(list(data["Sheets"]))} for w, data in today_worker_stats.items()]
+            today_list = []
+            for w, data in today_worker_stats.items():
+                breakdown_str = ", ".join([f"{v}: {cnt}" for v, cnt in data["Visa_Breakdown"].items()])
+                today_list.append({
+                    "Case Worker": w, 
+                    "Today Booked Cases": data["Today Cases"], 
+                    "Visa Type Breakdown": breakdown_str,
+                    "Active Sheets": ", ".join(list(data["Sheets"]))
+                })
             df_today = pd.DataFrame(today_list)
             df_today.index = range(1, len(df_today) + 1)
             st.success(f"Total Cases Booked Today: {df_today['Today Booked Cases'].sum()}")
@@ -999,7 +1009,15 @@ def admin_worker_wise_report_dialog():
         if not total_worker_stats:
             st.warning("No records found.")
         else:
-            total_list = [{"Case Worker": w, "Total Booked Cases": data["Total Cases"], "Active Sheets": ", ".join(list(data["Sheets"]))} for w, data in total_worker_stats.items()]
+            total_list = []
+            for w, data in total_worker_stats.items():
+                breakdown_str = ", ".join([f"{v}: {cnt}" for v, cnt in data["Visa_Breakdown"].items()])
+                total_list.append({
+                    "Case Worker": w, 
+                    "Total Booked Cases": data["Total Cases"], 
+                    "Visa Type Breakdown": breakdown_str,
+                    "Active Sheets": ", ".join(list(data["Sheets"]))
+                })
             df_total = pd.DataFrame(total_list)
             df_total.index = range(1, len(df_total) + 1)
             st.success(f"Total Booked Cases across all workers: {df_total['Total Booked Cases'].sum()}")
