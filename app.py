@@ -778,7 +778,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             for i, col_name in enumerate(cols_to_show):
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
-                    if any(k in col_name.lower() for k in ['time', 'day']) and 'date' not in col_name.lower():
+                    # 🌟 కేవలం కాలమ్ పేరులో సరిగ్గా 'date' ఉండి, 'prefer' లేదా 'preferred' లేకపోతేనే కేలండర్ వస్తుంది
+                    c_lower = col_name.lower()
+                    if 'date' in c_lower and 'prefer' not in c_lower:
                         try:
                             parsed_d = datetime.datetime.strptime(str(row_data[col_name]).split()[0], "%Y-%m-%d").date()
                         except:
@@ -1164,7 +1166,7 @@ def admin_updated_cases_dialog():
         selected_cal_sheet = st.selectbox("Select Sheet for Calendar View", options=sheets, key="cal_sheet_select_tab")
         df_cal = load_data(sheet_name=selected_cal_sheet)
         if df_cal is not None and not df_cal.empty:
-            date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day'])]
+            date_cols = [c for c in df_cal.columns if any(k in c.lower() for k in ['date', 'time', 'day']) and 'prefer' not in c.lower()]
             if date_cols:
                 selected_date_col = st.selectbox("Select Date Column:", options=date_cols, key="cal_date_col_tab")
                 selected_date = st.date_input("Select Target Date:", value=datetime.date.today(), key="cal_target_date_tab")
@@ -1430,7 +1432,9 @@ def add_case_dialog(worker_name):
         form_data = {}
         cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"]]
         for col_name in cols:
-            if any(k in col_name.lower() for k in ['time', 'day']) and 'date' not in col_name.lower():
+            # 🌟 కేవలం కాలమ్ పేరులో 'date' ఉండి, 'prefer' లేకపోతేనే కేలండర్ వస్తుంది (Preferred Dates కి రాదు)
+            c_lower = col_name.lower()
+            if 'date' in c_lower and 'prefer' not in c_lower:
                 sel_date = st.date_input(f"{col_name}", value=datetime.date.today(), key=f"add_date_{col_name}")
                 form_data[col_name] = sel_date.strftime("%Y-%m-%d")
             else:
@@ -1458,6 +1462,8 @@ def add_case_dialog(worker_name):
                     
                 updated_target_df = pd.concat([target_df, pd.DataFrame([new_row])], ignore_index=True)
                 save_data(updated_target_df, sheet_name=selected_target_sheet)
+                
+                # 🌟 కేస్ సేవ్ అయిన వెంటనే పాపప్ క్లోజ్ అవ్వడానికి
                 st.session_state["open_dialog"] = None
                 st.success("✅ New case added successfully!")
                 st.rerun()
