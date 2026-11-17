@@ -123,8 +123,9 @@ def record_worker_logout(worker_name):
     time_str = now_dt.strftime("%I:%M:%S %p")
     
     logins = load_login_tracking()
-    if worker_name.strip() in logins:
-        logins[worker_name.strip()]["status"] = "Not Logged In"
+    for k in list(logins.keys()):
+        if k.lower() == worker_name.strip().lower():
+            logins[k]["status"] = "Not Logged In"
     with open(LOGINS_FILE, "w") as f:
         json.dump(logins, f, indent=4)
         
@@ -221,7 +222,7 @@ def find_visa_type_column(df):
             return c
     return None
 
-def toggle_all_workers_block(block_status: bool):
+def get_all_workers_list():
     sheets = get_sheet_names()
     all_workers = set()
     for s in sheets:
@@ -232,12 +233,36 @@ def toggle_all_workers_block(block_status: bool):
                 u = str(r[lc]).strip()
                 if u != "" and u.lower() != "admin":
                     all_workers.add(u)
+    return sorted(list(all_workers))
+
+def are_all_workers_blocked():
+    workers = get_all_workers_list()
+    if not workers:
+        return False
+    perms = load_permissions()
+    norm_perms = {k.lower(): v for k, v in perms.items()}
+    return all(norm_perms.get(w.lower(), {}).get("block_login", False) for w in workers)
+
+def is_worker_blocked(worker_name):
+    if not worker_name:
+        return False
+    perms = load_permissions()
+    for k, v in perms.items():
+        if k.lower() == worker_name.strip().lower():
+            return v.get("block_login", False)
+    return False
+
+def toggle_all_workers_block(block_status: bool):
+    all_workers = get_all_workers_list()
     current_perms = load_permissions()
     for w in all_workers:
-        if w not in current_perms:
-            current_perms[w] = {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": block_status}
+        matched_key = next((k for k in current_perms if k.lower() == w.lower()), w)
+        if matched_key not in current_perms:
+            current_perms[matched_key] = {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": block_status}
         else:
-            current_perms[w]["block_login"] = block_status
+            current_perms[matched_key]["block_login"] = block_status
+        if block_status:
+            record_worker_logout(w)
     save_permissions(current_perms)
 
 # 🌟 Session State & Query Params Initialization
@@ -254,13 +279,38 @@ if "attendance_recorded" not in st.session_state:
 if "selected_visa_filter" not in st.session_state:
     st.session_state["selected_visa_filter"] = "All"
 
+if "force_logged_out_msg" not in st.session_state:
+    st.session_state["force_logged_out_msg"] = False
+
 if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
-    st.session_state["logged_in"] = True
-    st.session_state["username"] = qp.get("username", "")
-    st.session_state["role"] = qp.get("role", "worker")
-    if qp.get("role") == "worker" and not st.session_state["attendance_recorded"]:
-        record_worker_login(qp.get("username", ""))
-        st.session_state["attendance_recorded"] = True
+    qp_role = qp.get("role", "worker")
+    qp_user = qp.get("username", "")
+    if qp_role == "worker" and is_worker_blocked(qp_user):
+        record_worker_logout(qp_user)
+        qp.clear()
+        st.session_state["force_logged_out_msg"] = True
+    else:
+        st.session_state["logged_in"] = True
+        st.session_state["username"] = qp_user
+        st.session_state["role"] = qp_role
+        if qp_role == "worker" and not st.session_state["attendance_recorded"]:
+            record_worker_login(qp_user)
+            st.session_state["attendance_recorded"] = True
+
+# 🌟 INSTANT FORCE LOGOUT CHECK FOR ACTIVE LOGGED-IN WORKERS
+if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
+    curr_w = st.session_state.get("username", "")
+    if is_worker_blocked(curr_w):
+        record_worker_logout(curr_w)
+        st.query_params.clear()
+        st.session_state["logged_in"] = False
+        st.session_state["username"] = ""
+        st.session_state["role"] = ""
+        st.session_state["attendance_recorded"] = False
+        st.session_state["open_dialog"] = None
+        st.session_state["selected_row_idx"] = None
+        st.session_state["force_logged_out_msg"] = True
+        st.rerun()
 
 if "open_dialog" not in st.session_state:
     st.session_state["open_dialog"] = None
@@ -923,24 +973,14 @@ def admin_notice_dialog():
 def admin_login_status_dialog():
     st.info("💡 View real-time login and active status of all case workers:")
     
-    sheets = get_sheet_names()
-    all_workers = set()
-    for s in sheets:
-        df_s = load_data(sheet_name=s)
-        if df_s is not None and not df_s.empty:
-            lc = find_login_user_column(df_s)
-            for _, r in df_s.iterrows():
-                u = str(r[lc]).strip()
-                if u != "" and u.lower() != "admin":
-                    all_workers.add(u)
-                    
+    all_workers = get_all_workers_list()
     login_records = load_login_tracking()
     normalized_login_records = {k.lower(): v for k, v in login_records.items()}
     
     logged_in_list = []
     not_logged_in_list = []
     
-    for w in sorted(list(all_workers)):
+    for w in all_workers:
         rec = normalized_login_records.get(w.lower(), {})
         status = rec.get("status", "Not Logged In")
         last_time = rec.get("last_login", "-")
@@ -1260,22 +1300,23 @@ def admin_delete_requests_dialog():
 def permissions_dialog():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 5px solid #10b981; padding: 12px 18px; border-radius: 8px; margin-bottom: 16px; color: #065f46; font-size: 14px; font-weight: 600;">
-            💡 Manage case worker credentials, login blocks, and access permissions below. Click the <b>"💾 Update"</b> button on any worker's card to save their changes immediately, or use the bulk buttons to block/unblock everyone at once.
+            💡 Manage case worker status (Active / Blocked), passwords, and permissions. Blocking a worker immediately logs them out!
         </div>
     """, unsafe_allow_html=True)
 
-    col_b1, col_b2 = st.columns(2, gap="medium")
-    with col_b1:
-        st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
-        if st.button("🔒 Block All Case Workers (At Once)", use_container_width=True, key="dlg_block_all_btn"):
-            toggle_all_workers_block(True)
-            st.success("✅ All case workers have been blocked!")
-            st.rerun()
-    with col_b2:
+    # 🌟 Single Toggle Button for All Workers (Active / Blocked)
+    all_blocked_now = are_all_workers_blocked()
+    if all_blocked_now:
         st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
-        if st.button("🔓 Unblock All Case Workers (At Once)", use_container_width=True, key="dlg_unblock_all_btn"):
+        if st.button("🔓 Activate All Workers (Currently: All Blocked)", use_container_width=True, key="dlg_toggle_all_btn"):
             toggle_all_workers_block(False)
-            st.success("✅ All case workers have been unblocked!")
+            st.success("✅ All case workers are now ACTIVE!")
+            st.rerun()
+    else:
+        st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+        if st.button("🔒 Block All Workers (Currently: Active)", use_container_width=True, key="dlg_toggle_all_btn"):
+            toggle_all_workers_block(True)
+            st.success("🔒 All case workers BLOCKED and logged out!")
             st.rerun()
 
     st.divider()
@@ -1301,16 +1342,40 @@ def permissions_dialog():
         st.warning("No case workers found.")
     else:
         for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
-            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False})
+            matched_key = next((k for k in current_perms if k.lower() == u_name.lower()), u_name)
+            w_perm = current_perms.get(matched_key, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False})
+            is_blocked = w_perm.get("block_login", False)
             
             with st.container(border=True):
-                st.markdown(f"""
-                    <div style="background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%); border-left: 4px solid #1e293b; padding: 8px 14px; border-radius: 6px; margin-bottom: 10px;">
-                        <span style="font-size: 15px; font-weight: 800; color: #1e293b;">👤 Case Worker: {u_name}</span>
-                    </div>
-                """, unsafe_allow_html=True)
+                hdr_c1, hdr_c2 = st.columns([2.5, 1.5], gap="small")
+                with hdr_c1:
+                    status_badge = "🔴 BLOCKED" if is_blocked else "🟢 ACTIVE"
+                    st.markdown(f"""
+                        <div style="background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%); border-left: 4px solid {'#b91c1c' if is_blocked else '#059669'}; padding: 10px 14px; border-radius: 6px; margin-bottom: 6px;">
+                            <span style="font-size: 15px; font-weight: 800; color: #1e293b;">👤 {u_name} &nbsp;|&nbsp; Status: {status_badge}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with hdr_c2:
+                    # 🌟 Single Toggle Button per Worker (Active / Block) with Instant Logout
+                    if is_blocked:
+                        st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button("🔓 Activate Worker", key=f"dlg_toggle_status_{idx}", use_container_width=True):
+                            w_perm["block_login"] = False
+                            current_perms[matched_key] = w_perm
+                            save_permissions(current_perms)
+                            st.success(f"✅ '{u_name}' is now ACTIVE!")
+                            st.rerun()
+                    else:
+                        st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button("🔒 Block Worker", key=f"dlg_toggle_status_{idx}", use_container_width=True):
+                            w_perm["block_login"] = True
+                            current_perms[matched_key] = w_perm
+                            save_permissions(current_perms)
+                            record_worker_logout(u_name)
+                            st.success(f"🔒 '{u_name}' BLOCKED & logged out!")
+                            st.rerun()
                 
-                c1, c2, c3, c4, c5, c6, c7, c_btn = st.columns([2.0, 0.9, 0.9, 0.9, 0.9, 0.9, 1.1, 1.3], gap="small")
+                c1, c2, c3, c4, c5, c6, c_btn = st.columns([2.1, 0.9, 0.9, 0.9, 0.9, 0.9, 1.4], gap="small")
                 
                 with c1:
                     new_pwd_val = st.text_input("Password", value=curr_pwd, type="default", key=f"dlg_p_{idx}")
@@ -1329,12 +1394,9 @@ def permissions_dialog():
                 with c6:
                     st.markdown("<div style='height: 26px;'></div>", unsafe_allow_html=True)
                     new_sync_val = st.checkbox("Sync", value=w_perm.get("can_sync", False), key=f"dlg_sync_{idx}")
-                with c7:
-                    st.markdown("<div style='height: 26px;'></div>", unsafe_allow_html=True)
-                    new_block_val = st.checkbox("Block Login", value=w_perm.get("block_login", False), key=f"dlg_block_{idx}")
                 with c_btn:
                     st.markdown("<div style='height: 22px;'></div>", unsafe_allow_html=True)
-                    if st.button("💾 Update", key=f"dlg_btn_upd_{idx}", type="primary", use_container_width=True):
+                    if st.button("💾 Save", key=f"dlg_btn_upd_{idx}", type="primary", use_container_width=True):
                         try:
                             all_sheets_data = {}
                             xls = pd.ExcelFile(EXCEL_FILE)
@@ -1352,16 +1414,16 @@ def permissions_dialog():
                                 for s, df_val in all_sheets_data.items():
                                     df_val.to_excel(writer, sheet_name=str(s), index=False)
                             
-                            current_perms[u_name] = {
+                            current_perms[matched_key] = {
                                 "can_update": new_upd_val,
                                 "can_add": new_add_val,
                                 "can_search": new_sch_val,
                                 "can_download": new_dl_val,
                                 "can_sync": new_sync_val,
-                                "block_login": new_block_val
+                                "block_login": is_blocked
                             }
                             save_permissions(current_perms)
-                            st.success(f"✅ Updated '{u_name}' successfully!")
+                            st.success(f"✅ Saved changes for '{u_name}'!")
                         except Exception as e:
                             st.error(f"❌ Error updating '{u_name}': {e}")
 
@@ -1575,9 +1637,11 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
 
 if not st.session_state["logged_in"]:
+    default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
     selected_page = st.radio(
         "Navigation",
         ["🏠 Home", "ℹ️ About Us", "✈️ Services", "⭐ Success Stories", "📞 Contact Us", "🔐 Portal Login"],
+        index=default_nav_idx,
         horizontal=True,
         label_visibility="collapsed"
     )
@@ -1704,6 +1768,9 @@ if not st.session_state["logged_in"]:
     elif selected_page == "🔐 Portal Login":
         col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
         with col_l2:
+            if st.session_state.get("force_logged_out_msg"):
+                st.error("⚠️ Your session was terminated because Admin blocked your account.")
+                st.session_state["force_logged_out_msg"] = False
             with st.container(border=True):
                 st.markdown("<h3 style='text-align:center; color:#1e293b;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
@@ -1733,15 +1800,7 @@ if not st.session_state["logged_in"]:
                                 st.query_params["role"] = "admin"
                                 st.rerun()
                             else:
-                                # Check if worker login is blocked by admin
-                                all_perms = load_permissions()
-                                is_blocked = False
-                                for w_key, w_val in all_perms.items():
-                                    if w_key.lower() == u_in.lower() and w_val.get("block_login", False):
-                                        is_blocked = True
-                                        break
-                                
-                                if is_blocked:
+                                if is_worker_blocked(u_in):
                                     st.error("❌ Your login access has been disabled by Admin. Please contact administrator.")
                                 else:
                                     logged_in_success = False
@@ -1837,7 +1896,6 @@ elif st.session_state["role"] == "admin":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
-        # 🌟 Switch Sheet Buttons inside Dashboard & Quick Actions Tab
         if sheets:
             st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
@@ -1914,19 +1972,19 @@ elif st.session_state["role"] == "admin":
                 st.session_state["open_dialog"] = "admin_password"
                 st.rerun()
 
-        # 🌟 One-Click Bulk Block / Unblock Workers on Dashboard
-        r3_c1, r3_c2 = st.columns(2, gap="medium")
-        with r3_c1:
-            st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
-            if st.button("🔒 Block All Case Workers Work (At Once)", use_container_width=True, key="dash_block_all_workers"):
-                toggle_all_workers_block(True)
-                st.success("✅ All case workers work/login blocked!")
-                st.rerun()
-        with r3_c2:
+        # 🌟 Single Toggle Button on Dashboard for All Workers (Active / Block) with Instant Logout
+        all_blocked_dash = are_all_workers_blocked()
+        if all_blocked_dash:
             st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
-            if st.button("🔓 Unblock All Case Workers Work (At Once)", use_container_width=True, key="dash_unblock_all_workers"):
+            if st.button("🔓 Activate All Workers (Currently: Blocked — Click to Enable)", use_container_width=True, key="dash_toggle_all_workers"):
                 toggle_all_workers_block(False)
-                st.success("✅ All case workers work/login unblocked!")
+                st.success("✅ All case workers are now ACTIVE!")
+                st.rerun()
+        else:
+            st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🔒 Block All Workers (Currently: Active — Click to Stop & Logout All)", use_container_width=True, key="dash_toggle_all_workers"):
+                toggle_all_workers_block(True)
+                st.success("🔒 All case workers BLOCKED and logged out immediately!")
                 st.rerun()
 
         st.divider()
@@ -2004,7 +2062,7 @@ elif st.session_state["role"] == "admin":
             st.markdown("""
                 <div class="corporate-card">
                     <h3>👥 User & Permission Management</h3>
-                    <p>Assign specific privileges (Update, Add, Search, Download, Sync, Block Login) to case workers to maintain strict security and accountability across all sheets.</p>
+                    <p>Assign specific privileges (Update, Add, Search, Download, Sync, Block/Activate Worker) to case workers to maintain strict security and accountability across all sheets.</p>
                 </div>
                 <div class="corporate-card">
                     <h3>🗑️ Delete Request Approvals</h3>
@@ -2035,7 +2093,8 @@ else:
     current_user = st.session_state["username"].strip()
     
     all_perms = load_permissions()
-    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False})
+    matched_w_key = next((k for k in all_perms if k.lower() == current_user.lower()), current_user)
+    worker_perm = all_perms.get(matched_w_key, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False})
     
     login_c = find_login_user_column(df)
     display_c = find_display_username_column(df)
