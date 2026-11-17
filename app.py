@@ -778,7 +778,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             for i, col_name in enumerate(cols_to_show):
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
-                    # 🌟 కేవలం కాలమ్ పేరులో సరిగ్గా 'date' ఉండి, 'prefer' లేదా 'preferred' లేకపోతేనే కేలండర్ వస్తుంది
                     c_lower = col_name.lower()
                     if 'date' in c_lower and 'prefer' not in c_lower:
                         try:
@@ -1242,7 +1241,7 @@ def admin_delete_requests_dialog():
 def permissions_dialog():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 5px solid #10b981; padding: 12px 18px; border-radius: 8px; margin-bottom: 16px; color: #065f46; font-size: 14px; font-weight: 600;">
-            💡 Manage case worker credentials and access permissions below. Click the <b>"💾 Update"</b> button on any worker's card to save their changes immediately.
+            💡 Manage case worker credentials, login blocks, and access permissions below. Click the <b>"💾 Update"</b> button on any worker's card to save their changes immediately.
         </div>
     """, unsafe_allow_html=True)
 
@@ -1267,7 +1266,7 @@ def permissions_dialog():
         st.warning("No case workers found.")
     else:
         for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
-            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
+            w_perm = current_perms.get(u_name, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False})
             
             with st.container(border=True):
                 st.markdown(f"""
@@ -1276,7 +1275,7 @@ def permissions_dialog():
                     </div>
                 """, unsafe_allow_html=True)
                 
-                c1, c2, c3, c4, c5, c6, c_btn = st.columns([2.2, 1.1, 1.1, 1.1, 1.1, 1.1, 1.5], gap="small")
+                c1, c2, c3, c4, c5, c6, c7, c_btn = st.columns([2.0, 0.9, 0.9, 0.9, 0.9, 0.9, 1.1, 1.3], gap="small")
                 
                 with c1:
                     new_pwd_val = st.text_input("Password", value=curr_pwd, type="default", key=f"dlg_p_{idx}")
@@ -1295,6 +1294,9 @@ def permissions_dialog():
                 with c6:
                     st.markdown("<div style='height: 26px;'></div>", unsafe_allow_html=True)
                     new_sync_val = st.checkbox("Sync", value=w_perm.get("can_sync", False), key=f"dlg_sync_{idx}")
+                with c7:
+                    st.markdown("<div style='height: 26px;'></div>", unsafe_allow_html=True)
+                    new_block_val = st.checkbox("Block Login", value=w_perm.get("block_login", False), key=f"dlg_block_{idx}")
                 with c_btn:
                     st.markdown("<div style='height: 22px;'></div>", unsafe_allow_html=True)
                     if st.button("💾 Update", key=f"dlg_btn_upd_{idx}", type="primary", use_container_width=True):
@@ -1320,7 +1322,8 @@ def permissions_dialog():
                                 "can_add": new_add_val,
                                 "can_search": new_sch_val,
                                 "can_download": new_dl_val,
-                                "can_sync": new_sync_val
+                                "can_sync": new_sync_val,
+                                "block_login": new_block_val
                             }
                             save_permissions(current_perms)
                             st.success(f"✅ Updated '{u_name}' successfully!")
@@ -1432,7 +1435,6 @@ def add_case_dialog(worker_name):
         form_data = {}
         cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"]]
         for col_name in cols:
-            # 🌟 కేవలం కాలమ్ పేరులో 'date' ఉండి, 'prefer' లేకపోతేనే కేలండర్ వస్తుంది (Preferred Dates కి రాదు)
             c_lower = col_name.lower()
             if 'date' in c_lower and 'prefer' not in c_lower:
                 sel_date = st.date_input(f"{col_name}", value=datetime.date.today(), key=f"add_date_{col_name}")
@@ -1463,7 +1465,6 @@ def add_case_dialog(worker_name):
                 updated_target_df = pd.concat([target_df, pd.DataFrame([new_row])], ignore_index=True)
                 save_data(updated_target_df, sheet_name=selected_target_sheet)
                 
-                # 🌟 కేస్ సేవ్ అయిన వెంటనే పాపప్ క్లోజ్ అవ్వడానికి
                 st.session_state["open_dialog"] = None
                 st.success("✅ New case added successfully!")
                 st.rerun()
@@ -1697,42 +1698,53 @@ if not st.session_state["logged_in"]:
                                 st.query_params["role"] = "admin"
                                 st.rerun()
                             else:
-                                logged_in_success = False
-                                matched_sheet = ""
-                                actual_matched_username = ""
-                                for s in sheets:
-                                    df_check = load_data(sheet_name=s)
-                                    if df_check is not None and not df_check.empty:
-                                        login_c = find_login_user_column(df_check)
-                                        p_col = find_password_column(df_check)
-                                        for _, r in df_check.iterrows():
-                                            db_user = str(r[login_c]).strip()
-                                            db_pass = str(r[p_col]).strip()
-                                            if db_user.lower() == u_in.lower() and db_pass == p_in:
-                                                logged_in_success = True
-                                                matched_sheet = s
-                                                actual_matched_username = db_user
-                                                break
-                                    if logged_in_success:
+                                # Check if worker login is blocked by admin
+                                all_perms = load_permissions()
+                                is_blocked = False
+                                for w_key, w_val in all_perms.items():
+                                    if w_key.lower() == u_in.lower() and w_val.get("block_login", False):
+                                        is_blocked = True
                                         break
                                 
-                                if logged_in_success:
-                                    record_worker_login(actual_matched_username)
-                                    st.session_state["logged_in"] = True
-                                    st.session_state["username"] = actual_matched_username
-                                    st.session_state["role"] = "worker"
-                                    st.session_state["active_sheet"] = matched_sheet
-                                    st.session_state["attendance_recorded"] = True
-                                    st.session_state["open_dialog"] = None
-                                    st.session_state["selected_row_idx"] = None
-                                    st.query_params.clear()
-                                    st.query_params["logged_in"] = "true"
-                                    st.query_params["username"] = actual_matched_username
-                                    st.query_params["role"] = "worker"
-                                    st.query_params["active_sheet"] = matched_sheet
-                                    st.rerun()
+                                if is_blocked:
+                                    st.error("❌ Your login access has been disabled by Admin. Please contact administrator.")
                                 else:
-                                    st.error("❌ Incorrect Username or Password!")
+                                    logged_in_success = False
+                                    matched_sheet = ""
+                                    actual_matched_username = ""
+                                    for s in sheets:
+                                        df_check = load_data(sheet_name=s)
+                                        if df_check is not None and not df_check.empty:
+                                            login_c = find_login_user_column(df_check)
+                                            p_col = find_password_column(df_check)
+                                            for _, r in df_check.iterrows():
+                                                db_user = str(r[login_c]).strip()
+                                                db_pass = str(r[p_col]).strip()
+                                                if db_user.lower() == u_in.lower() and db_pass == p_in:
+                                                    logged_in_success = True
+                                                    matched_sheet = s
+                                                    actual_matched_username = db_user
+                                                    break
+                                        if logged_in_success:
+                                            break
+                                    
+                                    if logged_in_success:
+                                        record_worker_login(actual_matched_username)
+                                        st.session_state["logged_in"] = True
+                                        st.session_state["username"] = actual_matched_username
+                                        st.session_state["role"] = "worker"
+                                        st.session_state["active_sheet"] = matched_sheet
+                                        st.session_state["attendance_recorded"] = True
+                                        st.session_state["open_dialog"] = None
+                                        st.session_state["selected_row_idx"] = None
+                                        st.query_params.clear()
+                                        st.query_params["logged_in"] = "true"
+                                        st.query_params["username"] = actual_matched_username
+                                        st.query_params["role"] = "worker"
+                                        st.query_params["active_sheet"] = matched_sheet
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Incorrect Username or Password!")
 
 elif st.session_state["role"] == "admin":
     sheets = get_sheet_names()
@@ -1926,7 +1938,7 @@ elif st.session_state["role"] == "admin":
             st.markdown("""
                 <div class="corporate-card">
                     <h3>👥 User & Permission Management</h3>
-                    <p>Assign specific privileges (Update, Add, Search, Download, Sync) to case workers to maintain strict security and accountability across all sheets.</p>
+                    <p>Assign specific privileges (Update, Add, Search, Download, Sync, Block Login) to case workers to maintain strict security and accountability across all sheets.</p>
                 </div>
                 <div class="corporate-card">
                     <h3>🗑️ Delete Request Approvals</h3>
@@ -1957,7 +1969,7 @@ else:
     current_user = st.session_state["username"].strip()
     
     all_perms = load_permissions()
-    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False})
+    worker_perm = all_perms.get(current_user, {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": False})
     
     login_c = find_login_user_column(df)
     display_c = find_display_username_column(df)
