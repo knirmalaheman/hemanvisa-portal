@@ -280,7 +280,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🎨 HIGH-END BUSINESS STYLING & EXACT IMAGE MATCH BUTTON COLORS
+# 🎨 EXACT STYLING: ONLY VISA PILLS & WORKSPACE TOOLS MATCHING IMAGES
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -514,7 +514,7 @@ st.markdown("""
         margin: 10px 0 6px 2px;
     }
 
-    /* 🎨 DEFAULT BUTTONS */
+    /* 🎨 STANDARD DEFAULT BUTTONS */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 46px !important;
@@ -531,7 +531,7 @@ st.markdown("""
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
     }
 
-    /* 🌟 EXACT IMAGE MATCH: Visa Category Pill Buttons (Soft Pastel)[cite: 4] */
+    /* 🌟 EXACT IMAGE 2 MATCH: Visa Category Pill Buttons (Soft Pastel)[cite: 4] */
     div[data-testid="stVerticalBlock"]:has(.visa-anchor) + div [data-testid="column"]:nth-child(1) .stButton > button {
         background: #e1effe !important;
         color: #1e429f !important;
@@ -557,7 +557,7 @@ st.markdown("""
         border-radius: 999px !important;
     }
 
-    /* 🌟 EXACT IMAGE MATCH: Workspace Tools Row Button Styles[cite: 4] */
+    /* 🌟 EXACT IMAGE 2 MATCH: Workspace Tools Row Button Styles[cite: 4] */
     div[data-testid="stVerticalBlock"]:has(.workspace-anchor) + div [data-testid="column"]:nth-child(1) .stButton > button {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
         color: #ffffff !important;
@@ -591,39 +591,6 @@ st.markdown("""
         border-radius: 10px !important;
     }
 
-    /* 🎨 Admin Management Quick Action Buttons (Gorgeous Business Colors) */
-    /* 1. New / Updated Cases: Emerald */
-    button[aria-label*="New / Updated"] {
-        background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
-    }
-    /* 2. Delete Requests: Crimson */
-    button[aria-label*="Delete Requests"] {
-        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
-    }
-    /* 3. Sync Excel: Vibrant Blue */
-    button[aria-label*="Sync"] {
-        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
-    }
-    /* 4. Broadcast Notice: Amber / Orange */
-    button[aria-label*="Notice"] {
-        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
-    }
-    /* 5. Users & Permissions: Purple */
-    button[aria-label*="Users & Permissions"] {
-        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%) !important;
-    }
-    /* 6. Worker Login Status: Teal */
-    button[aria-label*="Login Status"] {
-        background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%) !important;
-    }
-    /* 7. Attendance Report: Indigo */
-    button[aria-label*="Attendance"] {
-        background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
-    }
-    /* 8. Admin Password / Refresh: Slate */
-    button[aria-label*="Password"], button[aria-label*="Refresh"] {
-        background: linear-gradient(135deg, #475569 0%, #64748b 100%) !important;
-    }
     /* 🚪 Logout Red Accent */
     button[aria-label*="Logout"] {
         background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
