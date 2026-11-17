@@ -221,6 +221,25 @@ def find_visa_type_column(df):
             return c
     return None
 
+def toggle_all_workers_block(block_status: bool):
+    sheets = get_sheet_names()
+    all_workers = set()
+    for s in sheets:
+        df_s = load_data(sheet_name=s)
+        if df_s is not None and not df_s.empty:
+            lc = find_login_user_column(df_s)
+            for _, r in df_s.iterrows():
+                u = str(r[lc]).strip()
+                if u != "" and u.lower() != "admin":
+                    all_workers.add(u)
+    current_perms = load_permissions()
+    for w in all_workers:
+        if w not in current_perms:
+            current_perms[w] = {"can_update": True, "can_add": True, "can_search": True, "can_download": False, "can_sync": False, "block_login": block_status}
+        else:
+            current_perms[w]["block_login"] = block_status
+    save_permissions(current_perms)
+
 # 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
@@ -1241,9 +1260,25 @@ def admin_delete_requests_dialog():
 def permissions_dialog():
     st.markdown("""
         <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 5px solid #10b981; padding: 12px 18px; border-radius: 8px; margin-bottom: 16px; color: #065f46; font-size: 14px; font-weight: 600;">
-            💡 Manage case worker credentials, login blocks, and access permissions below. Click the <b>"💾 Update"</b> button on any worker's card to save their changes immediately.
+            💡 Manage case worker credentials, login blocks, and access permissions below. Click the <b>"💾 Update"</b> button on any worker's card to save their changes immediately, or use the bulk buttons to block/unblock everyone at once.
         </div>
     """, unsafe_allow_html=True)
+
+    col_b1, col_b2 = st.columns(2, gap="medium")
+    with col_b1:
+        st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+        if st.button("🔒 Block All Case Workers (At Once)", use_container_width=True, key="dlg_block_all_btn"):
+            toggle_all_workers_block(True)
+            st.success("✅ All case workers have been blocked!")
+            st.rerun()
+    with col_b2:
+        st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
+        if st.button("🔓 Unblock All Case Workers (At Once)", use_container_width=True, key="dlg_unblock_all_btn"):
+            toggle_all_workers_block(False)
+            st.success("✅ All case workers have been unblocked!")
+            st.rerun()
+
+    st.divider()
 
     sheets = get_sheet_names()
     all_users_dict = {}
@@ -1802,6 +1837,22 @@ elif st.session_state["role"] == "admin":
                 visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
+        # 🌟 Switch Sheet Buttons inside Dashboard & Quick Actions Tab
+        if sheets:
+            st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
+            sw_cols = st.columns(len(sheets), gap="small")
+            for idx, s_name in enumerate(sheets):
+                with sw_cols[idx]:
+                    is_active = (s_name == current_sheet)
+                    color_cls = "admin-btn-1" if is_active else "admin-btn-6"
+                    btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
+                    st.markdown(f'<span class="{color_cls}" style="display:none;"></span>', unsafe_allow_html=True)
+                    if st.button(btn_txt, key=f"dash_switch_sheet_{s_name}_{idx}", use_container_width=True):
+                        st.session_state["active_sheet"] = s_name
+                        st.query_params["active_sheet"] = s_name
+                        st.rerun()
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
@@ -1861,6 +1912,21 @@ elif st.session_state["role"] == "admin":
             st.markdown('<span class="admin-btn-0" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔑 Admin Password", use_container_width=True, key="admin_pw_btn"):
                 st.session_state["open_dialog"] = "admin_password"
+                st.rerun()
+
+        # 🌟 One-Click Bulk Block / Unblock Workers on Dashboard
+        r3_c1, r3_c2 = st.columns(2, gap="medium")
+        with r3_c1:
+            st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🔒 Block All Case Workers Work (At Once)", use_container_width=True, key="dash_block_all_workers"):
+                toggle_all_workers_block(True)
+                st.success("✅ All case workers work/login blocked!")
+                st.rerun()
+        with r3_c2:
+            st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🔓 Unblock All Case Workers Work (At Once)", use_container_width=True, key="dash_unblock_all_workers"):
+                toggle_all_workers_block(False)
+                st.success("✅ All case workers work/login unblocked!")
                 st.rerun()
 
         st.divider()
