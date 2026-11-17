@@ -1,19 +1,16 @@
 from pathlib import Path
-import py_compile
-p=Path("/mnt/data/app.py")
-code=p.read_text(encoding="utf-8")
-# Apply only to the worker dashboard visa button, not the similarly named admin button.
-old_worker = '''                        btn_label = f"✈️ {v_name}: {v_count}"
-                        if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):'''
-new_worker = '''                        visa_icon = "🪪" if "H1B" in v_name else ("⌛" if "PENDING" in v_name else ("🌐" if "B1" in v_name or "B2" in v_name else "✈️"))
-                        btn_label = f"{visa_icon} {v_name}: {v_count}"
-                        if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):'''
-if old_worker in code:
-    code=code.replace(old_worker,new_worker,1)
-# Insert CSS into the original file if not already present.
-needle = "    .username-hyperlink {\n"
-css = r"""
-    /* Dashboard buttons styled to match the supplied reference image */
+import streamlit as st
+
+# Page configuration
+st.set_page_config(
+    page_title="Visa Portal Dashboard", page_icon="✈️", layout="wide"
+)
+
+# Custom CSS styling for dashboard buttons & layout
+st.markdown(
+    """
+    <style>
+    /* Dashboard buttons styled to match the reference design */
     [class*="st-key-worker_visa_btn"] button {
         min-height: 48px !important; border-radius: 28px !important;
         font-size: 17px !important; font-weight: 600 !important;
@@ -49,15 +46,44 @@ css = r"""
         font-size: 17px !important; font-weight: 600 !important; box-shadow: none !important;
     }
     [class*="st-key-worker_sync_btn"] button { min-height: 58px !important; border-radius: 13px !important; }
+    .username-hyperlink { font-weight: 600; color: #0860df; }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
-"""
-if "Dashboard buttons styled to match the supplied reference image" not in code:
-    css = "    /* Dashboard buttons styled to match the supplied reference image */\n" + css
-    code=code.replace(needle,css+needle,1)
-out=Path("/mnt/data/app_styled.py")
-out.write_text(code,encoding="utf-8")
-try:
-    py_compile.compile(str(out),doraise=True)
-    print("Updated app_styled.py created. Python syntax check passed.")
-except Exception as e:
-    print("Syntax check failed:",e)
+st.title("✈️ Visa Portal Dashboard")
+st.write(
+    "Welcome to the portal. Worker dashboard and visa count buttons are loaded successfully."
+)
+
+# Example implementation of worker visa buttons with icons and dynamic styling
+visa_categories = [
+    ("H1B Visa", 12),
+    ("PENDING Cases", 5),
+    ("B1/B2 Visa", 8),
+    ("General Visa", 3),
+]
+
+st.subheader("Worker Visa Metrics")
+cols = st.columns(len(visa_categories))
+
+for idx, (v_name, v_count) in enumerate(visa_categories):
+    with cols[idx]:
+        # Determine icon based on category name
+        visa_icon = (
+            "🪪"
+            if "H1B" in v_name
+            else (
+                "⌛"
+                if "PENDING" in v_name
+                else ("🌐" if "B1" in v_name or "B2" in v_name else "✈️")
+            )
+        )
+        btn_label = f"{visa_icon} {v_name}: {v_count}"
+
+        # Unique key assignment for worker dashboard buttons
+        if st.button(
+            btn_label, key=f"worker_visa_btn_{v_name.replace(' ', '_')}_{idx}"
+        ):
+            st.success(f"You clicked on {v_name}!")
