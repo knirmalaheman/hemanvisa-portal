@@ -285,7 +285,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 LOGO-INSPIRED THEME STYLING (Dynamic Logo Color Palette matching)
+# 🌟 HIGH-END CORPORATE STYLING & ELITE KPI CARDS SYSTEM
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -297,10 +297,10 @@ st.markdown("""
         left: 0;
         width: 100%;
         z-index: 999999;
-        background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 50%, #415a77 100%);
+        background: linear-gradient(135deg, #070f24 0%, #0f1c3f 50%, #172554 100%);
         padding: 10px 28px;
-        border-bottom: 3px solid #e0a96d;
-        box-shadow: 0 8px 30px rgba(13, 27, 42, 0.45);
+        border-bottom: 3px solid #d4af37;
+        box-shadow: 0 10px 35px rgba(7, 15, 36, 0.65);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -313,9 +313,10 @@ st.markdown("""
     .sticky-top-banner img {
         max-height: 62px;
         width: auto;
-        border-radius: 6px;
+        border-radius: 8px;
         background: #ffffff;
-        padding: 2px;
+        padding: 3px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     .banner-middle {
         text-align: center;
@@ -327,17 +328,17 @@ st.markdown("""
         font-size: 19px;
         font-weight: 800;
         color: #ffffff;
-        letter-spacing: 1.2px;
+        letter-spacing: 1.5px;
         text-transform: uppercase;
         margin-bottom: 2px;
-        text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        text-shadow: 0 2px 8px rgba(0,0,0,0.6);
     }
     .world-map-subtitle {
         font-size: 12px;
         font-weight: 700;
-        color: #e0a96d;
-        letter-spacing: 1.5px;
-        text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        color: #fde047;
+        letter-spacing: 1.8px;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.6);
     }
     .banner-info {
         display: flex;
@@ -349,18 +350,20 @@ st.markdown("""
         color: #e2e8f0;
     }
     .banner-badge {
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        padding: 6px 12px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 6px 14px;
         border-radius: 8px;
         display: flex;
         align-items: center;
         gap: 6px;
-        transition: all 0.2s ease;
+        backdrop-filter: blur(8px);
+        transition: all 0.25s ease;
     }
     .banner-badge:hover {
-        background: rgba(255, 255, 255, 0.22);
-        border-color: #e0a96d;
+        background: rgba(255, 255, 255, 0.18);
+        border-color: #d4af37;
+        transform: translateY(-1px);
     }
     .banner-info a {
         color: #ffffff;
@@ -370,10 +373,11 @@ st.markdown("""
         display: flex;
         gap: 8px;
         align-items: center;
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        padding: 5px 10px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 5px 12px;
         border-radius: 8px;
+        backdrop-filter: blur(8px);
     }
     .social-icons img {
         height: 20px;
@@ -389,19 +393,20 @@ st.markdown("""
         max-width: 1400px !important;
     }
     .hero-section {
-        background: linear-gradient(135deg, #1b263b 0%, #415a77 50%, #1b263b 100%);
+        background: linear-gradient(135deg, #0f1c3f 0%, #172554 50%, #0a1128 100%);
         color: white;
         padding: 52px 32px;
-        border-radius: 14px;
+        border-radius: 16px;
         text-align: center;
         margin-bottom: 26px;
-        box-shadow: 0 10px 30px rgba(27, 38, 59, 0.3);
+        box-shadow: 0 12px 35px rgba(15, 28, 63, 0.4);
+        border: 1px solid rgba(255,255,255,0.1);
     }
     .hero-title {
         font-size: 36px;
         font-weight: 800;
         margin-bottom: 14px;
-        letter-spacing: 0.4px;
+        letter-spacing: 0.5px;
     }
     .hero-subtitle {
         font-size: 16px;
@@ -414,110 +419,129 @@ st.markdown("""
     }
     .corporate-card {
         background: #ffffff;
-        padding: 22px 24px;
-        border-radius: 12px;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-        border: 1px solid #cbd5e1;
-        border-top: 4px solid #1b263b;
+        padding: 24px;
+        border-radius: 14px;
+        box-shadow: 0 8px 25px rgba(15, 23, 42, 0.06);
+        border: 1px solid #e2e8f0;
+        border-top: 4px solid #172554;
         height: 100%;
         margin-bottom: 14px;
+        transition: all 0.2s ease;
+    }
+    .corporate-card:hover {
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
+        transform: translateY(-2px);
     }
     .corporate-card h3 {
-        color: #1b263b;
+        color: #172554;
         font-size: 18px;
         font-weight: 700;
         margin-bottom: 8px;
     }
     .corporate-card p {
-        color: #334155;
+        color: #475569;
         font-size: 14px;
-        line-height: 1.55;
+        line-height: 1.6;
         margin: 0;
     }
     .marquee-container {
-        background: linear-gradient(90deg, #1b263b 0%, #415a77 100%);
+        background: linear-gradient(90deg, #0f1c3f 0%, #172554 100%);
         color: white;
         padding: 12px 18px;
         border-radius: 10px;
         font-weight: 700;
         font-size: 14px;
         margin-bottom: 20px !important;
-        box-shadow: 0 4px 14px rgba(27, 38, 59, 0.3);
+        box-shadow: 0 6px 18px rgba(15, 28, 63, 0.3);
         overflow: hidden;
         white-space: nowrap;
-        border-left: 5px solid #e0a96d;
+        border-left: 5px solid #d4af37;
     }
     .sticky-control-panel {
         position: sticky;
         top: 96px;
         z-index: 99998;
         background-color: #ffffff;
-        padding: 8px 0 10px 0;
+        padding: 10px 0 12px 0;
         border-bottom: 2px solid #e2e8f0;
-        margin-bottom: 14px;
+        margin-bottom: 16px;
     }
+    
+    /* 🌟 ELITE GLASSMORPHIC KPI CARDS (ULTRA-PROFESSIONAL LOOK) */
     .kpi-card {
-        background: linear-gradient(135deg, #1b263b 0%, #415a77 100%);
+        background: linear-gradient(135deg, #0f1c3f 0%, #172554 100%);
         color: white;
-        padding: 18px 14px;
-        border-radius: 12px;
-        box-shadow: 0 8px 22px rgba(65, 90, 119, 0.25);
+        padding: 22px 16px;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(15, 28, 63, 0.3);
         text-align: center;
-        border-bottom: 4px solid #e0a96d;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-bottom: 4px solid #3b82f6;
         margin-bottom: 12px;
-        height: 100px;
+        height: 115px;
         width: 100%;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         box-sizing: border-box;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 35px rgba(23, 37, 84, 0.4);
+        border-color: rgba(255, 255, 255, 0.3);
     }
     .kpi-card.gold {
-        background: linear-gradient(135deg, #b45309 0%, #e0a96d 100%);
-        border-bottom: 4px solid #1b263b;
+        background: linear-gradient(135deg, #78350f 0%, #b45309 100%);
+        border-bottom: 4px solid #fbbf24;
     }
     .kpi-card.green {
-        background: linear-gradient(135deg, #047857 0%, #10b981 100%);
-        border-bottom: 4px solid #e0a96d;
+        background: linear-gradient(135deg, #064e3b 0%, #047857 100%);
+        border-bottom: 4px solid #34d399;
     }
     .kpi-card.purple {
-        background: linear-gradient(135deg, #415a77 0%, #778da9 100%);
-        border-bottom: 4px solid #e0a96d;
+        background: linear-gradient(135deg, #312e81 0%, #4338ca 100%);
+        border-bottom: 4px solid #818cf8;
     }
     .kpi-title {
         font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        opacity: 0.95;
+        letter-spacing: 1.4px;
+        opacity: 0.9;
         margin-bottom: 6px;
         line-height: 1.2;
         font-weight: 700;
+        color: #f8fafc;
     }
     .kpi-value {
-        font-size: 26px;
+        font-size: 30px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
+        letter-spacing: 0.5px;
+        text-shadow: 0 2px 6px rgba(0,0,0,0.35);
     }
+
     .section-banner {
-        background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 100%);
-        border-left: 5px solid #1b263b;
-        padding: 11px 18px;
+        background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
+        border-left: 5px solid #172554;
+        padding: 12px 18px;
         border-radius: 8px;
         margin: 8px 0px;
         font-weight: 800;
-        color: #1b263b;
+        color: #172554;
         font-size: 16px;
-        box-shadow: 0 3px 10px rgba(27, 38, 59, 0.08);
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
+        border: 1px solid #e2e8f0;
     }
     .action-group-title {
         font-size: 13px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.8px;
-        color: #1b263b;
-        margin: 10px 0 6px 2px;
+        letter-spacing: 0.9px;
+        color: #1e293b;
+        margin: 12px 0 8px 2px;
     }
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
@@ -527,34 +551,34 @@ st.markdown("""
         font-size: 14px !important;
         padding: 10px 16px !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        box-shadow: 0 4px 14px rgba(27, 38, 59, 0.2);
+        border: 1px solid rgba(255,255,255,0.25) !important;
+        box-shadow: 0 4px 14px rgba(23, 37, 84, 0.2);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
         transition: all 0.22s ease;
         white-space: nowrap !important;
-        background: linear-gradient(135deg, #1b263b 100%, #415a77 0%) !important;
+        background: linear-gradient(135deg, #172554 100%, #1e40af 0%) !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(27, 38, 59, 0.35);
+        box-shadow: 0 8px 20px rgba(23, 37, 84, 0.35);
         opacity: 0.95;
     }
     .username-hyperlink {
-        color: #1b263b !important;
+        color: #172554 !important;
         text-decoration: underline !important;
         font-weight: 700 !important;
         cursor: pointer !important;
     }
     .username-hyperlink:hover {
-        color: #415a77 !important;
+        color: #2563eb !important;
     }
     div[data-testid="stRadio"] > div {
         flex-direction: row !important;
         flex-wrap: wrap !important;
         gap: 12px !important;
         background: #f8fafc;
-        padding: 8px 14px;
+        padding: 10px 16px;
         border-radius: 10px;
         border: 1px solid #cbd5e1;
     }
@@ -768,12 +792,12 @@ def render_clickable_table(df, display_c, p_col):
     <div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">
     <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
         <thead>
-            <tr style="background: linear-gradient(135deg, #1b263b 0%, #415a77 100%); color: white; position: sticky; top: 0; z-index: 1;">
-                <th style="padding: 12px 10px; border: 1px solid #415a77; text-align: center;">#</th>
+            <tr style="background: linear-gradient(135deg, #172554 0%, #1e40af 100%); color: white; position: sticky; top: 0; z-index: 1;">
+                <th style="padding: 12px 10px; border: 1px solid #1e40af; text-align: center;">#</th>
     """
     for col in display_cols:
-        html += f'<th style="padding: 12px 10px; border: 1px solid #415a77; text-align: left; white-space: nowrap;">{col}</th>'
-    html += '<th style="padding: 12px 10px; border: 1px solid #415a77; text-align: left; white-space: nowrap;">Status</th>'
+        html += f'<th style="padding: 12px 10px; border: 1px solid #1e40af; text-align: left; white-space: nowrap;">{col}</th>'
+    html += '<th style="padding: 12px 10px; border: 1px solid #1e40af; text-align: left; white-space: nowrap;">Status</th>'
     html += "</tr></thead><tbody>"
 
     for idx, row in df.iterrows():
@@ -919,7 +943,6 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 Worker Report Dialog with Today's, Total, and Visa Type-wise Breakdown
 @st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
     st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types:")
@@ -947,19 +970,16 @@ def admin_worker_wise_report_dialog():
                 if v_type == "" or v_type == "NAN":
                     v_type = "Unspecified"
                 
-                # Total Cases Stats (Worker-wise)
                 if w_name not in total_worker_stats:
                     total_worker_stats[w_name] = {"Total Cases": 0, "Visa_Breakdown": {}, "Sheets": set()}
                 total_worker_stats[w_name]["Total Cases"] += 1
                 total_worker_stats[w_name]["Sheets"].add(s)
                 total_worker_stats[w_name]["Visa_Breakdown"][v_type] = total_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
                 
-                # Visa Type Stats (Global)
                 if v_type not in visa_type_stats:
                     visa_type_stats[v_type] = 0
                 visa_type_stats[v_type] += 1
                 
-                # Today's Cases Check
                 is_today = False
                 for dc in date_cols:
                     val_str = str(r.get(dc, "")).strip()
@@ -1167,7 +1187,6 @@ def admin_delete_requests_dialog():
                             st.success("❌ Delete request rejected. Marked as Rejected for worker.")
                             st.rerun()
 
-# 🌟 Professional Card-Style Permissions Dialog with Individual "Update" Button per Case Worker
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
     st.markdown("""
@@ -1201,8 +1220,8 @@ def permissions_dialog():
             
             with st.container(border=True):
                 st.markdown(f"""
-                    <div style="background: linear-gradient(90deg, #f1f5f9 0%, #f8fafc 100%); border-left: 4px solid #1b263b; padding: 8px 14px; border-radius: 6px; margin-bottom: 10px;">
-                        <span style="font-size: 15px; font-weight: 800; color: #1b263b;">👤 Case Worker: {u_name}</span>
+                    <div style="background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%); border-left: 4px solid #172554; padding: 8px 14px; border-radius: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 15px; font-weight: 800; color: #172554;">👤 Case Worker: {u_name}</span>
                     </div>
                 """, unsafe_allow_html=True)
                 
@@ -1549,21 +1568,21 @@ if not st.session_state["logged_in"]:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"HemanVisa made my Canada study visa process extremely smooth. The case workers were responsive and professional!"</p>
-                    <b style="color:#1b263b;">— Rajesh K. (Canada PR)</b>
+                    <b style="color:#172554;">— Rajesh K. (Canada PR)</b>
                 </div>
             """, unsafe_allow_html=True)
         with t2:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"Extremely grateful for the prompt documentation and regular status updates. Got my US work visa approved without any hassle."</p>
-                    <b style="color:#1b263b;">— Sneha R. (USA Work Visa)</b>
+                    <b style="color:#172554;">— Sneha R. (USA Work Visa)</b>
                 </div>
             """, unsafe_allow_html=True)
         with t3:
             st.markdown("""
                 <div class="corporate-card">
                     <p>"Best consulting firm with transparent pricing and dedicated case officers. Highly recommended for anyone planning abroad."</p>
-                    <b style="color:#1b263b;">— Anil M. (UK Student Visa)</b>
+                    <b style="color:#172554;">— Anil M. (UK Student Visa)</b>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -1593,7 +1612,7 @@ if not st.session_state["logged_in"]:
         col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
         with col_l2:
             with st.container(border=True):
-                st.markdown("<h3 style='text-align:center; color:#1b263b;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='text-align:center; color:#172554;'>🔐 Portal Login</h3>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align:center; font-size:13px; color:gray;'>Admin & Case Worker Secure Access</p>", unsafe_allow_html=True)
                 sheets = get_sheet_names()
                 if not sheets:
