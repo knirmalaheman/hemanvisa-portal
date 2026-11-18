@@ -2657,7 +2657,7 @@ elif admin_dash_tab == "📂 Case Records & Search":
                 key="admin_dl_all_btn"
             )
 
-    elif admin_dash_tab == "ℹ️ System Guidelines":
+elif admin_dash_tab == "ℹ️ System Guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
         g1, g2 = st.columns(2, gap="medium")
         with g1:
