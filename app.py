@@ -2462,7 +2462,7 @@ elif st.session_state["role"] == "admin":
         v_series = v_series[v_series != ""]
         visa_counts = v_series.value_counts().to_dict()
 
-   if admin_dash_tab == "📊 Dashboard & Quick Actions":
+if admin_dash_tab == "📊 Dashboard & Quick Actions":
         if sheets:
             st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
