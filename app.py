@@ -2647,13 +2647,7 @@ else:
             visa_counts = v_series.value_counts().to_dict()
 if worker_dash_tab == "📊 My Workspace":
         admin_notice = get_admin_notice()
-        if admin_notice:
-            st.markdown(f"""
-                <div class="marquee-container">
-                    <marquee scrollamount="5">📢 <b>Admin Announcement / Note:</b> {admin_notice}</marquee>
-                </div>
-            """, unsafe_allow_html=True)
-
+        
         # --- ఇక్కడ నుండి Lead Filter Logic యాడ్ చేయండి ---
         if "worker_selected_lead" not in st.session_state:
             st.session_state["worker_selected_lead"] = "All"
