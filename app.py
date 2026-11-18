@@ -19,7 +19,12 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
 
-st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
+st.set_page_config(
+    page_title="HemanVisa Portal", 
+    page_icon="✈️", 
+    layout="wide", 
+    initial_sidebar_state="expanded"  # <-- ఇది సైడ్‌బార్ ఎప్పుడూ ఓపెన్‌గా ఉండేలా చేస్తుంది
+)
 
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
