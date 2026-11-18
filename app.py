@@ -428,6 +428,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
+# --- STYLING SETUP ---
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -599,15 +600,6 @@ st.markdown("""
         white-space: nowrap;
         border-left: 5px solid #d4af37;
     }
-    .sticky-control-panel {
-        position: sticky;
-        top: 96px;
-        z-index: 99998;
-        background-color: #ffffff;
-        padding: 10px 0 12px 0;
-        border-bottom: 2px solid #e2e8f0;
-        margin-bottom: 16px;
-    }
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -760,15 +752,6 @@ st.markdown("""
     }
     .username-hyperlink:hover {
         color: #2563eb !important;
-    }
-    div[data-testid="stRadio"] > div {
-        flex-direction: row !important;
-        flex-wrap: wrap !important;
-        gap: 12px !important;
-        background: #f8fafc;
-        padding: 10px 16px;
-        border-radius: 10px;
-        border: 1px solid #cbd5e1;
     }
     div[data-testid="stExpander"] {
         width: 100% !important;
@@ -1212,7 +1195,6 @@ def admin_pdf_download_dialog():
                         "sheet": s
                     }
 
-    # Bayata Overall Search Bar (Case Username or File Name)
     search_query = st.text_input("🔍 Search PDFs by Case Username or Filename across all folders:", placeholder="Type case username here...", key="pdf_overall_search").strip().lower()
 
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
@@ -1383,7 +1365,7 @@ def admin_notice_dialog():
     st.info("💡 Add or update the scrolling marquee notice for all case workers:")
     
     with st.form("admin_notice_form"):
-        notice_input = st.text_area("Notice Text:", value=current_notice, placeholder="e.g., All case workers must complete pending cases by today...")
+        notice_input = st.text_input("Notice Text:", value=current_notice, placeholder="e.g., All case workers must complete pending cases by today...")
         col_save_n, col_clear_n = st.columns(2)
         with col_save_n:
             submitted_notice = st.form_submit_button("💾 Save Notice", type="primary", use_container_width=True)
@@ -2069,18 +2051,62 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
 
-if not st.session_state["logged_in"]:
-    default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
-    selected_page = st.radio(
-        "Navigation",
-        ["🏠 Home", "ℹ️ About Us", "✈️ Services", "⭐ Success Stories", "📞 Contact Us", "🔐 Portal Login"],
-        index=default_nav_idx,
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+# --- SIDEBAR TABS & NAVIGATION SETUP ---
+with st.sidebar:
+    found_logo_sb = next((f for f in LOGO_FILES if os.path.exists(f)), None)
+    if found_logo_sb:
+        st.image(found_logo_sb, width=100)
+    st.markdown("### 🌐 GLOBAL VISA & IMMIGRATION")
+    st.markdown("<p style='color: #38bdf8; font-size: 12px;'>Your Gateway to Study, Work & Travel Worldwide</p>", unsafe_allow_html=True)
+    st.markdown("---")
     
-    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+    if not st.session_state["logged_in"]:
+        default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
+        selected_page = st.radio(
+            "📌 నావిగేషన్ (Navigation)",
+            ["🏠 Home", "ℹ️ About Us", "✈️ Services", "⭐ Success Stories", "📞 Contact Us", "🔐 Portal Login"],
+            index=default_nav_idx,
+            key="guest_sidebar_radio"
+        )
+    else:
+        curr_role_sb = st.session_state.get("role", "")
+        if curr_role_sb == "admin":
+            st.markdown("### 👑 Admin Navigation")
+            selected_page = st.radio(
+                "Admin Options",
+                ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
+                key="admin_sidebar_radio"
+            )
+        else:
+            curr_user_sb = st.session_state.get("username", "")
+            st.markdown(f"### 👋 {curr_user_sb}")
+            selected_page = st.radio(
+                "Worker Options",
+                ["📊 My Workspace", "ℹ️ Case Worker Guide"],
+                key="worker_sidebar_radio"
+            )
+        
+        st.markdown("---")
+        if st.button("🔄 Refresh", key="sidebar_refresh_btn", use_container_width=True):
+            st.cache_data.clear()
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
+            st.rerun()
+        if st.button("🚪 Logout", key="sidebar_logout_btn", use_container_width=True):
+            if curr_role_sb == "worker":
+                record_worker_logout(st.session_state.get("username", ""))
+            st.query_params.clear()
+            st.session_state["logged_in"] = False
+            st.session_state["username"] = ""
+            st.session_state["role"] = ""
+            st.session_state["attendance_recorded"] = False
+            st.session_state["open_dialog"] = None
+            st.session_state["selected_row_idx"] = None
+            st.rerun()
 
+st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
+if not st.session_state["logged_in"]:
     if selected_page == "🏠 Home":
         st.markdown("""
             <div class="hero-section">
@@ -2286,36 +2312,6 @@ elif st.session_state["role"] == "admin":
     login_c = find_login_user_column(df)
     display_c = find_display_username_column(df)
     p_col = find_password_column(df)
-    
-    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
-    with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
-    with top_col2:
-        if st.button("🔄 Refresh", key="admin_refresh"):
-            st.cache_data.clear()
-            st.session_state["open_dialog"] = None
-            st.session_state["selected_row_idx"] = None
-            st.rerun()
-    with top_col3:
-        if st.button("🚪 Logout", key="admin_logout"):
-            st.query_params.clear()
-            st.session_state["logged_in"] = False
-            st.session_state["username"] = ""
-            st.session_state["role"] = ""
-            st.session_state["open_dialog"] = None
-            st.session_state["selected_row_idx"] = None
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    admin_dash_tab = st.radio(
-        "Admin Navigation",
-        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="admin_dash_tab_radio"
-    )
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     total_cases = len(df)
     updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
@@ -2329,7 +2325,8 @@ elif st.session_state["role"] == "admin":
         v_series = v_series[v_series != ""]
         visa_counts = v_series.value_counts().to_dict()
 
-    if admin_dash_tab == "📊 Dashboard & Quick Actions":
+    if selected_page == "📊 Dashboard & Quick Actions":
+        st.markdown(f"<div class='section-banner'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
         if sheets:
             st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
@@ -2427,7 +2424,7 @@ elif st.session_state["role"] == "admin":
 
         st.divider()
 
-    elif admin_dash_tab == "📂 Case Records & Search":
+    elif selected_page == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
         if visa_counts:
@@ -2503,7 +2500,7 @@ elif st.session_state["role"] == "admin":
                 key="admin_dl_all_btn"
             )
 
-    elif admin_dash_tab == "ℹ️ System Guidelines":
+    elif selected_page == "ℹ️ System Guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
         g1, g2 = st.columns(2, gap="medium")
         with g1:
@@ -2551,40 +2548,9 @@ else:
     
     user_mask = df[login_c].astype(str).str.strip().str.lower() == current_user.lower()
     user_rows = df[user_mask]
-        
-    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
-    with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
-    with top_col2:
-        if st.button("🔄 Refresh", key="worker_refresh"):
-            st.cache_data.clear()
-            st.session_state["open_dialog"] = None
-            st.session_state["selected_row_idx"] = None
-            st.rerun()
-    with top_col3:
-        if st.button("🚪 Logout", key="worker_logout"):
-            record_worker_logout(current_user)
-            st.query_params.clear()
-            st.session_state["logged_in"] = False
-            st.session_state["username"] = ""
-            st.session_state["role"] = ""
-            st.session_state["attendance_recorded"] = False
-            st.session_state["open_dialog"] = None
-            st.session_state["selected_row_idx"] = None
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    worker_dash_tab = st.radio(
-        "Worker Navigation",
-        ["📊 My Workspace", "ℹ️ Case Worker Guide"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="worker_dash_tab_radio"
-    )
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-
-    if worker_dash_tab == "📊 My Workspace":
+    if selected_page == "📊 My Workspace":
+        st.markdown(f"<div class='section-banner'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
         admin_notice = get_admin_notice()
         if admin_notice:
             st.markdown(f"""
@@ -2713,7 +2679,7 @@ else:
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
             render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}")
 
-    elif worker_dash_tab == "ℹ️ Case Worker Guide":
+    elif selected_page == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
         w_g1, w_g2 = st.columns(2, gap="medium")
         with w_g1:
