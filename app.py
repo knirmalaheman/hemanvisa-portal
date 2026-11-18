@@ -1222,8 +1222,7 @@ def admin_pdf_download_dialog():
     else:
         for d_folder in date_folders:
             folder_path = PDF_BASE_DIR if d_folder == "Unsorted / General" else os.path.join(PDF_BASE_DIR, d_folder)
-            files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf'] if os.path.isdir(folder_path) else []
-            files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(folder_path, f))]
+            files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(folder_path, f))] if os.path.isdir(folder_path) else []
             
             if files_in_folder:
                 with st.expander(f"📁 Folder: {d_folder} ({len(files_in_folder)} PDFs)"):
@@ -2677,50 +2676,4 @@ else:
                 with sw_cols_w[idx_w]:
                     is_active_w = (s_name_w == current_sheet)
                     color_cls_w = "admin-btn-1" if is_active_w else "admin-btn-6"
-                    btn_txt_w = f"✅ {s_name_w}" if is_active_w else f"📄 {s_name_w}"
-                    st.markdown(f'<span class="{color_cls_w}" style="display:none;"></span>', unsafe_allow_html=True)
-                    if st.button(btn_txt_w, key=f"worker_switch_sheet_{s_name_w}_{idx_w}", use_container_width=True):
-                        st.session_state["active_sheet"] = s_name_w
-                        st.query_params["active_sheet"] = s_name_w
-                        st.rerun()
-                
-        st.divider()
-        
-        display_user_rows = user_rows
-        if st.session_state["selected_visa_filter"] != "All" and visa_col:
-            target_visa = st.session_state["selected_visa_filter"]
-            display_user_rows = display_user_rows[display_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
-
-        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(display_user_rows)})</div>", unsafe_allow_html=True)
-
-        if display_user_rows.empty:
-            st.info("No cases found matching your criteria in this sheet.")
-        else:
-            st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
-            render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}")
-
-    elif worker_dash_tab == "ℹ️ Case Worker Guide":
-        st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
-        w_g1, w_g2 = st.columns(2, gap="medium")
-        with w_g1:
-            st.markdown("""
-                <div class="corporate-card">
-                    <h3>✏️ Editing & Updating Cases</h3>
-                    <p>Click on any USERNAME inside your assigned cases table to open the pop-up modal. You can review all details and update information instantly.</p>
-                </div>
-                <div class="corporate-card">
-                    <h3>➕ Adding New Cases</h3>
-                    <p>Use the 'Add New Case' button in the toolbar to create new records directly in your designated sheet with automatic timestamping.</p>
-                </div>
-            """, unsafe_allow_html=True)
-        with w_g2:
-            st.markdown("""
-                <div class="corporate-card">
-                    <h3>🗑️ Requesting Case Deletions</h3>
-                    <p>If a case needs removal, click 'Request Delete' and provide a mandatory reason. Admin reviews and approves/rejects your request.</p>
-                </div>
-                <div class="corporate-card">
-                    <h3>🔒 Security & Password</h3>
-                    <p>Keep your account secure by changing your password periodically using the 'Change Password' button in the toolbar.</p>
-                </div>
-            """, unsafe_allow_html=True)
+                    btn_txt_w = f"✅ {s_
