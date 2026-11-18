@@ -2651,7 +2651,11 @@ else:
             filtered_user_rows = user_rows
 
         my_total = len(filtered_user_rows)
-        my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0        my_total = len(filtered_user_rows)
+        
+        if "Updated_By" in filtered_user_rows.columns:
+            my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""])
+        else:
+            my_updated = 0
         my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
         visa_col = find_visa_type_column(user_rows)
