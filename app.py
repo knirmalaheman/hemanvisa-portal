@@ -1,130 +1,112 @@
-from pathlib import Path
-import re, py_compile
+            
+            if st.session_state["selected_visa_filter"] != "All":
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All My Cases)", use_container_width=True, key="reset_worker_visa_filter"):
+                    st.session_state["selected_visa_filter"] = "All"
+                    st.rerun()
 
-src_path = Path("/mnt/data/app (4).py")
-code = src_path.read_text(encoding="utf-8")
-
-old_nav = '''    admin_dash_tab = st.radio(
-        "Admin Navigation",
-        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="admin_dash_tab_radio"
-    )'''
-
-new_nav = '''    admin_dash_tab = st.radio(
-        "Admin Navigation",
-        ["📊 Dashboard & Quick Actions", "📈 Leads Dashboard", "📂 Case Records & Search", "ℹ️ System Guidelines"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="admin_dash_tab_radio"
-    )'''
-
-if old_nav not in code:
-    raise RuntimeError("Could not find the Admin Navigation block in the uploaded app.py.")
-
-code = code.replace(old_nav, new_nav, 1)
-
-anchor = '''    elif admin_dash_tab == "📂 Case Records & Search":
-        st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)'''
-
-leads_branch = '''    elif admin_dash_tab == "📈 Leads Dashboard":
-        st.markdown("<div class='section-banner'>📈 Leads Dashboard & Records</div>", unsafe_allow_html=True)
-
-        # Detect the Lead column from the existing Excel sheet headers.
-        lead_cols = [c for c in df.columns if "lead" in str(c).strip().lower()]
-        lead_search = st.text_input(
-            "Search Leads:",
-            placeholder="Search lead name, case ID, username, or any available detail...",
-            key="admin_leads_search"
-        ).strip()
-
-        if not lead_cols:
-            st.warning(
-                "⚠️ ఈ Excel sheet లో 'Lead' అనే column కనిపించలేదు. "
-                "Excel header లో Lead / Leads column add చేసి, app refresh చేయండి."
-            )
-        else:
-            # Keep rows that contain at least one value in a Lead-related column.
-            lead_mask = pd.Series(False, index=df.index)
-            for lead_column in lead_cols:
-                lead_mask = lead_mask | (
-                    df[lead_column].notna()
-                    & df[lead_column].astype(str).str.strip().ne("")
-                    & df[lead_column].astype(str).str.strip().str.lower().ne("nan")
-                )
-
-            leads_df = df.loc[lead_mask].copy()
-
-            if lead_search:
-                search_mask = leads_df.apply(
-                    lambda row: row.astype(str).str.contains(
-                        lead_search, case=False, na=False
-                    ).any(),
-                    axis=1
-                )
-                leads_display_df = leads_df.loc[search_mask]
+        st.markdown("<div class='action-group-title'>⚡ Workspace Tools</div>", unsafe_allow_html=True)
+        has_sync_perm = worker_perm.get("can_sync", False)
+        w_cols = st.columns(5 if has_sync_perm else 4, gap="medium")
+        
+        with w_cols[0]:
+            if worker_perm.get("can_add", True):
+                st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
+                    st.session_state["open_dialog"] = "add_case"
+                    st.rerun()
             else:
-                leads_display_df = leads_df
-
-            lead_count = len(leads_df)
-            shown_lead_count = len(leads_display_df)
-
-            lead_k1, lead_k2, lead_k3 = st.columns(3, gap="medium")
-            with lead_k1:
-                st.markdown(
-                    f"<div class='kpi-card'><div class='kpi-title'>📈 Total Lead Records</div>"
-                    f"<div class='kpi-value'>{lead_count}</div></div>",
-                    unsafe_allow_html=True
-                )
-            with lead_k2:
-                st.markdown(
-                    f"<div class='kpi-card green'><div class='kpi-title'>🔎 Matching Records</div>"
-                    f"<div class='kpi-value'>{shown_lead_count}</div></div>",
-                    unsafe_allow_html=True
-                )
-            with lead_k3:
-                st.markdown(
-                    f"<div class='kpi-card purple'><div class='kpi-title'>🧾 Lead Columns</div>"
-                    f"<div class='kpi-value'>{len(lead_cols)}</div></div>",
-                    unsafe_allow_html=True
-                )
-
-            st.markdown("<div class='action-group-title'>📋 Lead Records</div>", unsafe_allow_html=True)
-            st.caption(
-                "Lead records are identified from rows where at least one Lead-related Excel column has a value."
-            )
-            st.dataframe(
-                leads_display_df,
-                use_container_width=True,
-                hide_index=True
-            )
-
-            if leads_df.empty:
-                st.info("ℹ️ ప్రస్తుతం ఈ sheet లో Lead data లేదు.")
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+                st.button("🚫 No Add Access", disabled=True, use_container_width=True, key="worker_add_disabled")
+        with w_cols[1]:
+            if worker_perm.get("can_search", True):
+                st.markdown('<span class="admin-btn-2" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button("🔍 Search Records", use_container_width=True, key="worker_search_btn"):
+                    st.session_state["open_dialog"] = "search_data"
+                    st.rerun()
             else:
-                csv_bytes = leads_df.to_csv(index=False).encode("utf-8-sig")
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+                st.button("🚫 No Search Access", disabled=True, use_container_width=True, key="worker_search_disabled")
+        with w_cols[2]:
+            if worker_perm.get("can_download", False):
+                st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
+                worker_excel_bytes = get_worker_export_bytes(_get_file_mtime(), current_user, current_sheet)
                 st.download_button(
-                    label="📥 Download Leads CSV",
-                    data=csv_bytes,
-                    file_name="leads_records.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="admin_download_leads_csv"
+                    label="📥 Export My Excel", 
+                    data=worker_excel_bytes, 
+                    file_name=f"{current_user}_all_sheets_cases.xlsx", 
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                    use_container_width=True, 
+                    key="worker_dl_btn"
                 )
+            else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
+                st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
+        with w_cols[3]:
+            st.markdown('<span class="admin-btn-4" style="display:none;"></span>', unsafe_allow_html=True)
+            if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
+                st.session_state["open_dialog"] = "worker_password"
+                st.rerun()
 
-''' + anchor
+        if has_sync_perm:
+            with w_cols[4]:
+                st.markdown('<span class="admin-btn-5" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button("🔄 Sync Excel", use_container_width=True, key="worker_sync_btn"):
+                    st.session_state["open_dialog"] = "sync_excel"
+                    st.rerun()
+                
+        st.divider()
 
-if anchor not in code:
-    raise RuntimeError("Could not find the Case Records branch insertion point.")
+        if sheets:
+            st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
+            sw_cols_w = st.columns(len(sheets), gap="small")
+            for idx_w, s_name_w in enumerate(sheets):
+                with sw_cols_w[idx_w]:
+                    is_active_w = (s_name_w == current_sheet)
+                    color_cls_w = "admin-btn-1" if is_active_w else "admin-api-6" if False else "admin-btn-6"
+                    btn_txt_w = f"✅ {s_name_w}" if is_active_w else f"📄 {s_name_w}"
+                    st.markdown(f'<span class="{color_cls_w}" style="display:none;"></span>', unsafe_allow_html=True)
+                    if st.button(btn_txt_w, key=f"worker_switch_sheet_{s_name_w}_{idx_w}", use_container_width=True):
+                        st.session_state["active_sheet"] = s_name_w
+                        st.query_params["active_sheet"] = s_name_w
+                        st.rerun()
+                
+        st.divider()
+        
+        display_user_rows = user_rows
+        if st.session_state["selected_visa_filter"] != "All" and visa_col:
+            target_visa = st.session_state["selected_visa_filter"]
+            display_user_rows = display_user_rows[display_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
-code = code.replace(anchor, leads_branch, 1)
+        st.markdown(f"<div class='section-banner'>✏️ Your Assigned Cases ({current_sheet} — Total: {len(display_user_rows)})</div>", unsafe_allow_html=True)
 
-out_path = Path("/mnt/data/app.py")
-out_path.write_text(code, encoding="utf-8")
-py_compile.compile(str(out_path), doraise=True)
+        if display_user_rows.empty:
+            st.info("No cases found matching your criteria in this sheet.")
+        else:
+            st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
+            render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}")
 
-print(f"Updated full application saved: {out_path}")
-print(f"Original lines: {len(src_path.read_text(encoding='utf-8').splitlines())}")
-print(f"Updated lines: {len(code.splitlines())}")
-print("Python syntax check: PASSED")
+    elif worker_dash_tab == "ℹ️ Case Worker Guide":
+        st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
+        w_g1, w_g2 = st.columns(2, gap="medium")
+        with w_g1:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>✏️ Editing & Updating Cases</h3>
+                    <p>Click on any USERNAME inside your assigned cases table to open the pop-up modal. You can review all details and update information instantly.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>➕ Adding New Cases</h3>
+                    <p>Use the 'Add New Case' button in the toolbar to create new records directly in your designated sheet with automatic timestamping.</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with w_g2:
+            st.markdown("""
+                <div class="corporate-card">
+                    <h3>🗑️ Requesting Case Deletions</h3>
+                    <p>If a case needs removal, click 'Request Delete' and provide a mandatory reason. Admin reviews and approves/rejects your request.</p>
+                </div>
+                <div class="corporate-card">
+                    <h3>🔒 Security & Password</h3>
+                    <p>Keep your account secure by changing your password periodically using the 'Change Password' button in the toolbar.</p>
+                </div>
+            """, unsafe_allow_html=True)
