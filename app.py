@@ -19,6 +19,8 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
 
+st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
+
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
@@ -139,69 +141,6 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-def get_next_case_id(all_sheets_dict=None):
-    max_num = 1000
-    if all_sheets_dict is None and os.path.exists(EXCEL_FILE):
-        try:
-            all_sheets_dict = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-        except Exception:
-            all_sheets_dict = {}
-    if all_sheets_dict:
-        for _, df_s in all_sheets_dict.items():
-            if df_s is not None and not df_s.empty:
-                for col in df_s.columns:
-                    if col.strip().lower().replace("_", " ") in ["case id", "caseid"]:
-                        for val in df_s[col].astype(str):
-                            digits = "".join(ch for ch in val if ch.isdigit())
-                            if digits:
-                                num = int(digits)
-                                if num > max_num:
-                                    max_num = num
-    return f"HV-{max_num + 1}"
-
-def ensure_case_ids_on_disk():
-    if not os.path.exists(EXCEL_FILE):
-        return
-    try:
-        sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-        updated_any = False
-        max_num = 1000
-
-        for _, df_s in sheets_data.items():
-            if df_s is not None and not df_s.empty:
-                for col in df_s.columns:
-                    if col.strip().lower().replace("_", " ") in ["case id", "caseid"]:
-                        for val in df_s[col].astype(str):
-                            digits = "".join(ch for ch in val if ch.isdigit())
-                            if digits:
-                                num = int(digits)
-                                if num > max_num:
-                                    max_num = num
-
-        for s_name, df_s in sheets_data.items():
-            if df_s is not None:
-                df_s.columns = df_s.columns.str.strip()
-                if "Case_ID" not in df_s.columns:
-                    df_s.insert(0, "Case_ID", "")
-                    updated_any = True
-                for idx in df_s.index:
-                    curr_id = str(df_s.at[idx, "Case_ID"]).strip()
-                    if curr_id == "" or curr_id.lower() == "nan":
-                        max_num += 1
-                        df_s.at[idx, "Case_ID"] = f"HV-{max_num}"
-                        updated_any = True
-                sheets_data[s_name] = df_s
-
-        if updated_any:
-            with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
-                for s, df_val in sheets_data.items():
-                    df_val.to_excel(writer, sheet_name=str(s), index=False)
-    except Exception:
-        pass
-
-st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
-ensure_case_ids_on_disk()
-
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
         return df
@@ -210,7 +149,7 @@ def reorder_dataframe_columns(df):
         df = df.drop(columns=cols_to_drop, errors="ignore")
 
     cols = list(df.columns)
-    desired_order_prefixes = ["case id", "case_id", "case", "username", "password", "no of app", "lead"]
+    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
     found_priority = []
     
     for prefix in desired_order_prefixes:
@@ -222,53 +161,50 @@ def reorder_dataframe_columns(df):
     remaining_cols = [c for c in cols if c not in found_priority]
     return df[found_priority + remaining_cols]
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
         try:
             all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
             processed = {}
             for s_name, df in all_sheets.items():
-                if df is not None and not df.empty:
-                    df.columns = df.columns.str.strip()
-                    df = df.fillna("")
-                    if "Case_ID" not in df.columns:
-                        df.insert(0, "Case_ID", "")
-                    if "Unnamed: 5" in df.columns:
-                        df = df.rename(columns={"Unnamed: 5": "Category"})
-                    if "Updated_By" not in df.columns:
-                        df["Updated_By"] = ""
-                    if "Updated_At" not in df.columns:
-                        df["Updated_At"] = ""
-                    if "Action_Type" not in df.columns:
-                        df["Action_Type"] = ""
-                    if "Delete_Reason" not in df.columns:
-                        df["Delete_Reason"] = ""
-                    if "Booking_Status" not in df.columns:
-                        df["Booking_Status"] = "Active"
-                    
-                    if "Appointment_Entry" not in df.columns and "Current Appointment" in df.columns:
-                        df = df.rename(columns={"Current Appointment": "Appointment_Entry"})
-                    elif "Appointment_Entry" not in df.columns:
-                        df["Appointment_Entry"] = ""
+                df.columns = df.columns.str.strip()
+                df = df.fillna("")
+                if "Unnamed: 5" in df.columns:
+                    df = df.rename(columns={"Unnamed: 5": "Category"})
+                if "Updated_By" not in df.columns:
+                    df["Updated_By"] = ""
+                if "Updated_At" not in df.columns:
+                    df["Updated_At"] = ""
+                if "Action_Type" not in df.columns:
+                    df["Action_Type"] = ""
+                if "Delete_Reason" not in df.columns:
+                    df["Delete_Reason"] = ""
+                if "Booking_Status" not in df.columns:
+                    df["Booking_Status"] = "Active"
+                
+                if "Appointment_Entry" not in df.columns and "Current Appointment" in df.columns:
+                    df = df.rename(columns={"Current Appointment": "Appointment_Entry"})
+                elif "Appointment_Entry" not in df.columns:
+                    df["Appointment_Entry"] = ""
 
-                    if "Appointment_PDF" not in df.columns:
-                        df["Appointment_PDF"] = ""
-                    if "Preferred_Location" not in df.columns:
-                        df["Preferred_Location"] = ""
-                    if "Preferred_Dates" not in df.columns:
-                        df["Preferred_Dates"] = ""
-                    if "Prior_Notice" not in df.columns:
-                        df["Prior_Notice"] = ""
-                    
-                    df = reorder_dataframe_columns(df)
-                    processed[s_name] = df
+                if "Appointment_PDF" not in df.columns:
+                    df["Appointment_PDF"] = ""
+                if "Preferred_Location" not in df.columns:
+                    df["Preferred_Location"] = ""
+                if "Preferred_Dates" not in df.columns:
+                    df["Preferred_Dates"] = ""
+                if "Prior_Notice" not in df.columns:
+                    df["Prior_Notice"] = ""
+                
+                df = reorder_dataframe_columns(df)
+                processed[s_name] = df
             return processed
         except Exception:
             return {}
     return {}
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -284,11 +220,10 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
                     u_rows_s.to_excel(writer, sheet_name=s, index=False)
         if not has_user_data and current_sheet in all_sheets:
             df_cur = all_sheets[current_sheet]
-            if df_cur is not None and not df_cur.empty:
-                login_cs = find_login_user_column(df_cur)
-                u_rows_cur = df_cur[df_cur[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
-                u_rows_cur = reorder_dataframe_columns(u_rows_cur)
-                u_rows_cur.to_excel(writer, sheet_name=current_sheet, index=False)
+            login_cs = find_login_user_column(df_cur)
+            u_rows_cur = df_cur[df_cur[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
+            u_rows_cur = reorder_dataframe_columns(u_rows_cur)
+            u_rows_cur.to_excel(writer, sheet_name=current_sheet, index=False)
     return worker_buffer.getvalue()
 
 def _get_file_mtime():
@@ -314,8 +249,6 @@ def load_data(sheet_name=0):
     return None
 
 def save_data(df_to_save, sheet_name=0):
-    if df_to_save is None or df_to_save.empty:
-        return
     if "Category" in df_to_save.columns:
         df_to_save = df_to_save.rename(columns={"Category": ""})
     
@@ -331,9 +264,8 @@ def save_data(df_to_save, sheet_name=0):
 
     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
         for s, df_val in sheets_data.items():
-            if df_val is not None:
-                df_val = reorder_dataframe_columns(df_val)
-                df_val.to_excel(writer, sheet_name=str(s), index=False)
+            df_val = reorder_dataframe_columns(df_val)
+            df_val.to_excel(writer, sheet_name=str(s), index=False)
             
     st.cache_data.clear()
 
@@ -343,8 +275,6 @@ def get_base64_image(image_path):
         return base64.b64encode(img_file.read()).decode()
 
 def find_login_user_column(df):
-    if df is None or df.empty:
-        return "Username"
     for col in df.columns:
         if col.strip().lower() in ["username", "case worker", "cases_worker", "user"]:
             if col.strip() != "USERNAME":
@@ -355,8 +285,6 @@ def find_login_user_column(df):
     return df.columns[0]
 
 def find_display_username_column(df):
-    if df is None or df.empty:
-        return "USERNAME"
     for col in df.columns:
         if col.strip() == "USERNAME":
             return col
@@ -366,16 +294,12 @@ def find_display_username_column(df):
     return df.columns[0]
 
 def find_password_column(df):
-    if df is None or df.empty:
-        return "Password"
     for col in df.columns:
         if col.strip().lower() in ["password", "pass"]:
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
 def find_visa_type_column(df):
-    if df is None or df.empty:
-        return None
     for c in df.columns:
         if any(term in c.lower() for term in ['visa', 'category', 'type', 'service']):
             return c
@@ -902,7 +826,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     login_c = find_login_user_column(df_full)
     p_col = find_password_column(df_full)
 
-    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Case ID: **{row_data.get('Case_ID', 'N/A')}** | Case Username: **{row_data[display_c]}**")
+    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Case Username: **{row_data[display_c]}**")
 
     action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
     if role == "worker" and action_type_val == "delete rejected":
@@ -1007,21 +931,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     elif st.session_state["is_reschedule_mode"]:
         st.markdown("### 🔄 Reschedule Appointment Case")
-        
-        all_workers_list_res = get_all_workers_list()
-        if not all_workers_list_res:
-            all_workers_list_res = ["Not Assigned"]
-        else:
-            if "Not Assigned" not in all_workers_list_res:
-                all_workers_list_res.insert(0, "Not Assigned")
-        
-        curr_worker_res = str(row_data.get(login_c, "")).strip()
-        if curr_worker_res and curr_worker_res not in all_workers_list_res:
-            all_workers_list_res.append(curr_worker_res)
-        w_idx_res = all_workers_list_res.index(curr_worker_res) if curr_worker_res in all_workers_list_res else 0
-
         with st.form(f"reschedule_form_{row_idx}"):
-            selected_res_worker = st.selectbox(f"👤 Assign Case Worker for Rescheduled Case ({login_c})", options=all_workers_list_res, index=w_idx_res, key=f"res_worker_select_{row_idx}")
             pref_loc_input = st.text_input("Preferred Location", value="", placeholder="Enter preferred location...")
             pref_dates_input = st.text_input("Preferred Dates", value="", placeholder="Enter preferred dates...")
             prior_notice_input = st.text_input("Prior Notice", value="", placeholder="Enter prior notice details...")
@@ -1049,21 +959,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         sheets_all = get_sheet_names()
                         active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0] if sheets_all else None)
-                        new_reschedule_id = get_next_case_id()
                         if active_sheet_name and active_sheet_name != sheet_name:
                             df_active = load_data(sheet_name=active_sheet_name)
                             if df_active is not None:
-                                active_login_c = find_login_user_column(df_active)
-                                active_p_col = find_password_column(df_active)
-                                final_assigned_worker = "" if selected_res_worker == "Not Assigned" else selected_res_worker.strip()
-
                                 row_to_active = df_full.loc[row_idx].copy()
-                                row_to_active["Case_ID"] = new_reschedule_id
-                                row_to_active[active_login_c] = final_assigned_worker
-                                if active_p_col in df_active.columns and final_assigned_worker != "":
-                                    matched_w = df_active[df_active[active_login_c].astype(str).str.strip().str.lower() == final_assigned_worker.lower()]
-                                    if not matched_w.empty:
-                                        row_to_active[active_p_col] = str(matched_w.iloc[0][active_p_col]).strip()
                                 row_to_active["Booking_Status"] = "Rescheduled"
                                 row_to_active["Preferred_Location"] = pref_loc_input.strip()
                                 row_to_active["Preferred_Dates"] = pref_dates_input.strip()
@@ -1077,7 +976,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success(f"✅ Case rescheduled with New ID ({new_reschedule_id}) and assigned to {selected_res_worker}!")
+                        st.success("✅ Case successfully rescheduled and saved in both sheets!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error saving reschedule: {e}")
@@ -1130,15 +1029,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 if "Not Assigned" not in all_workers_list:
                     all_workers_list.insert(0, "Not Assigned")
 
-            # Exclude Case_ID from editable fields so HV Case ID cannot be edited
             cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
-            cols_to_show = [c for c in cols_to_show if c.strip().lower() not in ["case_id", "case id", "caseid"]]
             
-            # Show Case_ID as read-only info at the top of the form
-            existing_case_id = str(row_data.get("Case_ID", "N/A"))
-            st.markdown(f"🔒 **Case ID (Read-Only):** `{existing_case_id}`")
-            st.divider()
-
             f_col1, f_col2 = st.columns(2)
             
             for i, col_name in enumerate(cols_to_show):
@@ -1210,9 +1102,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 changed = True
                             df_full.at[row_idx, col_name] = str(new_val).strip()
 
-                        # Ensure Case_ID remains unchanged
-                        df_full.at[row_idx, "Case_ID"] = existing_case_id
-
                         if str(df_full.at[row_idx, "Booking_Status"]) != booking_status_choice:
                             df_full.at[row_idx, "Booking_Status"] = booking_status_choice
                             changed = True
@@ -1263,21 +1152,11 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
 
                         elif booking_status_choice == "Rescheduled" and is_booked_sheet:
-                            orig_booked_worker = str(row_data.get(login_c, "")).strip()
-                            selected_edit_worker = str(updated_values.get(login_c, orig_booked_worker)).strip()
-                            final_assigned_worker = "" if selected_edit_worker == "Not Assigned" else selected_edit_worker
-                            df_full.at[row_idx, login_c] = orig_booked_worker
-
                             sheets_all = get_sheet_names()
                             active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
                             if active_sheet_name:
                                 df_target_active = load_data(sheet_name=active_sheet_name)
-                                active_login_c = find_login_user_column(df_target_active)
-                                new_res_id = get_next_case_id()
-
                                 row_to_transfer = df_full.loc[row_idx].copy()
-                                row_to_transfer["Case_ID"] = new_res_id
-                                row_to_transfer[active_login_c] = final_assigned_worker
                                 row_to_transfer["Booking_Status"] = "Rescheduled"
                                 row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
                                 row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
@@ -1333,6 +1212,7 @@ def admin_pdf_download_dialog():
                         "sheet": s
                     }
 
+    # Bayata Overall Search Bar (Case Username or File Name)
     search_query = st.text_input("🔍 Search PDFs by Case Username or Filename across all folders:", placeholder="Type case username here...", key="pdf_overall_search").strip().lower()
 
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
@@ -1395,7 +1275,7 @@ def admin_pdf_download_dialog():
             st.warning(f"No PDFs found matching username or filename: '{search_query}'")
 
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
-    if df is None or df.empty:
+    if df.empty:
         st.info("No cases found.")
         return
 
@@ -1463,12 +1343,11 @@ def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100
     col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
 
     for i, idx in enumerate(indices):
-        seq_num = start_idx + i + 1
         act_t = act_col_vals[i]
         b_status = booking_status_vals[i]
-        row_bg = "#fee2e2" if act_t == "delete rejected" else ("#f8fafc" if i % 2 == 0 else "#ffffff")
+        row_bg = "#fee2e2" if act_t == "delete rejected" else ("#f8fafc" if idx % 2 == 0 else "#ffffff")
         html_parts.append(f'<tr style="background-color: {row_bg};">')
-        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{seq_num}</td>')
+        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>')
         
         for col in display_cols:
             val = col_data[col][i]
@@ -1504,7 +1383,7 @@ def admin_notice_dialog():
     st.info("💡 Add or update the scrolling marquee notice for all case workers:")
     
     with st.form("admin_notice_form"):
-        notice_input = st.text_input("Notice Text:", value=current_notice, placeholder="e.g., All case workers must complete pending cases by today...")
+        notice_input = st.text_area("Notice Text:", value=current_notice, placeholder="e.g., All case workers must complete pending cases by today...")
         col_save_n, col_clear_n = st.columns(2)
         with col_save_n:
             submitted_notice = st.form_submit_button("💾 Save Notice", type="primary", use_container_width=True)
@@ -1943,20 +1822,18 @@ def permissions_dialog():
                         try:
                             all_sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
                             for s, df_s in all_sheets_data.items():
-                                if df_s is not None and not df_s.empty:
-                                    lc = find_login_user_column(df_s)
-                                    pc = find_password_column(df_s)
-                                    if lc in df_s.columns and pc in df_s.columns:
-                                        mask = df_s[lc].astype(str).str.strip().str.lower() == u_name.lower()
-                                        if mask.any():
-                                            df_s.loc[mask, pc] = new_pwd_val.strip()
-                                    all_sheets_data[s] = reorder_dataframe_columns(df_s)
+                                lc = find_login_user_column(df_s)
+                                pc = find_password_column(df_s)
+                                if lc in df_s.columns and pc in df_s.columns:
+                                    mask = df_s[lc].astype(str).str.strip().str.lower() == u_name.lower()
+                                    if mask.any():
+                                        df_s.loc[mask, pc] = new_pwd_val.strip()
+                                all_sheets_data[s] = reorder_dataframe_columns(df_s)
                             
                             with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                                 for s, df_val in all_sheets_data.items():
-                                    if df_val is not None:
-                                        df_val = reorder_dataframe_columns(df_val)
-                                        df_val.to_excel(writer, sheet_name=str(s), index=False)
+                                    df_val = reorder_dataframe_columns(df_val)
+                                    df_val.to_excel(writer, sheet_name=str(s), index=False)
                             
                             current_perms[matched_key] = {
                                 "can_update": new_upd_val,
@@ -2037,20 +1914,18 @@ def worker_password_dialog(worker_name):
                 try:
                     all_sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
                     for s, df_s in all_sheets_data.items():
-                        if df_s is not None and not df_s.empty:
-                            lc = find_login_user_column(df_s)
-                            pc = find_password_column(df_s)
-                            if lc in df_s.columns and pc in df_s.columns:
-                                mask = df_s[lc].astype(str).str.strip().str.lower() == worker_name.lower()
-                                if mask.any():
-                                    df_s.loc[mask, pc] = new_wp.strip()
-                            all_sheets_data[s] = reorder_dataframe_columns(df_s)
+                        lc = find_login_user_column(df_s)
+                        pc = find_password_column(df_s)
+                        if lc in df_s.columns and pc in df_s.columns:
+                            mask = df_s[lc].astype(str).str.strip().str.lower() == worker_name.lower()
+                            if mask.any():
+                                df_s.loc[mask, pc] = new_wp.strip()
+                        all_sheets_data[s] = reorder_dataframe_columns(df_s)
                     
                     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                         for s, df_val in all_sheets_data.items():
-                            if df_val is not None:
-                                df_val = reorder_dataframe_columns(df_val)
-                                df_val.to_excel(writer, sheet_name=str(s), index=False)
+                            df_val = reorder_dataframe_columns(df_val)
+                            df_val.to_excel(writer, sheet_name=str(s), index=False)
                     st.cache_data.clear()
                     st.success("✅ Password updated successfully!")
                 except Exception as e:
@@ -2063,10 +1938,6 @@ def add_case_dialog(worker_name):
     
     selected_target_sheet = st.selectbox("Select Target Sheet for New Case", options=sheets, key="dlg_target_sheet")
     target_df = load_data(sheet_name=selected_target_sheet)
-    if target_df is None or target_df.empty:
-        st.error("Target sheet is empty or not found.")
-        return
-
     t_login_col = find_login_user_column(target_df)
     t_pass_col = find_password_column(target_df)
     
@@ -2082,7 +1953,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Case_ID", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
+        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
         for col_name in cols:
             c_lower = col_name.lower()
             if 'date' in c_lower and 'prefer' not in c_lower:
@@ -2094,8 +1965,6 @@ def add_case_dialog(worker_name):
         if st.form_submit_button("🚀 Submit New Case", type="primary", use_container_width=True):
             try:
                 new_row = {col: "" for col in target_df.columns}
-                new_case_id = get_next_case_id()
-                new_row["Case_ID"] = new_case_id
                 final_assigned_user = "" if assigned_username == "Not Assigned" else assigned_username.strip()
                 new_row[t_login_col] = final_assigned_user
                 
@@ -2413,8 +2282,6 @@ elif st.session_state["role"] == "admin":
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
-    if df is None:
-        df = pd.DataFrame()
     df = reorder_dataframe_columns(df)
     login_c = find_login_user_column(df)
     display_c = find_display_username_column(df)
@@ -2451,9 +2318,9 @@ elif st.session_state["role"] == "admin":
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     total_cases = len(df)
-    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in df.columns else 0
-    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""]) if login_c in df.columns else 0
-    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique() if login_c in df.columns else 0
+    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
+    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
+    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
     visa_col = find_visa_type_column(df)
     visa_counts = {}
@@ -2462,14 +2329,14 @@ elif st.session_state["role"] == "admin":
         v_series = v_series[v_series != ""]
         visa_counts = v_series.value_counts().to_dict()
 
-if admin_dash_tab == "📊 Dashboard & Quick Actions":
+    if admin_dash_tab == "📊 Dashboard & Quick Actions":
         if sheets:
             st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
             for idx, s_name in enumerate(sheets):
                 with sw_cols[idx]:
                     is_active = (s_name == current_sheet)
-                    color_cls = "admin-api-1" if is_active else "admin-btn-6"
+                    color_cls = "admin-btn-1" if is_active else "admin-btn-6"
                     btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
                     st.markdown(f'<span class="{color_cls}" style="display:none;"></span>', unsafe_allow_html=True)
                     if st.button(btn_txt, key=f"dash_switch_sheet_{s_name}_{idx}", use_container_width=True):
@@ -2477,27 +2344,6 @@ if admin_dash_tab == "📊 Dashboard & Quick Actions":
                         st.query_params["active_sheet"] = s_name
                         st.rerun()
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-    # --- ఇక్కడ లీడ్స్ ఫిల్టర్ కోడ్ జోడించాలి ---
-        all_workers_for_filter = get_all_workers_list()
-        if all_workers_for_filter:
-            st.markdown("<div class='action-group-title'>👥 Filter by Lead Name:</div>", unsafe_allow_html=True)
-            lead_options = ["All"] + all_workers_for_filter
-            if "admin_selected_lead" not in st.session_state:
-                st.session_state["admin_selected_lead"] = "All"
-            
-            selected_lead = st.radio(
-                "Filter by Lead Name",
-                options=lead_options,
-                horizontal=True,
-                key="admin_lead_radio_filter",
-                label_visibility="collapsed"
-            )
-            st.session_state["admin_selected_lead"] = selected_lead
-            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-    # టేబుల్ లేదా కౌంట్స్ లెక్కించే ముందు ఈ ఫిల్టర్ వర్తింపజేయాలి:
-if "admin_selected_lead" in st.session_state and st.session_state["admin_selected_lead"] != "All":
-        target_lead = st.session_state["admin_selected_lead"]
-        df = df[df[login_c].astype(str).str.strip().str.lower() == target_lead.lower()]
 
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
@@ -2581,7 +2427,7 @@ if "admin_selected_lead" in st.session_state and st.session_state["admin_selecte
 
         st.divider()
 
-elif admin_dash_tab == "📂 Case Records & Search":
+    elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
         if visa_counts:
@@ -2657,7 +2503,7 @@ elif admin_dash_tab == "📂 Case Records & Search":
                 key="admin_dl_all_btn"
             )
 
-elif admin_dash_tab == "ℹ️ System Guidelines":
+    elif admin_dash_tab == "ℹ️ System Guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
         g1, g2 = st.columns(2, gap="medium")
         with g1:
@@ -2692,8 +2538,6 @@ else:
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
-    if df is None:
-        df = pd.DataFrame()
     df = reorder_dataframe_columns(df)
     current_user = st.session_state["username"].strip()
     
@@ -2705,7 +2549,7 @@ else:
     display_c = find_display_username_column(df)
     p_col = find_password_column(df)
     
-    user_mask = df[login_c].astype(str).str.strip().str.lower() == current_user.lower() if login_c in df.columns else [False] * len(df)
+    user_mask = df[login_c].astype(str).str.strip().str.lower() == current_user.lower()
     user_rows = df[user_mask]
         
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
@@ -2750,7 +2594,7 @@ else:
             """, unsafe_allow_html=True)
 
         my_total = len(user_rows)
-        my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in user_rows.columns else 0
+        my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
         visa_col = find_visa_type_column(user_rows)
         visa_counts = {}
@@ -2846,7 +2690,7 @@ else:
             for idx_w, s_name_w in enumerate(sheets):
                 with sw_cols_w[idx_w]:
                     is_active_w = (s_name_w == current_sheet)
-                    color_cls_w = "admin-btn-1" if is_active_w else "admin-api-6" if False else "admin-btn-6"
+                    color_cls_w = "admin-btn-1" if is_active_w else "admin-btn-6"
                     btn_txt_w = f"✅ {s_name_w}" if is_active_w else f"📄 {s_name_w}"
                     st.markdown(f'<span class="{color_cls_w}" style="display:none;"></span>', unsafe_allow_html=True)
                     if st.button(btn_txt_w, key=f"worker_switch_sheet_{s_name_w}_{idx_w}", use_container_width=True):
