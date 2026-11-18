@@ -2317,10 +2317,22 @@ elif st.session_state["role"] == "admin":
     )
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-    total_cases = len(df)
-    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
-    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
-    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+    if "admin_selected_lead" not in st.session_state:
+        st.session_state["admin_selected_lead"] = "All"
+
+    # Excel lo 'Lead' column unte daani dwara, lekapothe login_c dwara filter chestundi
+    lead_col = next((c for c in df.columns if "lead" in c.strip().lower()), login_c)
+
+    if st.session_state["admin_selected_lead"] != "All" and not df.empty and lead_col in df.columns:
+        sel_l = st.session_state["admin_selected_lead"].lower()
+        df_dash = df[df[lead_col].astype(str).str.strip().str.lower().str.contains(sel_l, na=False)]
+    else:
+        df_dash = df
+
+    total_cases = len(df_dash)
+    updated_cases = len(df_dash[df_dash["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in df_dash.columns else 0
+    unassigned_cases = len(df_dash[df_dash[login_c].astype(str).str.strip() == ""]) if login_c in df_dash.columns else 0
+    active_workers = df_dash[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique() if login_c in df_dash.columns else 0
 
     visa_col = find_visa_type_column(df)
     visa_counts = {}
@@ -2344,6 +2356,22 @@ elif st.session_state["role"] == "admin":
                         st.query_params["active_sheet"] = s_name
                         st.rerun()
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
+        lead_options = ["All", "Kiran", "Shanthi"]
+        curr_idx = lead_options.index(st.session_state["admin_selected_lead"]) if st.session_state["admin_selected_lead"] in lead_options else 0
+        selected_lead = st.radio(
+            "Filter by Lead Name",
+            options=lead_options,
+            index=curr_idx,
+            horizontal=True,
+            key="admin_lead_radio_filter",
+            label_visibility="collapsed"
+        )
+        if selected_lead != st.session_state["admin_selected_lead"]:
+            st.session_state["admin_selected_lead"] = selected_lead
+            st.rerun()
+        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
