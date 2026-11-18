@@ -1111,7 +1111,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             changed = True
 
                             if uploaded_pdf_file is not None:
-                                # Create date-wise subfolder under uploaded_appointment_pdfs
                                 date_folder = os.path.join(PDF_BASE_DIR, today_date_str)
                                 if not os.path.exists(date_folder):
                                     os.makedirs(date_folder)
@@ -1196,9 +1195,24 @@ def admin_pdf_download_dialog():
     if not os.path.exists(PDF_BASE_DIR):
         os.makedirs(PDF_BASE_DIR)
         
+    sheets = get_sheet_names()
+    pdf_info_map = {}
+    for s in sheets:
+        df_s = load_data(sheet_name=s)
+        if df_s is not None and not df_s.empty and "Appointment_PDF" in df_s.columns:
+            disp_c = find_display_username_column(df_s)
+            login_c = find_login_user_column(df_s)
+            for _, r in df_s.iterrows():
+                p_path = str(r.get("Appointment_PDF", "")).strip()
+                if p_path:
+                    abs_p = os.path.abspath(p_path)
+                    pdf_info_map[abs_p] = {
+                        "case_user": str(r.get(disp_c, "N/A")),
+                        "worker": str(r.get(login_c, "N/A")),
+                        "sheet": s
+                    }
+
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
-    
-    # Also check if there are any PDFs directly inside PDF_BASE_DIR (for backward compatibility)
     root_files = [f for f in os.listdir(PDF_BASE_DIR) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(PDF_BASE_DIR, f))]
     if root_files:
         date_folders.insert(0, "Unsorted / General")
@@ -1208,18 +1222,23 @@ def admin_pdf_download_dialog():
     else:
         for d_folder in date_folders:
             folder_path = PDF_BASE_DIR if d_folder == "Unsorted / General" else os.path.join(PDF_BASE_DIR, d_folder)
+            files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf'] if os.path.isdir(folder_path) else []
             files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(folder_path, f))]
             
             if files_in_folder:
                 with st.expander(f"📁 Folder: {d_folder} ({len(files_in_folder)} PDFs)"):
                     for f_name in files_in_folder:
                         f_full_path = os.path.join(folder_path, f_name)
+                        abs_full_p = os.path.abspath(f_full_path)
+                        meta = pdf_info_map.get(abs_full_p, {"case_user": "N/A", "worker": "N/A", "sheet": "N/A"})
+                        
                         with st.container(border=True):
-                            c_info, c_btn = st.columns([3, 1])
+                            c_info, c_dl, c_del = st.columns([2.6, 1.1, 1.1])
                             with c_info:
                                 st.write(f"📄 **File:** `{f_name}`")
+                                st.markdown(f"👤 **Case Username:** `{meta['case_user']}` &nbsp;|&nbsp; 👷 **Uploaded By (Worker):** `{meta['worker']}` &nbsp;|&nbsp; 📂 **Sheet:** `{meta['sheet']}`")
                                 st.caption(f"Path: {f_full_path}")
-                            with c_btn:
+                            with c_dl:
                                 with open(f_full_path, "rb") as f:
                                     b_data = f.read()
                                 st.download_button(
@@ -1227,9 +1246,19 @@ def admin_pdf_download_dialog():
                                     data=b_data,
                                     file_name=f_name,
                                     mime="application/pdf",
-                                    key=f"dl_pdf_folder_{d_folder}_{f_name}",
+                                    key=f"dl_pdf_{d_folder}_{f_name}",
                                     use_container_width=True
                                 )
+                            with c_del:
+                                st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
+                                if st.button("🗑️ Delete", key=f"del_pdf_{d_folder}_{f_name}", use_container_width=True):
+                                    try:
+                                        if os.path.exists(f_full_path):
+                                            os.remove(f_full_path)
+                                        st.success(f"✅ Deleted '{f_name}' successfully!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Error deleting file: {e}")
 
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
