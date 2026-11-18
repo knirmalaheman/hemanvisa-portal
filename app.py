@@ -137,8 +137,6 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-# 🌟 PERFORMANCE OPTIMIZATION: Added Streamlit Caching for Fast Loading
-@st.cache_data(ttl=300)
 def get_sheet_names():
     if os.path.exists(EXCEL_FILE):
         try:
@@ -148,7 +146,6 @@ def get_sheet_names():
             return ["Sheet1"]
     return ["Sheet1"]
 
-@st.cache_data(ttl=300)
 def load_data(sheet_name=0):
     if os.path.exists(EXCEL_FILE):
         try:
@@ -190,9 +187,6 @@ def save_data(df_to_save, sheet_name=0):
     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
         for s, df_val in sheets_data.items():
             df_val.to_excel(writer, sheet_name=str(s), index=False)
-            
-    # 🌟 Clear cache after saving so fresh data updates immediately
-    st.cache_data.clear()
 
 def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
@@ -340,7 +334,15 @@ elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
 
 if "active_sheet" not in st.session_state:
-    sheets_init = get_initial_sheets = get_sheet_names()
+    def get_initial_sheets():
+        if os.path.exists(EXCEL_FILE):
+            try:
+                xls = pd.ExcelFile(EXCEL_FILE)
+                return xls.sheet_names
+            except Exception:
+                return ["Sheet1"]
+        return ["Sheet1"]
+    sheets_init = get_initial_sheets()
     saved_sheet = qp.get("active_sheet")
     if saved_sheet in sheets_init:
         st.session_state["active_sheet"] = saved_sheet
@@ -533,6 +535,8 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
+    
+    /* 🌟 ELITE GLASSMORPHIC KPI CARDS WITH PROFESSIONAL MUTED TONES */
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -586,6 +590,57 @@ st.markdown("""
         letter-spacing: 0.5px;
         text-shadow: 0 2px 4px rgba(0,0,0,0.25);
     }
+
+    /* 🌟 SOPHISTICATED SUBDUED PROFESSIONAL BUTTONS (ELEGANT SLATE & NAVY PALETTE) */
+    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+        border-bottom: 3px solid #60a5fa !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #065f46 0%, #059669 100%) !important;
+        border-bottom: 3px solid #34d399 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #92400e 0%, #d97706 100%) !important;
+        border-bottom: 3px solid #fbbf24 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
+        border-bottom: 3px solid #818cf8 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #831843 0%, #db2777 100%) !important;
+        border-bottom: 3px solid #f472b6 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #115e59 0%, #0d9488 100%) !important;
+        border-bottom: 3px solid #2dd4bf !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #334155 100%, #475569 0%) !important;
+        border-bottom: 3px solid #94a3b8 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%) !important;
+        border-bottom: 3px solid #f87171 !important;
+        color: #ffffff !important;
+    }
+
     .section-banner {
         background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
         border-left: 5px solid #1e293b;
@@ -644,6 +699,17 @@ st.markdown("""
         padding: 10px 16px;
         border-radius: 10px;
         border: 1px solid #cbd5e1;
+    }
+    div[data-testid="stExpander"] {
+        width: 100% !important;
+        max-width: 950px !important;
+    }
+    [data-testid="stVerticalBlock"] {
+        gap: 0.45rem !important;
+    }
+    hr {
+        margin-top: 0.9rem !important;
+        margin-bottom: 0.9rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1238,13 +1304,16 @@ def permissions_dialog():
         </div>
     """, unsafe_allow_html=True)
 
+    # 🌟 Single Toggle Button for All Workers (Active / Blocked)
     all_blocked_now = are_all_workers_blocked()
     if all_blocked_now:
+        st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
         if st.button("🔓 Activate All Workers (Currently: All Blocked)", use_container_width=True, key="dlg_toggle_all_btn"):
             toggle_all_workers_block(False)
             st.success("✅ All case workers are now ACTIVE!")
             st.rerun()
     else:
+        st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
         if st.button("🔒 Block All Workers (Currently: Active)", use_container_width=True, key="dlg_toggle_all_btn"):
             toggle_all_workers_block(True)
             st.success("🔒 All case workers BLOCKED and logged out!")
@@ -1287,7 +1356,9 @@ def permissions_dialog():
                         </div>
                     """, unsafe_allow_html=True)
                 with hdr_c2:
+                    # 🌟 Single Toggle Button per Worker (Active / Block) with Instant Logout
                     if is_blocked:
+                        st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
                         if st.button("🔓 Activate Worker", key=f"dlg_toggle_status_{idx}", use_container_width=True):
                             w_perm["block_login"] = False
                             current_perms[matched_key] = w_perm
@@ -1295,6 +1366,7 @@ def permissions_dialog():
                             st.success(f"✅ '{u_name}' is now ACTIVE!")
                             st.rerun()
                     else:
+                        st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                         if st.button("🔒 Block Worker", key=f"dlg_toggle_status_{idx}", use_container_width=True):
                             w_perm["block_login"] = True
                             current_perms[matched_key] = w_perm
@@ -1351,7 +1423,6 @@ def permissions_dialog():
                                 "block_login": is_blocked
                             }
                             save_permissions(current_perms)
-                            st.cache_data.clear() # Clear cache after permission update
                             st.success(f"✅ Saved changes for '{u_name}'!")
                         except Exception as e:
                             st.error(f"❌ Error updating '{u_name}': {e}")
@@ -1385,7 +1456,6 @@ def sync_excel_dialog():
             try:
                 with open(EXCEL_FILE, "wb") as f:
                     f.write(uploaded_excel.getbuffer())
-                st.cache_data.clear() # 👈 Clears cache so new uploaded file data loads instantly without lag
                 st.success("✅ Cloud data updated successfully!")
                 st.rerun()
             except Exception as e:
@@ -1434,7 +1504,6 @@ def worker_password_dialog(worker_name):
                     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                         for s, df_val in all_sheets_data.items():
                             df_val.to_excel(writer, sheet_name=str(s), index=False)
-                    st.cache_data.clear()
                     st.success("✅ Password updated successfully!")
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
@@ -1833,7 +1902,9 @@ elif st.session_state["role"] == "admin":
             for idx, s_name in enumerate(sheets):
                 with sw_cols[idx]:
                     is_active = (s_name == current_sheet)
+                    color_cls = "admin-btn-1" if is_active else "admin-btn-6"
                     btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
+                    st.markdown(f'<span class="{color_cls}" style="display:none;"></span>', unsafe_allow_html=True)
                     if st.button(btn_txt, key=f"dash_switch_sheet_{s_name}_{idx}", use_container_width=True):
                         st.session_state["active_sheet"] = s_name
                         st.query_params["active_sheet"] = s_name
@@ -1853,22 +1924,27 @@ elif st.session_state["role"] == "admin":
         st.markdown("<div class='action-group-title'>⚡ Case & Request Management</div>", unsafe_allow_html=True)
         r1_c1, r1_c2, r1_c3, r1_c4, r1_c5 = st.columns(5, gap="small")
         with r1_c1:
+            st.markdown('<span class="admin-btn-0" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📋 New / Updated", use_container_width=True, key="admin_upd_cases_btn"):
                 st.session_state["open_dialog"] = "admin_updated_cases"
                 st.rerun()
         with r1_c2:
+            st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📊 Worker Report", use_container_width=True, key="admin_worker_rep_btn"):
                 st.session_state["open_dialog"] = "admin_worker_report"
                 st.rerun()
         with r1_c3:
+            st.markdown('<span class="admin-btn-2" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🗑️ Delete Req", use_container_width=True, key="admin_del_req_btn"):
                 st.session_state["open_dialog"] = "admin_delete_requests"
                 st.rerun()
         with r1_c4:
+            st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔄 Sync Excel", use_container_width=True, key="admin_sync_btn"):
                 st.session_state["open_dialog"] = "sync_excel"
                 st.rerun()
         with r1_c5:
+            st.markdown('<span class="admin-btn-4" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📢 Notice", use_container_width=True, key="admin_notice_btn"):
                 st.session_state["open_dialog"] = "admin_notice"
                 st.rerun()
@@ -1876,29 +1952,36 @@ elif st.session_state["role"] == "admin":
         st.markdown("<div class='action-group-title'>🛡️ Team, Attendance & Security</div>", unsafe_allow_html=True)
         r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4, gap="medium")
         with r2_c1:
+            st.markdown('<span class="admin-btn-5" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("👥 Users & Permissions", use_container_width=True, key="admin_perm_btn"):
                 st.session_state["open_dialog"] = "permissions"
                 st.rerun()
         with r2_c2:
+            st.markdown('<span class="admin-btn-6" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🟢 Worker Login Status", use_container_width=True, key="admin_login_status_btn"):
                 st.session_state["open_dialog"] = "admin_login_status"
                 st.rerun()
         with r2_c3:
+            st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("📊 Attendance Report", use_container_width=True, key="admin_attendance_btn"):
                 st.session_state["open_dialog"] = "admin_attendance"
                 st.rerun()
         with r2_c4:
+            st.markdown('<span class="admin-btn-0" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔑 Admin Password", use_container_width=True, key="admin_pw_btn"):
                 st.session_state["open_dialog"] = "admin_password"
                 st.rerun()
 
+        # 🌟 Single Toggle Button on Dashboard for All Workers (Active / Block) with Instant Logout
         all_blocked_dash = are_all_workers_blocked()
         if all_blocked_dash:
+            st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔓 Activate All Workers (Currently: Blocked — Click to Enable)", use_container_width=True, key="dash_toggle_all_workers"):
                 toggle_all_workers_block(False)
                 st.success("✅ All case workers are now ACTIVE!")
                 st.rerun()
         else:
+            st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔒 Block All Workers (Currently: Active — Click to Stop & Logout All)", use_container_width=True, key="dash_toggle_all_workers"):
                 toggle_all_workers_block(True)
                 st.success("🔒 All case workers BLOCKED and logged out immediately!")
@@ -1915,18 +1998,22 @@ elif st.session_state["role"] == "admin":
             mid = (len(visa_items) + 1) // 2
             rows = [visa_items[:mid], visa_items[mid:]]
             
+            btn_counter = 0
             for row_items in rows:
                 if row_items:
                     v_cols = st.columns(len(row_items), gap="medium")
                     for idx, (v_name, v_count) in enumerate(row_items):
                         with v_cols[idx]:
                             btn_label = f"✈️ {v_name}: {v_count}"
+                            color_idx = btn_counter % 8
+                            st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
                             if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
                                 if st.session_state["selected_visa_filter"] == v_name:
                                     st.session_state["selected_visa_filter"] = "All"
                                 else:
                                     st.session_state["selected_visa_filter"] = v_name
                                 st.rerun()
+                            btn_counter += 1
             
             if st.session_state["selected_visa_filter"] != "All":
                 if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All Cases)", use_container_width=True, key="reset_visa_filter"):
@@ -2019,7 +2106,7 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace ({current_sheet})</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.session_state["open_dialog"] = None
@@ -2056,19 +2143,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        if sheets:
-            st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
-            w_sw_cols = st.columns(len(sheets), gap="small")
-            for idx, s_name in enumerate(sheets):
-                with w_sw_cols[idx]:
-                    is_active = (s_name == current_sheet)
-                    btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
-                    if st.button(btn_txt, key=f"worker_switch_sheet_{s_name}_{idx}", use_container_width=True):
-                        st.session_state["active_sheet"] = s_name
-                        st.query_params["active_sheet"] = s_name
-                        st.rerun()
-            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-
         my_total = len(user_rows)
         my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
@@ -2095,6 +2169,8 @@ else:
                 for idx, (v_name, v_count) in enumerate(visa_items):
                     with w_cols[idx]:
                         btn_label = f"✈️ {v_name}: {v_count}"
+                        color_idx = idx % 8
+                        st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
                         if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
                             if st.session_state["selected_visa_filter"] == v_name:
                                 st.session_state["selected_visa_filter"] = "All"
@@ -2113,20 +2189,25 @@ else:
         
         with w_cols[0]:
             if worker_perm.get("can_add", True):
+                st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
                 if st.button("➕ Add New Case", use_container_width=True, key="worker_add_btn"):
                     st.session_state["open_dialog"] = "add_case"
                     st.rerun()
             else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                 st.button("🚫 No Add Access", disabled=True, use_container_width=True, key="worker_add_disabled")
         with w_cols[1]:
             if worker_perm.get("can_search", True):
+                st.markdown('<span class="admin-btn-2" style="display:none;"></span>', unsafe_allow_html=True)
                 if st.button("🔍 Search Records", use_container_width=True, key="worker_search_btn"):
                     st.session_state["open_dialog"] = "search_data"
                     st.rerun()
             else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                 st.button("🚫 No Search Access", disabled=True, use_container_width=True, key="worker_search_disabled")
         with w_cols[2]:
             if worker_perm.get("can_download", False):
+                st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
                 worker_buffer = io.BytesIO()
                 with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
                     has_user_data = False
@@ -2151,17 +2232,26 @@ else:
                     key="worker_dl_btn"
                 )
             else:
+                st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                 st.button("🚫 No Download", disabled=True, use_container_width=True, key="worker_dl_disabled")
         with w_cols[3]:
+            st.markdown('<span class="admin-btn-4" style="display:none;"></span>', unsafe_allow_html=True)
             if st.button("🔑 Change Password", use_container_width=True, key="worker_pw_btn"):
                 st.session_state["open_dialog"] = "worker_password"
                 st.rerun()
 
         if has_sync_perm:
             with w_cols[4]:
+                st.markdown('<span class="admin-btn-5" style="display:none;"></span>', unsafe_allow_html=True)
                 if st.button("🔄 Sync Excel", use_container_width=True, key="worker_sync_btn"):
                     st.session_state["open_dialog"] = "sync_excel"
                     st.rerun()
+                
+        st.divider()
+
+        if sheets:
+            st.write("📑 **Sheets Switch:**")
+            st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
                 
         st.divider()
         
