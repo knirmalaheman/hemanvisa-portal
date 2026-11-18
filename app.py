@@ -276,10 +276,11 @@ def get_base64_image(image_path):
 
 def find_login_user_column(df):
     for col in df.columns:
-        if col.strip() in ["username", "Case Worker"]:
-            return col
+        if col.strip().lower() in ["username", "case worker", "cases_worker", "user"]:
+            if col.strip() != "USERNAME":
+                return col
     for col in df.columns:
-        if col.strip().lower() in ["cases_worker", "user", "case worker"]:
+        if col.strip().lower() in ["case worker", "cases_worker", "user"]:
             return col
     return df.columns[0]
 
@@ -288,9 +289,9 @@ def find_display_username_column(df):
         if col.strip() == "USERNAME":
             return col
     for col in df.columns:
-        if col.strip().lower() == "username":
+        if col.strip().lower() == "username" and col.strip() != find_login_user_column(df):
             return col
-    return find_login_user_column(df)
+    return df.columns[0]
 
 def find_password_column(df):
     for col in df.columns:
@@ -822,9 +823,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     df_full = reorder_dataframe_columns(df_full)
     row_data = df_full.loc[row_idx]
     display_c = find_display_username_column(df_full)
+    login_c = find_login_user_column(df_full)
     p_col = find_password_column(df_full)
 
-    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Username: **{row_data[display_c]}**")
+    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Case Username: **{row_data[display_c]}**")
 
     action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
     if role == "worker" and action_type_val == "delete rejected":
@@ -1002,10 +1004,38 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         st.markdown("### ✏️ Edit Case & Booking Status")
         with st.form(f"popup_edit_form_{row_idx}"):
             updated_values = {}
-            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
+            
+            # Get all available workers list for Case Worker dropdown
+            all_workers_list = get_all_workers_list()
+            if not all_workers_list:
+                all_workers_list = ["Not Assigned"]
+            else:
+                if "Not Assigned" not in all_workers_list:
+                    all_workers_list.insert(0, "Not Assigned")
+
+            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, login_c, p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
             
             f_col1, f_col2 = st.columns(2)
+            
+            # 1. Display Case Username (Editable or Viewable clearly)
+            with f_col1:
+                if role == "admin":
+                    updated_values[display_c] = st.text_input(f"{display_c} (Case Username)", value=str(row_data[display_c]), key=f"popup_field_{row_idx}_{display_c}")
+                else:
+                    st.text_input(f"Case Username", value=str(row_data[display_c]), disabled=True, key=f"popup_field_disabled_{row_idx}_{display_c}")
+                    updated_values[display_c] = str(row_data[display_c])
+
+            # 2. Case Worker Dropdown (Editable for Admin / Worker)
+            with f_col2:
+                curr_worker_val = str(row_data.get(login_c, "")).strip()
+                w_idx = all_workers_list.index(curr_worker_val) if curr_worker_val in all_workers_list else 0
+                selected_worker = st.selectbox("Case Worker", options=all_workers_list, index=w_idx, key=f"popup_worker_select_{row_idx}")
+                updated_values[login_c] = selected_worker
+
+            # 3. Render remaining columns
             for i, col_name in enumerate(cols_to_show):
+                if col_name in [display_c, login_c]:
+                    continue
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
                     c_lower = col_name.lower()
@@ -1026,7 +1056,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             b_idx = opts.index(curr_bs) if curr_bs in opts else 0
             booking_status_choice = st.selectbox("📌 Select Status", options=opts, index=b_idx, key=f"popup_bs_{row_idx}")
 
-            # Instant Empty Fields Triggered by Status Choice
             app_entry_val = ""
             uploaded_pdf_file = None
             popup_pref_loc = ""
