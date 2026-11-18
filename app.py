@@ -2621,10 +2621,27 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- ఇక్కడ నుండి Lead Filter Logic యాడ్ చేయండి ---
+        # --- FILTER BY LEAD NAME (రేడియో బటన్స్) ---
+        st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
         if "worker_selected_lead" not in st.session_state:
             st.session_state["worker_selected_lead"] = "All"
 
+        lead_options_w = ["All", "Kiran", "Shanthi"]
+        curr_idx_w = lead_options_w.index(st.session_state["worker_selected_lead"]) if st.session_state["worker_selected_lead"] in lead_options_w else 0
+        selected_lead_w = st.radio(
+            "Filter by Lead Name",
+            options=lead_options_w,
+            index=curr_idx_w,
+            horizontal=True,
+            key="worker_lead_radio_filter",
+            label_visibility="collapsed"
+        )
+        if selected_lead_w != st.session_state["worker_selected_lead"]:
+            st.session_state["worker_selected_lead"] = selected_lead_w
+            st.rerun()
+        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
+        # --- LEAD FILTER LOGIC ---
         lead_col_w = next((c for c in user_rows.columns if "lead" in c.strip().lower()), login_c)
 
         if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and lead_col_w in user_rows.columns:
@@ -2632,11 +2649,9 @@ else:
             filtered_user_rows = user_rows[user_rows[lead_col_w].astype(str).str.strip().str.lower().str.contains(sel_l_w, na=False)]
         else:
             filtered_user_rows = user_rows
-        # -----------------------------------------------
 
         my_total = len(filtered_user_rows)
-        my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
-        my_total = len(filtered_user_rows)
+        my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0        my_total = len(filtered_user_rows)
         my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
         visa_col = find_visa_type_column(user_rows)
