@@ -437,7 +437,7 @@ st.markdown("""
         top: 0;
         left: 0;
         width: 100%;
-        z-index: 999999;
+        z-index: 99999;
         background: linear-gradient(135deg, #070f24 0%, #0f1c3f 50%, #172554 100%);
         padding: 10px 28px;
         border-bottom: 3px solid #d4af37;
@@ -948,6 +948,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         df_full.at[row_idx, "Preferred_Location"] = pref_loc_input.strip()
                         df_full.at[row_idx, "Preferred_Dates"] = pref_dates_input.strip()
                         df_full.at[row_idx, "Prior_Notice"] = prior_notice_input.strip()
+                        df_full.at[row_idx, "Booking_Status"] = "Rescheduled"
                         df_full.at[row_idx, "Updated_By"] = current_user
                         df_full.at[row_idx, "Updated_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
                         df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
@@ -1025,11 +1026,11 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             b_idx = opts.index(curr_bs) if curr_bs in opts else 0
             booking_status_choice = st.selectbox("📌 Select Status", options=opts, index=b_idx, key=f"popup_bs_{row_idx}")
 
-            # Dynamic Field Visibility & Retention Fixes
             app_entry_val = ""
             uploaded_pdf_file = None
             popup_pref_loc = ""
             popup_pref_dates = ""
+            popup_prior_notice = ""
 
             if booking_status_choice == "Booked":
                 app_entry_val = st.text_input("📝 Current Appointment Entry", value=str(row_data.get("Appointment_Entry", "")), key=f"popup_app_entry_{row_idx}")
@@ -1037,6 +1038,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             elif booking_status_choice == "Rescheduled":
                 popup_pref_loc = st.text_input("Preferred Location", value=str(row_data.get("Preferred_Location", "")), key=f"popup_pref_loc_{row_idx}")
                 popup_pref_dates = st.text_input("Preferred Dates", value=str(row_data.get("Preferred_Dates", "")), key=f"popup_pref_dates_{row_idx}")
+                popup_prior_notice = st.text_input("Prior Notice", value=str(row_data.get("Prior_Notice", "")), key=f"popup_prior_notice_{row_idx}")
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col_save, col_back = st.columns(2)
@@ -1047,9 +1049,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if submitted:
                 try:
-                    # Strict Reschedule Validation: Both Preferred Location and Preferred Dates must be entered
-                    if booking_status_choice == "Rescheduled" and (not popup_pref_loc.strip() or not popup_pref_dates.strip()):
-                        st.warning("⚠️ Both Preferred Location and Preferred Dates must be entered to save Reschedule status!")
+                    if booking_status_choice == "Rescheduled" and (not popup_pref_loc.strip() or not popup_pref_dates.strip() or not popup_prior_notice.strip()):
+                        st.warning("⚠️ All 3 fields (Preferred Location, Preferred Dates, and Prior Notice) must be entered to save Rescheduled status!")
                     elif booking_status_choice == "Booked" and not uploaded_pdf_file and not str(row_data.get("Appointment_PDF", "")).strip():
                         st.warning("⚠️ Please upload the Appointment PDF when selecting Booked status.")
                     else:
@@ -1087,6 +1088,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             if str(df_full.at[row_idx, "Preferred_Dates"]) != popup_pref_dates.strip():
                                 df_full.at[row_idx, "Preferred_Dates"] = popup_pref_dates.strip()
                                 changed = True
+                            if str(df_full.at[row_idx, "Prior_Notice"]) != popup_prior_notice.strip():
+                                df_full.at[row_idx, "Prior_Notice"] = popup_prior_notice.strip()
+                                changed = True
 
                         if changed:
                             df_full.at[row_idx, "Updated_By"] = current_user
@@ -1117,9 +1121,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             if active_sheet_name:
                                 df_target_active = load_data(sheet_name=active_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
-                                row_to_transfer["Booking_Status"] = "Active"
+                                row_to_transfer["Booking_Status"] = "Rescheduled"
                                 row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
                                 row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
+                                row_to_transfer["Prior_Notice"] = popup_prior_notice.strip()
                                 
                                 for col in df_target_active.columns:
                                     if col not in row_to_transfer:
@@ -1258,10 +1263,12 @@ def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100
     base_link = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row="
     indices = page_df.index.tolist()
     act_col_vals = page_df["Action_Type"].astype(str).str.strip().str.lower().tolist() if "Action_Type" in page_df.columns else [""] * len(page_df)
+    booking_status_vals = page_df["Booking_Status"].astype(str).str.strip().tolist() if "Booking_Status" in page_df.columns else ["Active"] * len(page_df)
     col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
 
     for i, idx in enumerate(indices):
         act_t = act_col_vals[i]
+        b_status = booking_status_vals[i]
         row_bg = "#fee2e2" if act_t == "delete rejected" else ("#f8fafc" if idx % 2 == 0 else "#ffffff")
         html_parts.append(f'<tr style="background-color: {row_bg};">')
         html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>')
@@ -1275,8 +1282,20 @@ def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100
                 cell_content = val if val != "" else "-"
             html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>')
         
-        status_display = "Rejected" if act_t == "delete rejected" else "-"
-        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: 700; white-space: nowrap;">{status_display}</td>')
+        if act_t == "delete rejected":
+            status_display = "Rejected"
+            status_color = "#b91c1c"
+        elif b_status.lower() == "rescheduled":
+            status_display = "Rescheduled"
+            status_color = "#d97706"
+        elif b_status.lower() == "booked":
+            status_display = "Booked"
+            status_color = "#059669"
+        else:
+            status_display = "Active"
+            status_color = "#1e293b"
+
+        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: {status_color}; font-weight: 700; white-space: nowrap;">{status_display}</td>')
         html_parts.append("</tr>")
 
     html_parts.append("</tbody></table></div>")
