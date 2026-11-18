@@ -1025,7 +1025,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             b_idx = opts.index(curr_bs) if curr_bs in opts else 0
             booking_status_choice = st.selectbox("📌 Select Status", options=opts, index=b_idx, key=f"popup_bs_{row_idx}")
 
-            # Dynamic Field Visibility based on Select Status
+            # Dynamic Field Visibility & Retention Fixes
             app_entry_val = ""
             uploaded_pdf_file = None
             popup_pref_loc = ""
@@ -1115,6 +1115,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_target_active = load_data(sheet_name=active_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
                                 row_to_transfer["Booking_Status"] = "Active"
+                                # Fixed: Passing user-entered reschedule values directly during transfer
                                 row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
                                 row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
                                 
