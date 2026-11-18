@@ -2495,7 +2495,7 @@ if admin_dash_tab == "📊 Dashboard & Quick Actions":
             st.session_state["admin_selected_lead"] = selected_lead
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
     # టేబుల్ లేదా కౌంట్స్ లెక్కించే ముందు ఈ ఫిల్టర్ వర్తింపజేయాలి:
-    if "admin_selected_lead" in st.session_state and st.session_state["admin_selected_lead"] != "All":
+if "admin_selected_lead" in st.session_state and st.session_state["admin_selected_lead"] != "All":
         target_lead = st.session_state["admin_selected_lead"]
         df = df[df[login_c].astype(str).str.strip().str.lower() == target_lead.lower()]
 
