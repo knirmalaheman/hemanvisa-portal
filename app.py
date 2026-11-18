@@ -21,7 +21,6 @@ if not os.path.exists(PDF_DIR):
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Perfect IST Timezone Helper (Cloud Server UTC + 5:30 hours for Indian Standard Time)
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
@@ -142,12 +141,17 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-# 🌟 STRICT COLUMN REORDERING HELPER: Case, Username, Password, No of App & Lead always first
+# 🌟 STRICT COLUMN REORDERING & IGNORING UNWANTED DS-160 WORKER COLUMN
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
         return df
-    cols = list(df.columns)
     
+    # Drop unwanted redundant worker columns if present
+    cols_to_drop = [c for c in df.columns if c.strip().lower() in ["ds-160 case worker", "ds160 case worker"]]
+    if cols_to_drop:
+        df = df.drop(columns=cols_to_drop, errors="ignore")
+
+    cols = list(df.columns)
     desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
     found_priority = []
     
@@ -160,7 +164,6 @@ def reorder_dataframe_columns(df):
     remaining_cols = [c for c in cols if c not in found_priority]
     return df[found_priority + remaining_cols]
 
-# 🌟 ULTRA-FAST CACHING: Reads all sheets once into memory so switching/filtering is instantaneous
 @st.cache_data(ttl=600)
 def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
@@ -272,7 +275,7 @@ def get_base64_image(image_path):
 
 def find_login_user_column(df):
     for col in df.columns:
-        if col.strip() in ["username", "Case Worker", "DS-160 Case Worker"]:
+        if col.strip() in ["username", "Case Worker"]:
             return col
     for col in df.columns:
         if col.strip().lower() in ["cases_worker", "user", "case worker"]:
@@ -343,7 +346,6 @@ def toggle_all_workers_block(block_status: bool):
             record_worker_logout(w)
     save_permissions(current_perms)
 
-# 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -424,7 +426,6 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 SUBDUED, SOPHISTICATED & PROFESSIONAL CORPORATE STYLING
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -605,7 +606,6 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
-    
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -811,7 +811,6 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# 🌟 ENHANCED DIALOG WITH RESCHEDULE OPTION & ORDERED COLUMNS VIEW
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -1090,7 +1089,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
 
                         save_data(df_full, sheet_name=sheet_name)
-                        # Cleanly clear all popup states to prevent re-opening loop
                         st.session_state["is_editing_popup"] = False
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["is_delete_request_mode"] = False
@@ -1109,7 +1107,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
-# 🌟 ADMIN PDF DOWNLOAD CENTER DIALOG
 @st.dialog("📥 Appointment PDFs Download Center", width="large")
 def admin_pdf_download_dialog():
     st.info("💡 Download all uploaded Appointment PDFs across all sheets:")
@@ -1155,7 +1152,6 @@ def admin_pdf_download_dialog():
                         use_container_width=True
                     )
 
-# 🌟 MILLISECOND ZERO-LAG PAGINATED TABLE RENDERER WITH ORDERED COLUMNS
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
         st.info("No cases found.")
@@ -1270,7 +1266,6 @@ def admin_notice_dialog():
 @st.dialog("👥 Case Worker Login Status", width="large")
 def admin_login_status_dialog():
     st.info("💡 View real-time login and active status of all case workers:")
-    
     all_workers = get_all_workers_list()
     login_records = load_login_tracking()
     normalized_login_records = {k.lower(): v for k, v in login_records.items()}
@@ -1283,11 +1278,7 @@ def admin_login_status_dialog():
         status = rec.get("status", "Not Logged In")
         last_time = rec.get("last_login", "-")
         
-        item = {
-            "worker": w,
-            "status": status,
-            "time": last_time
-        }
+        item = {"worker": w, "status": status, "time": last_time}
         if status == "Logged In":
             logged_in_list.append(item)
         else:
@@ -1328,7 +1319,6 @@ def admin_login_status_dialog():
 @st.dialog("📊 Case Worker Attendance Report", width="large")
 def admin_attendance_dialog():
     st.info("💡 Daily login and logout attendance logs for case workers:")
-    
     attendance_data = load_attendance()
     if not attendance_data:
         st.warning("No attendance records found.")
@@ -1352,11 +1342,9 @@ def admin_attendance_dialog():
 
 @st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
-    st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types (from 'Booked Cases' sheet):")
-    
+    st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types:")
     sheets = get_sheet_names()
     target_sheet = next((s for s in sheets if "booked" in s.lower()), sheets[0] if sheets else "Sheet1")
-    
     today_str = get_ist_now().strftime("%Y-%m-%d")
     
     today_worker_stats = {}
