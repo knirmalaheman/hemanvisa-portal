@@ -222,7 +222,7 @@ def reorder_dataframe_columns(df):
     remaining_cols = [c for c in cols if c not in found_priority]
     return df[found_priority + remaining_cols]
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=300)
 def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
         try:
@@ -267,7 +267,7 @@ def load_all_sheets_cached(file_mtime):
             return {}
     return {}
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=300)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -1440,11 +1440,12 @@ def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100
     col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
 
     for i, idx in enumerate(indices):
+        seq_num = start_idx + i + 1  # Automatic sequential S.No. (1, 2, 3...)
         act_t = act_col_vals[i]
         b_status = booking_status_vals[i]
-        row_bg = "#fee2e2" if act_t == "delete rejected" else ("#f8fafc" if idx % 2 == 0 else "#ffffff")
+        row_bg = "#fee2e2" if act_t == "delete rejected" else ("#f8fafc" if i % 2 == 0 else "#ffffff")
         html_parts.append(f'<tr style="background-color: {row_bg};">')
-        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>')
+        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{seq_num}</td>')
         
         for col in display_cols:
             val = col_data[col][i]
