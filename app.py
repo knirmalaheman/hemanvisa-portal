@@ -2581,7 +2581,7 @@ if "admin_selected_lead" in st.session_state and st.session_state["admin_selecte
 
         st.divider()
 
-    elif admin_dash_tab == "📂 Case Records & Search":
+elif admin_dash_tab == "📂 Case Records & Search":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
         if visa_counts:
