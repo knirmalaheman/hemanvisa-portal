@@ -137,36 +137,52 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-def get_sheet_names():
+# 🌟 FAST CACHING: Reads all sheets once into memory so switching/filtering is instant
+@st.cache_data(ttl=600)
+def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
         try:
-            xls = pd.ExcelFile(EXCEL_FILE)
-            return xls.sheet_names
+            all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+            processed = {}
+            for s_name, df in all_sheets.items():
+                df.columns = df.columns.str.strip()
+                df = df.fillna("")
+                if "Unnamed: 5" in df.columns:
+                    df = df.rename(columns={"Unnamed: 5": "Category"})
+                if "Updated_By" not in df.columns:
+                    df["Updated_By"] = ""
+                if "Updated_At" not in df.columns:
+                    df["Updated_At"] = ""
+                if "Action_Type" not in df.columns:
+                    df["Action_Type"] = ""
+                if "Delete_Reason" not in df.columns:
+                    df["Delete_Reason"] = ""
+                processed[s_name] = df
+            return processed
         except Exception:
-            return ["Sheet1"]
+            return {}
+    return {}
+
+def _get_file_mtime():
+    return os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
+
+def get_sheet_names():
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    if all_sheets:
+        return list(all_sheets.keys())
     return ["Sheet1"]
 
 def load_data(sheet_name=0):
-    if os.path.exists(EXCEL_FILE):
-        try:
-            df = pd.read_excel(EXCEL_FILE, sheet_name=sheet_name, dtype=str)
-            df.columns = df.columns.str.strip()
-            df = df.fillna("")
-            if "Unnamed: 5" in df.columns:
-                df = df.rename(columns={"Unnamed: 5": "Category"})
-            
-            if "Updated_By" not in df.columns:
-                df["Updated_By"] = ""
-            if "Updated_At" not in df.columns:
-                df["Updated_At"] = ""
-            if "Action_Type" not in df.columns:
-                df["Action_Type"] = ""
-            if "Delete_Reason" not in df.columns:
-                df["Delete_Reason"] = ""
-                
-            return df
-        except Exception:
-            return None
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    if not all_sheets:
+        return None
+    if isinstance(sheet_name, int):
+        keys = list(all_sheets.keys())
+        if 0 <= sheet_name < len(keys):
+            return all_sheets[keys[sheet_name]].copy()
+        return None
+    if sheet_name in all_sheets:
+        return all_sheets[sheet_name].copy()
     return None
 
 def save_data(df_to_save, sheet_name=0):
@@ -176,9 +192,7 @@ def save_data(df_to_save, sheet_name=0):
     sheets_data = {}
     if os.path.exists(EXCEL_FILE):
         try:
-            xls = pd.ExcelFile(EXCEL_FILE)
-            for s in xls.sheet_names:
-                sheets_data[s] = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
+            sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
         except Exception:
             pass
     
@@ -187,7 +201,10 @@ def save_data(df_to_save, sheet_name=0):
     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
         for s, df_val in sheets_data.items():
             df_val.to_excel(writer, sheet_name=str(s), index=False)
+            
+    st.cache_data.clear()
 
+@st.cache_data
 def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
@@ -229,8 +246,8 @@ def get_all_workers_list():
         df_s = load_data(sheet_name=s)
         if df_s is not None and not df_s.empty:
             lc = find_login_user_column(df_s)
-            for _, r in df_s.iterrows():
-                u = str(r[lc]).strip()
+            users = df_s[lc].astype(str).str.strip()
+            for u in users.unique():
                 if u != "" and u.lower() != "admin":
                     all_workers.add(u)
     return sorted(list(all_workers))
@@ -334,15 +351,7 @@ elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
 
 if "active_sheet" not in st.session_state:
-    def get_initial_sheets():
-        if os.path.exists(EXCEL_FILE):
-            try:
-                xls = pd.ExcelFile(EXCEL_FILE)
-                return xls.sheet_names
-            except Exception:
-                return ["Sheet1"]
-        return ["Sheet1"]
-    sheets_init = get_initial_sheets()
+    sheets_init = get_sheet_names()
     saved_sheet = qp.get("active_sheet")
     if saved_sheet in sheets_init:
         st.session_state["active_sheet"] = saved_sheet
@@ -895,6 +904,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
+# 🌟 FAST TABLE RENDERER: Uses list joining instead of slow += string concatenation
 def render_clickable_table(df, display_c, p_col):
     if df.empty:
         st.info("No cases found.")
@@ -907,45 +917,43 @@ def render_clickable_table(df, display_c, p_col):
     curr_role = qp.get("role", st.session_state.get("role", ""))
     curr_sheet = qp.get("active_sheet", st.session_state.get("active_sheet", ""))
 
-    html = f"""
-    <div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">
-    <table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
-        <thead>
-            <tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">
-                <th style="padding: 12px 10px; border: 1px solid #334155; text-align: center;">#</th>
-    """
+    html_parts = [
+        '<div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">',
+        '<table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">',
+        '<thead><tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">',
+        '<th style="padding: 12px 10px; border: 1px solid #334155; text-align: center;">#</th>'
+    ]
     for col in display_cols:
-        html += f'<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
-    html += '<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
-    html += "</tr></thead><tbody>"
+        html_parts.append(f'<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>')
+    html_parts.append('<th style="padding: 12px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>')
+    html_parts.append("</tr></thead><tbody>")
 
-    for idx, row in df.iterrows():
-        row_bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
-        
-        act_t = str(row.get("Action_Type", "")).strip().lower()
-        if act_t == "delete rejected":
-            row_bg = "#fee2e2"
+    base_link = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row="
+    indices = df.index.tolist()
+    act_col_vals = df["Action_Type"].astype(str).str.strip().str.lower().tolist() if "Action_Type" in df.columns else [""] * len(df)
+    col_data = {col: df[col].astype(str).tolist() for col in display_cols}
 
-        html += f'<tr style="background-color: {row_bg};">'
-        html += f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>'
+    for i, idx in enumerate(indices):
+        act_t = act_col_vals[i]
+        row_bg = "#fee2e2" if act_t == "delete rejected" else ("#f8fafc" if idx % 2 == 0 else "#ffffff")
+        html_parts.append(f'<tr style="background-color: {row_bg};">')
+        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 600;">{idx + 1}</td>')
         
         for col in display_cols:
-            val = str(row[col])
+            val = col_data[col][i]
             if col == display_c:
                 display_val = val.strip() if val.strip() != "" else "Not Assigned"
-                link_url = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row={idx}"
-                cell_content = f'<a href="{link_url}" target="_self" class="username-hyperlink">{display_val}</a>'
+                cell_content = f'<a href="{base_link}{idx}" target="_self" class="username-hyperlink">{display_val}</a>'
             else:
                 cell_content = val if val != "" else "-"
-            
-            html += f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
+            html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>')
         
         status_display = "Rejected" if act_t == "delete rejected" else "-"
-        html += f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: 700; white-space: nowrap;">{status_display}</td>'
-        html += "</tr>"
+        html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #b91c1c; font-weight: 700; white-space: nowrap;">{status_display}</td>')
+        html_parts.append("</tr>")
 
-    html += "</tbody></table></div>"
-    st.markdown(html, unsafe_allow_html=True)
+    html_parts.append("</tbody></table></div>")
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 @st.dialog("📢 Add / Update Notice (Scrolling Announcement)", width="medium")
 def admin_notice_dialog():
@@ -1398,10 +1406,8 @@ def permissions_dialog():
                     st.markdown("<div style='height: 22px;'></div>", unsafe_allow_html=True)
                     if st.button("💾 Save", key=f"dlg_btn_upd_{idx}", type="primary", use_container_width=True):
                         try:
-                            all_sheets_data = {}
-                            xls = pd.ExcelFile(EXCEL_FILE)
-                            for s in xls.sheet_names:
-                                df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
+                            all_sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+                            for s, df_s in all_sheets_data.items():
                                 lc = find_login_user_column(df_s)
                                 pc = find_password_column(df_s)
                                 if lc in df_s.columns and pc in df_s.columns:
@@ -1423,6 +1429,7 @@ def permissions_dialog():
                                 "block_login": is_blocked
                             }
                             save_permissions(current_perms)
+                            st.cache_data.clear()
                             st.success(f"✅ Saved changes for '{u_name}'!")
                         except Exception as e:
                             st.error(f"❌ Error updating '{u_name}': {e}")
@@ -1456,6 +1463,7 @@ def sync_excel_dialog():
             try:
                 with open(EXCEL_FILE, "wb") as f:
                     f.write(uploaded_excel.getbuffer())
+                st.cache_data.clear()
                 st.success("✅ Cloud data updated successfully!")
                 st.rerun()
             except Exception as e:
@@ -1489,10 +1497,8 @@ def worker_password_dialog(worker_name):
                 st.error("❌ New passwords do not match!")
             else:
                 try:
-                    all_sheets_data = {}
-                    xls = pd.ExcelFile(EXCEL_FILE)
-                    for s in xls.sheet_names:
-                        df_s = pd.read_excel(EXCEL_FILE, sheet_name=s, dtype=str)
+                    all_sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+                    for s, df_s in all_sheets_data.items():
                         lc = find_login_user_column(df_s)
                         pc = find_password_column(df_s)
                         if lc in df_s.columns and pc in df_s.columns:
@@ -1504,6 +1510,7 @@ def worker_password_dialog(worker_name):
                     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                         for s, df_val in all_sheets_data.items():
                             df_val.to_excel(writer, sheet_name=str(s), index=False)
+                    st.cache_data.clear()
                     st.success("✅ Password updated successfully!")
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
@@ -1859,6 +1866,7 @@ elif st.session_state["role"] == "admin":
         st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
+            st.cache_data.clear()
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
@@ -1890,10 +1898,9 @@ elif st.session_state["role"] == "admin":
     visa_col = find_visa_type_column(df)
     visa_counts = {}
     if visa_col and not df.empty:
-        for val in df[visa_col].astype(str):
-            v_clean = val.strip().upper()
-            if v_clean != "":
-                visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
+        v_series = df[visa_col].astype(str).str.strip().str.upper()
+        v_series = v_series[v_series != ""]
+        visa_counts = v_series.value_counts().to_dict()
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
         if sheets:
@@ -2109,6 +2116,7 @@ else:
         st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
+            st.cache_data.clear()
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
@@ -2149,10 +2157,9 @@ else:
         visa_col = find_visa_type_column(user_rows)
         visa_counts = {}
         if visa_col and not user_rows.empty:
-            for val in user_rows[visa_col].astype(str):
-                v_clean = val.strip().upper()
-                if v_clean != "":
-                    visa_counts[v_clean] = visa_counts.get(v_clean, 0) + 1
+            v_series = user_rows[visa_col].astype(str).str.strip().str.upper()
+            v_series = v_series[v_series != ""]
+            visa_counts = v_series.value_counts().to_dict()
 
         k1, k2 = st.columns(2, gap="medium")
         with k1:
