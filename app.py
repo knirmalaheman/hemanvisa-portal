@@ -1119,59 +1119,59 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
+# 🌟 STRICTLY BOOKED CASES SHEET WORKER REPORT
 @st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
-    st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types:")
+    st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types (from 'Booked Cases' sheet):")
     
     sheets = get_sheet_names()
+    target_sheet = next((s for s in sheets if "booked" in s.lower()), sheets[0] if sheets else "Sheet1")
+    
     today_str = get_ist_now().strftime("%Y-%m-%d")
     
     today_worker_stats = {}
     total_worker_stats = {}
     visa_type_stats = {}
     
-    for s in sheets:
-        df_s = load_data(sheet_name=s)
-        if df_s is not None and not df_s.empty:
-            login_c = find_login_user_column(df_s)
-            visa_c = find_visa_type_column(df_s)
-            date_cols = [c for c in df_s.columns if any(k in c.lower() for k in ['date', 'time', 'day', 'created'])]
+    df_s = load_data(sheet_name=target_sheet)
+    if df_s is not None and not df_s.empty:
+        login_c = find_login_user_column(df_s)
+        visa_c = find_visa_type_column(df_s)
+        date_cols = [c for c in df_s.columns if any(k in c.lower() for k in ['date', 'time', 'day', 'created'])]
+        
+        for _, r in df_s.iterrows():
+            w_name = str(r.get(login_c, "Not Assigned")).strip()
+            if w_name == "" or w_name.lower() == "nan":
+                w_name = "Not Assigned"
             
-            for _, r in df_s.iterrows():
-                w_name = str(r.get(login_c, "Not Assigned")).strip()
-                if w_name == "" or w_name.lower() == "nan":
-                    w_name = "Not Assigned"
-                
-                v_type = str(r.get(visa_c, "Unspecified")).strip().upper() if visa_c else "Unspecified"
-                if v_type == "" or v_type == "NAN":
-                    v_type = "Unspecified"
-                
-                if w_name not in total_worker_stats:
-                    total_worker_stats[w_name] = {"Total Cases": 0, "Visa_Breakdown": {}, "Sheets": set()}
-                total_worker_stats[w_name]["Total Cases"] += 1
-                total_worker_stats[w_name]["Sheets"].add(s)
-                total_worker_stats[w_name]["Visa_Breakdown"][v_type] = total_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
-                
-                if v_type not in visa_type_stats:
-                    visa_type_stats[v_type] = 0
-                visa_type_stats[v_type] += 1
-                
-                is_today = False
-                for dc in date_cols:
-                    val_str = str(r.get(dc, "")).strip()
-                    if today_str in val_str:
-                        is_today = True
-                        break
-                
-                if not is_today and today_str in str(r.get("Updated_At", "")):
+            v_type = str(r.get(visa_c, "Unspecified")).strip().upper() if visa_c else "Unspecified"
+            if v_type == "" or v_type == "NAN":
+                v_type = "Unspecified"
+            
+            if w_name not in total_worker_stats:
+                total_worker_stats[w_name] = {"Total Cases": 0, "Visa_Breakdown": {}, "Sheets": {target_sheet}}
+            total_worker_stats[w_name]["Total Cases"] += 1
+            total_worker_stats[w_name]["Visa_Breakdown"][v_type] = total_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
+            
+            if v_type not in visa_type_stats:
+                visa_type_stats[v_type] = 0
+            visa_type_stats[v_type] += 1
+            
+            is_today = False
+            for dc in date_cols:
+                val_str = str(r.get(dc, "")).strip()
+                if today_str in val_str:
                     is_today = True
+                    break
+            
+            if not is_today and today_str in str(r.get("Updated_At", "")):
+                is_today = True
 
-                if is_today:
-                    if w_name not in today_worker_stats:
-                        today_worker_stats[w_name] = {"Today Cases": 0, "Visa_Breakdown": {}, "Sheets": set()}
-                    today_worker_stats[w_name]["Today Cases"] += 1
-                    today_worker_stats[w_name]["Sheets"].add(s)
-                    today_worker_stats[w_name]["Visa_Breakdown"][v_type] = today_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
+            if is_today:
+                if w_name not in today_worker_stats:
+                    today_worker_stats[w_name] = {"Today Cases": 0, "Visa_Breakdown": {}, "Sheets": {target_sheet}}
+                today_worker_stats[w_name]["Today Cases"] += 1
+                today_worker_stats[w_name]["Visa_Breakdown"][v_type] = today_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
 
     tab_today, tab_total, tab_visa = st.tabs([
         "📅 Today's Booked Cases", 
@@ -1181,7 +1181,7 @@ def admin_worker_wise_report_dialog():
     
     with tab_today:
         if not today_worker_stats:
-            st.warning(f"No cases booked today ({today_str}).")
+            st.warning(f"No cases booked today ({today_str}) in '{target_sheet}'.")
         else:
             today_list = []
             for w, data in today_worker_stats.items():
@@ -1190,11 +1190,11 @@ def admin_worker_wise_report_dialog():
                     "Case Worker": w, 
                     "Today Booked Cases": data["Today Cases"], 
                     "Visa Type Breakdown": breakdown_str,
-                    "Active Sheets": ", ".join(list(data["Sheets"]))
+                    "Active Sheet": target_sheet
                 })
             df_today = pd.DataFrame(today_list)
             df_today.index = range(1, len(df_today) + 1)
-            st.success(f"Total Cases Booked Today: {df_today['Today Booked Cases'].sum()}")
+            st.success(f"Total Cases Booked Today in '{target_sheet}': {df_today['Today Booked Cases'].sum()}")
             st.dataframe(df_today, use_container_width=True)
             
             buf_today = io.BytesIO()
@@ -1204,7 +1204,7 @@ def admin_worker_wise_report_dialog():
 
     with tab_total:
         if not total_worker_stats:
-            st.warning("No records found.")
+            st.warning(f"No records found in '{target_sheet}'.")
         else:
             total_list = []
             for w, data in total_worker_stats.items():
@@ -1213,11 +1213,11 @@ def admin_worker_wise_report_dialog():
                     "Case Worker": w, 
                     "Total Booked Cases": data["Total Cases"], 
                     "Visa Type Breakdown": breakdown_str,
-                    "Active Sheets": ", ".join(list(data["Sheets"]))
+                    "Active Sheet": target_sheet
                 })
             df_total = pd.DataFrame(total_list)
             df_total.index = range(1, len(df_total) + 1)
-            st.success(f"Total Booked Cases across all workers: {df_total['Total Booked Cases'].sum()}")
+            st.success(f"Total Booked Cases in '{target_sheet}': {df_total['Total Booked Cases'].sum()}")
             st.dataframe(df_total, use_container_width=True)
             
             buf_total = io.BytesIO()
@@ -1227,13 +1227,13 @@ def admin_worker_wise_report_dialog():
 
     with tab_visa:
         if not visa_type_stats:
-            st.warning("No visa type data found.")
+            st.warning(f"No visa type data found in '{target_sheet}'.")
         else:
             visa_list = [{"Visa Type / Category": v, "Total Booked Cases": count} for v, count in visa_type_stats.items()]
             df_visa = pd.DataFrame(visa_list)
             df_visa = df_visa.sort_values(by="Total Booked Cases", ascending=False)
             df_visa.index = range(1, len(df_visa) + 1)
-            st.success(f"Total Visa Categories: {len(df_visa)}")
+            st.success(f"Total Visa Categories in '{target_sheet}': {len(df_visa)}")
             st.dataframe(df_visa, use_container_width=True)
             
             buf_visa = io.BytesIO()
@@ -1371,7 +1371,6 @@ def permissions_dialog():
         </div>
     """, unsafe_allow_html=True)
 
-    # 🌟 Single Toggle Button for All Workers (Active / Blocked)
     all_blocked_now = are_all_workers_blocked()
     if all_blocked_now:
         st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
@@ -1423,7 +1422,6 @@ def permissions_dialog():
                         </div>
                     """, unsafe_allow_html=True)
                 with hdr_c2:
-                    # 🌟 Single Toggle Button per Worker (Active / Block) with Instant Logout
                     if is_blocked:
                         st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
                         if st.button("🔓 Activate Worker", key=f"dlg_toggle_status_{idx}", use_container_width=True):
@@ -2038,7 +2036,6 @@ elif st.session_state["role"] == "admin":
                 st.session_state["open_dialog"] = "admin_password"
                 st.rerun()
 
-        # 🌟 Single Toggle Button on Dashboard for All Workers (Active / Block) with Instant Logout
         all_blocked_dash = are_all_workers_blocked()
         if all_blocked_dash:
             st.markdown('<span class="admin-btn-1" style="display:none;"></span>', unsafe_allow_html=True)
@@ -2092,8 +2089,18 @@ elif st.session_state["role"] == "admin":
             admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
         with col_sheets:
             if sheets:
-                st.markdown("📑 **Sheets Switch:**")
-                st.radio("Select Sheet Admin", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="admin_sheet_radio", on_change=update_admin_sheet)
+                st.markdown("📑 **Switch Sheet:**")
+                sw_cols = st.columns(len(sheets), gap="small")
+                for s_idx, s_name in enumerate(sheets):
+                    with sw_cols[s_idx]:
+                        is_act = (s_name == current_sheet)
+                        color_c = "admin-btn-1" if is_act else "admin-btn-6"
+                        b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
+                        st.markdown(f'<span class="{color_c}" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button(b_txt, key=f"admin_sheet_btn_{s_idx}", use_container_width=True):
+                            st.session_state["active_sheet"] = s_name
+                            st.query_params["active_sheet"] = s_name
+                            st.rerun()
         
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
@@ -2302,8 +2309,18 @@ else:
         st.divider()
 
         if sheets:
-            st.write("📑 **Sheets Switch:**")
-            st.radio("Select Worker Sheet", options=sheets, index=sheets.index(current_sheet) if current_sheet in sheets else 0, horizontal=True, label_visibility="collapsed", key="worker_sheet_radio", on_change=update_worker_sheet)
+            st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
+            sw_cols_w = st.columns(len(sheets), gap="small")
+            for idx_w, s_name_w in enumerate(sheets):
+                with sw_cols_w[idx_w]:
+                    is_active_w = (s_name_w == current_sheet)
+                    color_cls_w = "admin-btn-1" if is_active_w else "admin-btn-6"
+                    btn_txt_w = f"✅ {s_name_w}" if is_active_w else f"📄 {s_name_w}"
+                    st.markdown(f'<span class="{color_cls_w}" style="display:none;"></span>', unsafe_allow_html=True)
+                    if st.button(btn_txt_w, key=f"worker_switch_sheet_{s_name_w}_{idx_w}", use_container_width=True):
+                        st.session_state["active_sheet"] = s_name_w
+                        st.query_params["active_sheet"] = s_name_w
+                        st.rerun()
                 
         st.divider()
         
