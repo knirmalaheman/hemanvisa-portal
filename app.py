@@ -1188,9 +1188,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
-@st.dialog("📥 Appointment PDFs Download Center (Date-Wise Folders)", width="large")
+@st.dialog("📥 Appointment PDFs Download Center (Date-Wise Folders & Search)", width="large")
 def admin_pdf_download_dialog():
-    st.info("💡 Uploaded Appointment PDFs organized date-wise in respective folders:")
+    st.info("💡 Uploaded Appointment PDFs organized date-wise in respective folders with overall Case Username search:")
     
     if not os.path.exists(PDF_BASE_DIR):
         os.makedirs(PDF_BASE_DIR)
@@ -1212,6 +1212,9 @@ def admin_pdf_download_dialog():
                         "sheet": s
                     }
 
+    # Bayata Overall Search Bar (Case Username or File Name)
+    search_query = st.text_input("🔍 Search PDFs by Case Username or Filename across all folders:", placeholder="Type case username here...", key="pdf_overall_search").strip().lower()
+
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
     root_files = [f for f in os.listdir(PDF_BASE_DIR) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(PDF_BASE_DIR, f))]
     if root_files:
@@ -1220,44 +1223,56 @@ def admin_pdf_download_dialog():
     if not date_folders:
         st.warning("No date folders or Appointment PDFs found yet.")
     else:
+        found_any = False
         for d_folder in date_folders:
             folder_path = PDF_BASE_DIR if d_folder == "Unsorted / General" else os.path.join(PDF_BASE_DIR, d_folder)
             files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(folder_path, f))] if os.path.isdir(folder_path) else []
             
             if files_in_folder:
-                with st.expander(f"📁 Folder: {d_folder} ({len(files_in_folder)} PDFs)"):
-                    for f_name in files_in_folder:
-                        f_full_path = os.path.join(folder_path, f_name)
-                        abs_full_p = os.path.abspath(f_full_path)
-                        meta = pdf_info_map.get(abs_full_p, {"case_user": "N/A", "worker": "N/A", "sheet": "N/A"})
-                        
-                        with st.container(border=True):
-                            c_info, c_dl, c_del = st.columns([2.6, 1.1, 1.1])
-                            with c_info:
-                                st.write(f"📄 **File:** `{f_name}`")
-                                st.markdown(f"👤 **Case Username:** `{meta['case_user']}` &nbsp;|&nbsp; 👷 **Uploaded By (Worker):** `{meta['worker']}` &nbsp;|&nbsp; 📂 **Sheet:** `{meta['sheet']}`")
-                                st.caption(f"Path: {f_full_path}")
-                            with c_dl:
-                                with open(f_full_path, "rb") as f:
-                                    b_data = f.read()
-                                st.download_button(
-                                    label="📥 Download",
-                                    data=b_data,
-                                    file_name=f_name,
-                                    mime="application/pdf",
-                                    key=f"dl_pdf_{d_folder}_{f_name}",
-                                    use_container_width=True
-                                )
-                            with c_del:
-                                st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
-                                if st.button("🗑️ Delete", key=f"del_pdf_{d_folder}_{f_name}", use_container_width=True):
-                                    try:
-                                        if os.path.exists(f_full_path):
-                                            os.remove(f_full_path)
-                                        st.success(f"✅ Deleted '{f_name}' successfully!")
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"❌ Error deleting file: {e}")
+                filtered_files = []
+                for f_name in files_in_folder:
+                    f_full_path = os.path.join(folder_path, f_name)
+                    abs_full_p = os.path.abspath(f_full_path)
+                    meta = pdf_info_map.get(abs_full_p, {"case_user": "N/A", "worker": "N/A", "sheet": "N/A"})
+                    
+                    if search_query == "" or search_query in meta["case_user"].lower() or search_query in f_name.lower() or search_query in meta["worker"].lower():
+                        filtered_files.append((f_name, f_full_path, meta))
+
+                if filtered_files:
+                    found_any = True
+                    expander_label = f"📁 Folder: {d_folder} ({len(filtered_files)} PDFs matching)" if search_query != "" else f"📁 Folder: {d_folder} ({len(filtered_files)} PDFs)"
+                    with st.expander(expander_label, expanded=(search_query != "")):
+                        for f_name, f_full_path, meta in filtered_files:
+                            with st.container(border=True):
+                                c_info, c_dl, c_del = st.columns([2.6, 1.1, 1.1])
+                                with c_info:
+                                    st.write(f"📄 **File:** `{f_name}`")
+                                    st.markdown(f"👤 **Case Username:** `{meta['case_user']}` &nbsp;|&nbsp; 👷 **Uploaded By (Worker):** `{meta['worker']}` &nbsp;|&nbsp; 📂 **Sheet:** `{meta['sheet']}`")
+                                    st.caption(f"Path: {f_full_path}")
+                                with c_dl:
+                                    with open(f_full_path, "rb") as f:
+                                        b_data = f.read()
+                                    st.download_button(
+                                        label="📥 Download",
+                                        data=b_data,
+                                        file_name=f_name,
+                                        mime="application/pdf",
+                                        key=f"dl_pdf_{d_folder}_{f_name}_{os.path.getmtime(f_full_path)}",
+                                        use_container_width=True
+                                    )
+                                with c_del:
+                                    st.markdown("<div style='height: 2px;'></div>", unsafe_allow_html=True)
+                                    if st.button("🗑️ Delete", key=f"del_pdf_{d_folder}_{f_name}_{os.path.getmtime(f_full_path)}", use_container_width=True):
+                                        try:
+                                            if os.path.exists(f_full_path):
+                                                os.remove(f_full_path)
+                                            st.success(f"✅ Deleted '{f_name}' successfully!")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"❌ Error deleting file: {e}")
+        
+        if search_query != "" and not found_any:
+            st.warning(f"No PDFs found matching username or filename: '{search_query}'")
 
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
