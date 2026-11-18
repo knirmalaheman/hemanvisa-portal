@@ -930,9 +930,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     elif st.session_state["is_reschedule_mode"]:
         st.markdown("### 🔄 Reschedule Appointment Case")
         with st.form(f"reschedule_form_{row_idx}"):
-            pref_loc_input = st.text_input("Preferred Location", value=str(row_data.get("Preferred_Location", "")), placeholder="Enter preferred location...")
-            pref_dates_input = st.text_input("Preferred Dates", value=str(row_data.get("Preferred_Dates", "")), placeholder="Enter preferred dates...")
-            prior_notice_input = st.text_input("Prior Notice", value=str(row_data.get("Prior_Notice", "")), placeholder="Enter prior notice details...")
+            pref_loc_input = st.text_input("Preferred Location", value="", placeholder="Enter preferred location...")
+            pref_dates_input = st.text_input("Preferred Dates", value="", placeholder="Enter preferred dates...")
+            prior_notice_input = st.text_input("Prior Notice", value="", placeholder="Enter prior notice details...")
             
             col_res_save, col_res_back = st.columns(2)
             with col_res_save:
@@ -942,7 +942,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if submitted_res:
                 if not pref_loc_input.strip() or not pref_dates_input.strip() or not prior_notice_input.strip():
-                    st.warning("⚠️ Please fill all 3 fields (Preferred Location, Preferred Dates, and Prior Notice) before saving.")
+                    st.warning("⚠️ All 3 fields (Preferred Location, Preferred Dates, and Prior Notice) must be entered to save Reschedule!")
                 else:
                     try:
                         df_full.at[row_idx, "Preferred_Location"] = pref_loc_input.strip()
@@ -1026,6 +1026,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             b_idx = opts.index(curr_bs) if curr_bs in opts else 0
             booking_status_choice = st.selectbox("📌 Select Status", options=opts, index=b_idx, key=f"popup_bs_{row_idx}")
 
+            # Instant Empty Fields Triggered by Status Choice
             app_entry_val = ""
             uploaded_pdf_file = None
             popup_pref_loc = ""
@@ -1033,12 +1034,12 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             popup_prior_notice = ""
 
             if booking_status_choice == "Booked":
-                app_entry_val = st.text_input("📝 Current Appointment Entry", value=str(row_data.get("Appointment_Entry", "")), key=f"popup_app_entry_{row_idx}")
-                uploaded_pdf_file = st.file_uploader("📎 Upload Appointment PDF (Required if Booked)", type=["pdf"], key=f"popup_pdf_up_{row_idx}")
+                app_entry_val = st.text_input("📝 Current Appointment Entry", value="", placeholder="Enter appointment entry details...", key=f"popup_app_entry_{row_idx}")
+                uploaded_pdf_file = st.file_uploader("📎 Upload Appointment PDF (Required)", type=["pdf"], key=f"popup_pdf_up_{row_idx}")
             elif booking_status_choice == "Rescheduled":
-                popup_pref_loc = st.text_input("Preferred Location", value=str(row_data.get("Preferred_Location", "")), key=f"popup_pref_loc_{row_idx}")
-                popup_pref_dates = st.text_input("Preferred Dates", value=str(row_data.get("Preferred_Dates", "")), key=f"popup_pref_dates_{row_idx}")
-                popup_prior_notice = st.text_input("Prior Notice", value=str(row_data.get("Prior_Notice", "")), key=f"popup_prior_notice_{row_idx}")
+                popup_pref_loc = st.text_input("Preferred Location", value="", placeholder="Enter preferred location...", key=f"popup_pref_loc_{row_idx}")
+                popup_pref_dates = st.text_input("Preferred Dates", value="", placeholder="Enter preferred dates...", key=f"popup_pref_dates_{row_idx}")
+                popup_prior_notice = st.text_input("Prior Notice", value="", placeholder="Enter prior notice details...", key=f"popup_prior_notice_{row_idx}")
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col_save, col_back = st.columns(2)
@@ -1051,8 +1052,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 try:
                     if booking_status_choice == "Rescheduled" and (not popup_pref_loc.strip() or not popup_pref_dates.strip() or not popup_prior_notice.strip()):
                         st.warning("⚠️ All 3 fields (Preferred Location, Preferred Dates, and Prior Notice) must be entered to save Rescheduled status!")
-                    elif booking_status_choice == "Booked" and not uploaded_pdf_file and not str(row_data.get("Appointment_PDF", "")).strip():
-                        st.warning("⚠️ Please upload the Appointment PDF when selecting Booked status.")
+                    elif booking_status_choice == "Booked" and (not app_entry_val.strip() or not uploaded_pdf_file):
+                        st.warning("⚠️ Both Current Appointment Entry and Appointment PDF must be provided when selecting Booked status!")
                     else:
                         current_time = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
                         changed = False
@@ -1068,9 +1069,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             changed = True
 
                         if booking_status_choice == "Booked":
-                            if str(df_full.at[row_idx, "Appointment_Entry"]) != app_entry_val.strip():
-                                df_full.at[row_idx, "Appointment_Entry"] = app_entry_val.strip()
-                                changed = True
+                            df_full.at[row_idx, "Appointment_Entry"] = app_entry_val.strip()
+                            changed = True
 
                             if uploaded_pdf_file is not None:
                                 safe_uname = str(row_data.get(display_c, "case")).strip().replace(" ", "_")
@@ -1079,18 +1079,12 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 with open(full_pdf_path, "wb") as pf:
                                     pf.write(uploaded_pdf_file.getbuffer())
                                 df_full.at[row_idx, "Appointment_PDF"] = full_pdf_path
-                                changed = True
 
                         elif booking_status_choice == "Rescheduled":
-                            if str(df_full.at[row_idx, "Preferred_Location"]) != popup_pref_loc.strip():
-                                df_full.at[row_idx, "Preferred_Location"] = popup_pref_loc.strip()
-                                changed = True
-                            if str(df_full.at[row_idx, "Preferred_Dates"]) != popup_pref_dates.strip():
-                                df_full.at[row_idx, "Preferred_Dates"] = popup_pref_dates.strip()
-                                changed = True
-                            if str(df_full.at[row_idx, "Prior_Notice"]) != popup_prior_notice.strip():
-                                df_full.at[row_idx, "Prior_Notice"] = popup_prior_notice.strip()
-                                changed = True
+                            df_full.at[row_idx, "Preferred_Location"] = popup_pref_loc.strip()
+                            df_full.at[row_idx, "Preferred_Dates"] = popup_pref_dates.strip()
+                            df_full.at[row_idx, "Prior_Notice"] = popup_prior_notice.strip()
+                            changed = True
 
                         if changed:
                             df_full.at[row_idx, "Updated_By"] = current_user
