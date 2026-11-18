@@ -5,6 +5,7 @@ import io
 import datetime
 import base64
 import json
+import math
 
 EXCEL_FILE = "Heman_Report.xlsx"
 ADMIN_FILE = "admin_config.txt"
@@ -137,7 +138,7 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-# 🌟 FAST CACHING: Reads all sheets once into memory so switching/filtering is instant
+# 🌟 ULTRA-FAST CACHING: Reads all sheets once into memory so switching/filtering is instantaneous
 @st.cache_data(ttl=600)
 def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
@@ -162,6 +163,26 @@ def load_all_sheets_cached(file_mtime):
         except Exception:
             return {}
     return {}
+
+@st.cache_data(ttl=600)
+def get_worker_export_bytes(file_mtime, current_user, current_sheet):
+    all_sheets = load_all_sheets_cached(file_mtime)
+    worker_buffer = io.BytesIO()
+    with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
+        has_user_data = False
+        for s, df_s in all_sheets.items():
+            if df_s is not None and not df_s.empty:
+                login_cs = find_login_user_column(df_s)
+                u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
+                if not u_rows_s.empty:
+                    has_user_data = True
+                    u_rows_s.to_excel(writer, sheet_name=s, index=False)
+        if not has_user_data and current_sheet in all_sheets:
+            df_cur = all_sheets[current_sheet]
+            login_cs = find_login_user_column(df_cur)
+            u_rows_cur = df_cur[df_cur[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
+            u_rows_cur.to_excel(writer, sheet_name=current_sheet, index=False)
+    return worker_buffer.getvalue()
 
 def _get_file_mtime():
     return os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
@@ -904,13 +925,51 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
-# 🌟 FAST TABLE RENDERER: Uses list joining instead of slow += string concatenation
-def render_clickable_table(df, display_c, p_col):
+# 🌟 MILLISECOND ZERO-LAG PAGINATED TABLE RENDERER
+def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
         st.info("No cases found.")
         return
 
-    display_cols = [c for c in df.columns if c not in [p_col]]
+    total_rows = len(df)
+    total_pages = max(1, math.ceil(total_rows / page_size))
+    page_state_key = f"page_num_{table_key}"
+    
+    if page_state_key not in st.session_state:
+        st.session_state[page_state_key] = 1
+    if st.session_state[page_state_key] > total_pages:
+        st.session_state[page_state_key] = total_pages
+    if st.session_state[page_state_key] < 1:
+        st.session_state[page_state_key] = 1
+
+    curr_page = st.session_state[page_state_key]
+    start_idx = (curr_page - 1) * page_size
+    end_idx = min(start_idx + page_size, total_rows)
+    page_df = df.iloc[start_idx:end_idx]
+
+    if total_pages > 1:
+        p_c1, p_c2, p_c3, p_c4 = st.columns([1.2, 2.6, 1.2, 1.2], gap="small")
+        with p_c1:
+            if st.button("⬅️ Previous", key=f"prev_{table_key}", disabled=(curr_page <= 1), use_container_width=True):
+                st.session_state[page_state_key] = curr_page - 1
+                st.rerun()
+        with p_c2:
+            st.markdown(
+                f"<div style='text-align:center; padding-top:10px; font-weight:700; color:#1e293b; font-size:13.5px;'>"
+                f"Page {curr_page} of {total_pages} &nbsp;|&nbsp; Showing {start_idx + 1}–{end_idx} of {total_rows} cases</div>",
+                unsafe_allow_html=True
+            )
+        with p_c3:
+            if st.button("Next ➡️", key=f"next_{table_key}", disabled=(curr_page >= total_pages), use_container_width=True):
+                st.session_state[page_state_key] = curr_page + 1
+                st.rerun()
+        with p_c4:
+            jump_page = st.number_input("Page", min_value=1, max_value=total_pages, value=curr_page, label_visibility="collapsed", key=f"jump_{table_key}")
+            if jump_page != curr_page:
+                st.session_state[page_state_key] = int(jump_page)
+                st.rerun()
+
+    display_cols = [c for c in page_df.columns if c not in [p_col]]
     
     curr_logged = qp.get("logged_in", "true" if st.session_state.get("logged_in") else "false")
     curr_user = qp.get("username", st.session_state.get("username", ""))
@@ -929,9 +988,9 @@ def render_clickable_table(df, display_c, p_col):
     html_parts.append("</tr></thead><tbody>")
 
     base_link = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row="
-    indices = df.index.tolist()
-    act_col_vals = df["Action_Type"].astype(str).str.strip().str.lower().tolist() if "Action_Type" in df.columns else [""] * len(df)
-    col_data = {col: df[col].astype(str).tolist() for col in display_cols}
+    indices = page_df.index.tolist()
+    act_col_vals = page_df["Action_Type"].astype(str).str.strip().str.lower().tolist() if "Action_Type" in page_df.columns else [""] * len(page_df)
+    col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
 
     for i, idx in enumerate(indices):
         act_t = act_col_vals[i]
@@ -1211,7 +1270,7 @@ def admin_updated_cases_dialog():
                 st.info("No new cases found.")
             else:
                 st.success(f"Total New Cases: {len(new_cases_df)}")
-                render_clickable_table(new_cases_df, find_display_username_column(new_cases_df), p_col)
+                render_clickable_table(new_cases_df, find_display_username_column(new_cases_df), p_col, table_key="dlg_new_cases")
                 
     with tab_upd:
         if not all_rows:
@@ -1225,7 +1284,7 @@ def admin_updated_cases_dialog():
                 st.info("No updated cases found.")
             else:
                 st.success(f"Total Updated Cases: {len(updated_cases_df)}")
-                render_clickable_table(updated_cases_df, find_display_username_column(updated_cases_df), p_col)
+                render_clickable_table(updated_cases_df, find_display_username_column(updated_cases_df), p_col, table_key="dlg_upd_cases")
 
     with tab_cal:
         st.write("📅 **Filter records by specific date:**")
@@ -1246,7 +1305,7 @@ def admin_updated_cases_dialog():
                 else:
                     pc = find_password_column(matched_df)
                     display_c = find_display_username_column(matched_df)
-                    render_clickable_table(matched_df, display_c, pc)
+                    render_clickable_table(matched_df, display_c, pc, table_key="dlg_cal_cases")
             else:
                 st.warning("No date column found in this sheet.")
 
@@ -2048,7 +2107,7 @@ elif st.session_state["role"] == "admin":
             display_df = display_df[display_df[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
         st.caption(f"💡 Showing {len(display_df)} cases. Click USERNAME inside the table to view, edit, or delete details.")
-        render_clickable_table(display_df, display_c, p_col)
+        render_clickable_table(display_df, display_c, p_col, table_key=f"admin_{current_sheet}")
                     
         if os.path.exists(EXCEL_FILE):
             with open(EXCEL_FILE, "rb") as f:
@@ -2215,24 +2274,10 @@ else:
         with w_cols[2]:
             if worker_perm.get("can_download", False):
                 st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
-                worker_buffer = io.BytesIO()
-                with pd.ExcelWriter(worker_buffer, engine='openpyxl') as writer:
-                    has_user_data = False
-                    for s in sheets:
-                        df_s = load_data(sheet_name=s)
-                        if df_s is not None and not df_s.empty:
-                            login_cs = find_login_user_column(df_s)
-                            u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
-                            if not u_rows_s.empty:
-                                has_user_data = True
-                                u_rows_s.to_excel(writer, sheet_name=s, index=False)
-                    
-                    if not has_user_data:
-                        user_rows.to_excel(writer, sheet_name=current_sheet, index=False)
-                
+                worker_excel_bytes = get_worker_export_bytes(_get_file_mtime(), current_user, current_sheet)
                 st.download_button(
                     label="📥 Export My Excel", 
-                    data=worker_buffer.getvalue(), 
+                    data=worker_excel_bytes, 
                     file_name=f"{current_user}_all_sheets_cases.xlsx", 
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
                     use_container_width=True, 
@@ -2273,7 +2318,7 @@ else:
             st.info("No cases found matching your criteria in this sheet.")
         else:
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
-            render_clickable_table(display_user_rows, display_c, p_col)
+            render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}")
 
     elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
