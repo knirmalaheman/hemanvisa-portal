@@ -2780,7 +2780,7 @@ if worker_dash_tab == "📊 My Workspace":
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
             render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}")
 
-    elif worker_dash_tab == "ℹ️ Case Worker Guide":
+elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
         w_g1, w_g2 = st.columns(2, gap="medium")
         with w_g1:
