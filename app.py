@@ -141,12 +141,9 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-# 🌟 STRICT COLUMN REORDERING & IGNORING UNWANTED DS-160 WORKER COLUMN
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
         return df
-    
-    # Drop unwanted redundant worker columns if present
     cols_to_drop = [c for c in df.columns if c.strip().lower() in ["ds-160 case worker", "ds160 case worker"]]
     if cols_to_drop:
         df = df.drop(columns=cols_to_drop, errors="ignore")
@@ -1019,11 +1016,19 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             curr_bs = str(row_data.get("Booking_Status", "Active")).strip()
-            opts = ["Active", "Booked"]
+            
+            # Added "Rescheduled" option here in Select Status
+            opts = ["Active", "Booked", "Rescheduled"]
             b_idx = opts.index(curr_bs) if curr_bs in opts else 0
             booking_status_choice = st.selectbox("📌 Select Status", options=opts, index=b_idx, key=f"popup_bs_{row_idx}")
 
             app_entry_val = st.text_input("📝 Current Appointment Entry", value=str(row_data.get("Appointment_Entry", "")), key=f"popup_app_entry_{row_idx}")
+
+            # Reschedule specific entry fields for location and dates
+            st.markdown("---")
+            st.markdown("#### 🔄 Reschedule Preferences (If applicable)")
+            popup_pref_loc = st.text_input("Preferred Location", value=str(row_data.get("Preferred_Location", "")), key=f"popup_pref_loc_{row_idx}")
+            popup_pref_dates = st.text_input("Preferred Dates", value=str(row_data.get("Preferred_Dates", "")), key=f"popup_pref_dates_{row_idx}")
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             uploaded_pdf_file = st.file_uploader("📎 Upload Appointment PDF (Required if Booked)", type=["pdf"], key=f"popup_pdf_up_{row_idx}")
@@ -1057,6 +1062,14 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Appointment_Entry"] = app_entry_val.strip()
                             changed = True
 
+                        # Update Preferred Location and Dates if provided
+                        if str(df_full.at[row_idx, "Preferred_Location"]) != popup_pref_loc.strip():
+                            df_full.at[row_idx, "Preferred_Location"] = popup_pref_loc.strip()
+                            changed = True
+                        if str(df_full.at[row_idx, "Preferred_Dates"]) != popup_pref_dates.strip():
+                            df_full.at[row_idx, "Preferred_Dates"] = popup_pref_dates.strip()
+                            changed = True
+
                         if uploaded_pdf_file is not None:
                             safe_uname = str(row_data.get(display_c, "case")).strip().replace(" ", "_")
                             pdf_filename = f"Appointment_{safe_uname}_{row_idx}_{int(datetime.datetime.now().timestamp())}.pdf"
@@ -1072,6 +1085,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
                         target_save_sheet = sheet_name
+                        
+                        # If status is Booked, transfer to booked sheet
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
                             booked_sheet_name = next((s for s in sheets_all if "booked" in s.lower()), None)
@@ -1088,13 +1103,34 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 save_data(df_target_booked, sheet_name=booked_sheet_name)
                                 df_full = df_full.drop(row_idx)
 
+                        # If status is Rescheduled (from Booked sheet), transfer back to Active sheet with new prefer data and old data wiped
+                        elif booking_status_choice == "Rescheduled" and is_booked_sheet:
+                            sheets_all = get_sheet_names()
+                            active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
+                            if active_sheet_name:
+                                df_target_active = load_data(sheet_name=active_sheet_name)
+                                row_to_transfer = df_full.loc[row_idx].copy()
+                                row_to_transfer["Booking_Status"] = "Active"
+                                
+                                # Overwrite with new preferred location and dates, old data is replaced
+                                row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
+                                row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
+                                
+                                for col in df_target_active.columns:
+                                    if col not in row_to_transfer:
+                                        row_to_transfer[col] = ""
+                                
+                                df_target_active = pd.concat([df_target_active, pd.DataFrame([row_to_transfer])], ignore_index=True)
+                                save_data(df_target_active, sheet_name=active_sheet_name)
+                                df_full = df_full.drop(row_idx)
+
                         save_data(df_full, sheet_name=sheet_name)
                         st.session_state["is_editing_popup"] = False
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["is_delete_request_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully updated and saved!")
+                        st.success("✅ Case successfully updated and moved!")
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
@@ -1413,6 +1449,7 @@ def admin_worker_wise_report_dialog():
             df_today = pd.DataFrame(today_list)
             df_today.index = range(1, len(df_today) + 1)
             st.success(f"Total Cases Booked Today in '{target_sheet}': {df_today['Today Booked Cases'].sum()}")
+            df_today.index = range(1, len(df_today) + 1)
             st.dataframe(df_today, use_container_width=True)
             
             buf_today = io.BytesIO()
@@ -1436,6 +1473,7 @@ def admin_worker_wise_report_dialog():
             df_total = pd.DataFrame(total_list)
             df_total.index = range(1, len(df_total) + 1)
             st.success(f"Total Booked Cases in '{target_sheet}': {df_total['Total Booked Cases'].sum()}")
+            df_total.index = range(1, len(df_total) + 1)
             st.dataframe(df_total, use_container_width=True)
             
             buf_total = io.BytesIO()
@@ -1452,6 +1490,7 @@ def admin_worker_wise_report_dialog():
             df_visa = df_visa.sort_values(by="Total Booked Cases", ascending=False)
             df_visa.index = range(1, len(df_visa) + 1)
             st.success(f"Total Visa Categories in '{target_sheet}': {len(df_visa)}")
+            df_visa.index = range(1, len(df_visa) + 1)
             st.dataframe(df_visa, use_container_width=True)
             
             buf_visa = io.BytesIO()
@@ -2592,7 +2631,7 @@ else:
             st.markdown("""
                 <div class="corporate-card">
                     <h3>🗑️ Requesting Case Deletions</h3>
-                    <p>If a case needs removal, click 'Request Delete' and provide a mandatory reason. The admin will review and approve or reject your request.</p>
+                    <p>Code an update request, or click 'Request Delete' with a mandatory reason. Admin reviews and approves/rejects requests.</p>
                 </div>
                 <div class="corporate-card">
                     <h3>🔒 Security & Password</h3>
