@@ -13,11 +13,11 @@ PERMS_FILE = "worker_permissions.json"
 NOTICE_FILE = "admin_notice.txt"
 LOGINS_FILE = "worker_logins_status.json"
 ATTENDANCE_FILE = "worker_attendance.json"
-PDF_DIR = "uploaded_appointment_pdfs"
+PDF_BASE_DIR = "uploaded_appointment_pdfs"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
-if not os.path.exists(PDF_DIR):
-    os.makedirs(PDF_DIR)
+if not os.path.exists(PDF_BASE_DIR):
+    os.makedirs(PDF_BASE_DIR)
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
@@ -957,7 +957,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         
                         save_data(df_full, sheet_name=sheet_name)
 
-                        # Also ensure a copy/record is added to Active Sheet while staying in Booked Sheet
                         sheets_all = get_sheet_names()
                         active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0] if sheets_all else None)
                         if active_sheet_name and active_sheet_name != sheet_name:
@@ -1038,10 +1037,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
                     if col_name == display_c:
-                        # Case Username is now editable
                         updated_values[display_c] = st.text_input(f"{col_name} (Case Username)", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
                     elif col_name == login_c:
-                        # Case Worker Dropdown
                         curr_worker_val = str(row_data.get(login_c, "")).strip()
                         w_idx = all_workers_list.index(curr_worker_val) if curr_worker_val in all_workers_list else 0
                         selected_worker = st.selectbox(f"{col_name} (Case Worker)", options=all_workers_list, index=w_idx, key=f"popup_worker_select_{row_idx}")
@@ -1093,7 +1090,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                     elif booking_status_choice == "Booked" and (not app_entry_val.strip() or not uploaded_pdf_file):
                         st.warning("⚠️ Both Current Appointment Entry and Appointment PDF must be provided when selecting Booked status!")
                     else:
-                        current_time = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        current_time = get_ist_now()
+                        current_time_str = current_time.strftime("%Y-%m-%d %I:%M:%S %p")
+                        today_date_str = current_time.strftime("%Y-%m-%d")
+                        
                         changed = False
                         
                         for col_name, new_val in updated_values.items():
@@ -1111,9 +1111,14 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             changed = True
 
                             if uploaded_pdf_file is not None:
+                                # Create date-wise subfolder under uploaded_appointment_pdfs
+                                date_folder = os.path.join(PDF_BASE_DIR, today_date_str)
+                                if not os.path.exists(date_folder):
+                                    os.makedirs(date_folder)
+
                                 safe_uname = str(df_full.at[row_idx, display_c] if display_c in df_full.columns else "case").strip().replace(" ", "_")
                                 pdf_filename = f"Appointment_{safe_uname}_{row_idx}_{int(datetime.datetime.now().timestamp())}.pdf"
-                                full_pdf_path = os.path.join(PDF_DIR, pdf_filename)
+                                full_pdf_path = os.path.join(date_folder, pdf_filename)
                                 with open(full_pdf_path, "wb") as pf:
                                     pf.write(uploaded_pdf_file.getbuffer())
                                 df_full.at[row_idx, "Appointment_PDF"] = full_pdf_path
@@ -1126,7 +1131,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         if changed:
                             df_full.at[row_idx, "Updated_By"] = current_user
-                            df_full.at[row_idx, "Updated_At"] = current_time
+                            df_full.at[row_idx, "Updated_At"] = current_time_str
                             df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
                         target_save_sheet = sheet_name
@@ -1148,7 +1153,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
 
                         elif booking_status_choice == "Rescheduled" and is_booked_sheet:
-                            # Keep in Booked sheet AND also add/sync to Active Sheet
                             sheets_all = get_sheet_names()
                             active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
                             if active_sheet_name:
@@ -1172,7 +1176,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["is_delete_request_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully updated and saved in both sheets!")
+                        st.success("✅ Case successfully updated and saved!")
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
@@ -1185,50 +1189,47 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
-@st.dialog("📥 Appointment PDFs Download Center", width="large")
+@st.dialog("📥 Appointment PDFs Download Center (Date-Wise Folders)", width="large")
 def admin_pdf_download_dialog():
-    st.info("💡 Download all uploaded Appointment PDFs across all sheets:")
-    sheets = get_sheet_names()
-    pdf_records = []
+    st.info("💡 Uploaded Appointment PDFs organized date-wise in respective folders:")
     
-    for s in sheets:
-        df_s = load_data(sheet_name=s)
-        if df_s is not None and not df_s.empty and "Appointment_PDF" in df_s.columns:
-            disp_c = find_display_username_column(df_s)
-            login_c = find_login_user_column(df_s)
-            for idx, r in df_s.iterrows():
-                p_path = str(r.get("Appointment_PDF", "")).strip()
-                if p_path and os.path.exists(p_path):
-                    pdf_records.append({
-                        "Sheet": s,
-                        "Row": idx + 1,
-                        "Username": str(r.get(disp_c, "N/A")),
-                        "Worker": str(r.get(login_c, "N/A")),
-                        "Path": p_path,
-                        "Filename": os.path.basename(p_path)
-                    })
-                    
-    if not pdf_records:
-        st.warning("No Appointment PDFs uploaded yet.")
+    if not os.path.exists(PDF_BASE_DIR):
+        os.makedirs(PDF_BASE_DIR)
+        
+    date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
+    
+    # Also check if there are any PDFs directly inside PDF_BASE_DIR (for backward compatibility)
+    root_files = [f for f in os.listdir(PDF_BASE_DIR) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(PDF_BASE_DIR, f))]
+    if root_files:
+        date_folders.insert(0, "Unsorted / General")
+
+    if not date_folders:
+        st.warning("No date folders or Appointment PDFs found yet.")
     else:
-        st.success(f"Total Uploaded PDFs: {len(pdf_records)}")
-        for item in pdf_records:
-            with st.container(border=True):
-                col_info, col_dl = st.columns([3, 1])
-                with col_info:
-                    st.write(f"📁 **Sheet:** {item['Sheet']} &nbsp;|&nbsp; 👤 **User:** {item['Username']} &nbsp;|&nbsp; 👷 **Worker:** {item['Worker']}")
-                    st.caption(f"File: {item['Filename']}")
-                with col_dl:
-                    with open(item['Path'], "rb") as f:
-                        b_data = f.read()
-                    st.download_button(
-                        label="📥 Download PDF",
-                        data=b_data,
-                        file_name=item['Filename'],
-                        mime="application/pdf",
-                        key=f"dl_center_{item['Sheet']}_{item['Row']}",
-                        use_container_width=True
-                    )
+        for d_folder in date_folders:
+            folder_path = PDF_BASE_DIR if d_folder == "Unsorted / General" else os.path.join(PDF_BASE_DIR, d_folder)
+            files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(folder_path, f))]
+            
+            if files_in_folder:
+                with st.expander(f"📁 Folder: {d_folder} ({len(files_in_folder)} PDFs)"):
+                    for f_name in files_in_folder:
+                        f_full_path = os.path.join(folder_path, f_name)
+                        with st.container(border=True):
+                            c_info, c_btn = st.columns([3, 1])
+                            with c_info:
+                                st.write(f"📄 **File:** `{f_name}`")
+                                st.caption(f"Path: {f_full_path}")
+                            with c_btn:
+                                with open(f_full_path, "rb") as f:
+                                    b_data = f.read()
+                                st.download_button(
+                                    label="📥 Download",
+                                    data=b_data,
+                                    file_name=f_name,
+                                    mime="application/pdf",
+                                    key=f"dl_pdf_folder_{d_folder}_{f_name}",
+                                    use_container_width=True
+                                )
 
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
