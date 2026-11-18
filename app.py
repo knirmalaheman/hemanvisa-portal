@@ -182,8 +182,12 @@ def load_all_sheets_cached(file_mtime):
                     df["Delete_Reason"] = ""
                 if "Booking_Status" not in df.columns:
                     df["Booking_Status"] = "Active"
-                if "Appointment_Entry" not in df.columns:
+                
+                if "Appointment_Entry" not in df.columns and "Current Appointment" in df.columns:
+                    df = df.rename(columns={"Current Appointment": "Appointment_Entry"})
+                elif "Appointment_Entry" not in df.columns:
                     df["Appointment_Entry"] = ""
+
                 if "Appointment_PDF" not in df.columns:
                     df["Appointment_PDF"] = ""
                 if "Preferred_Location" not in df.columns:
@@ -1017,21 +1021,22 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             curr_bs = str(row_data.get("Booking_Status", "Active")).strip()
             
-            # Added "Rescheduled" option here in Select Status
             opts = ["Active", "Booked", "Rescheduled"]
             b_idx = opts.index(curr_bs) if curr_bs in opts else 0
             booking_status_choice = st.selectbox("📌 Select Status", options=opts, index=b_idx, key=f"popup_bs_{row_idx}")
 
-            app_entry_val = st.text_input("📝 Current Appointment Entry", value=str(row_data.get("Appointment_Entry", "")), key=f"popup_app_entry_{row_idx}")
+            # Dynamic Field Visibility based on Select Status
+            app_entry_val = ""
+            uploaded_pdf_file = None
+            popup_pref_loc = ""
+            popup_pref_dates = ""
 
-            # Reschedule specific entry fields for location and dates
-            st.markdown("---")
-            st.markdown("#### 🔄 Reschedule Preferences (If applicable)")
-            popup_pref_loc = st.text_input("Preferred Location", value=str(row_data.get("Preferred_Location", "")), key=f"popup_pref_loc_{row_idx}")
-            popup_pref_dates = st.text_input("Preferred Dates", value=str(row_data.get("Preferred_Dates", "")), key=f"popup_pref_dates_{row_idx}")
-
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-            uploaded_pdf_file = st.file_uploader("📎 Upload Appointment PDF (Required if Booked)", type=["pdf"], key=f"popup_pdf_up_{row_idx}")
+            if booking_status_choice == "Booked":
+                app_entry_val = st.text_input("📝 Current Appointment Entry", value=str(row_data.get("Appointment_Entry", "")), key=f"popup_app_entry_{row_idx}")
+                uploaded_pdf_file = st.file_uploader("📎 Upload Appointment PDF (Required if Booked)", type=["pdf"], key=f"popup_pdf_up_{row_idx}")
+            elif booking_status_choice == "Rescheduled":
+                popup_pref_loc = st.text_input("Preferred Location", value=str(row_data.get("Preferred_Location", "")), key=f"popup_pref_loc_{row_idx}")
+                popup_pref_dates = st.text_input("Preferred Dates", value=str(row_data.get("Preferred_Dates", "")), key=f"popup_pref_dates_{row_idx}")
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col_save, col_back = st.columns(2)
@@ -1058,26 +1063,27 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Booking_Status"] = booking_status_choice
                             changed = True
 
-                        if str(df_full.at[row_idx, "Appointment_Entry"]) != app_entry_val.strip():
-                            df_full.at[row_idx, "Appointment_Entry"] = app_entry_val.strip()
-                            changed = True
+                        if booking_status_choice == "Booked":
+                            if str(df_full.at[row_idx, "Appointment_Entry"]) != app_entry_val.strip():
+                                df_full.at[row_idx, "Appointment_Entry"] = app_entry_val.strip()
+                                changed = True
 
-                        # Update Preferred Location and Dates if provided
-                        if str(df_full.at[row_idx, "Preferred_Location"]) != popup_pref_loc.strip():
-                            df_full.at[row_idx, "Preferred_Location"] = popup_pref_loc.strip()
-                            changed = True
-                        if str(df_full.at[row_idx, "Preferred_Dates"]) != popup_pref_dates.strip():
-                            df_full.at[row_idx, "Preferred_Dates"] = popup_pref_dates.strip()
-                            changed = True
+                            if uploaded_pdf_file is not None:
+                                safe_uname = str(row_data.get(display_c, "case")).strip().replace(" ", "_")
+                                pdf_filename = f"Appointment_{safe_uname}_{row_idx}_{int(datetime.datetime.now().timestamp())}.pdf"
+                                full_pdf_path = os.path.join(PDF_DIR, pdf_filename)
+                                with open(full_pdf_path, "wb") as pf:
+                                    pf.write(uploaded_pdf_file.getbuffer())
+                                df_full.at[row_idx, "Appointment_PDF"] = full_pdf_path
+                                changed = True
 
-                        if uploaded_pdf_file is not None:
-                            safe_uname = str(row_data.get(display_c, "case")).strip().replace(" ", "_")
-                            pdf_filename = f"Appointment_{safe_uname}_{row_idx}_{int(datetime.datetime.now().timestamp())}.pdf"
-                            full_pdf_path = os.path.join(PDF_DIR, pdf_filename)
-                            with open(full_pdf_path, "wb") as pf:
-                                pf.write(uploaded_pdf_file.getbuffer())
-                            df_full.at[row_idx, "Appointment_PDF"] = full_pdf_path
-                            changed = True
+                        elif booking_status_choice == "Rescheduled":
+                            if str(df_full.at[row_idx, "Preferred_Location"]) != popup_pref_loc.strip():
+                                df_full.at[row_idx, "Preferred_Location"] = popup_pref_loc.strip()
+                                changed = True
+                            if str(df_full.at[row_idx, "Preferred_Dates"]) != popup_pref_dates.strip():
+                                df_full.at[row_idx, "Preferred_Dates"] = popup_pref_dates.strip()
+                                changed = True
 
                         if changed:
                             df_full.at[row_idx, "Updated_By"] = current_user
@@ -1086,7 +1092,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         target_save_sheet = sheet_name
                         
-                        # If status is Booked, transfer to booked sheet
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
                             booked_sheet_name = next((s for s in sheets_all if "booked" in s.lower()), None)
@@ -1103,7 +1108,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 save_data(df_target_booked, sheet_name=booked_sheet_name)
                                 df_full = df_full.drop(row_idx)
 
-                        # If status is Rescheduled (from Booked sheet), transfer back to Active sheet with new prefer data and old data wiped
                         elif booking_status_choice == "Rescheduled" and is_booked_sheet:
                             sheets_all = get_sheet_names()
                             active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
@@ -1111,8 +1115,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_target_active = load_data(sheet_name=active_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
                                 row_to_transfer["Booking_Status"] = "Active"
-                                
-                                # Overwrite with new preferred location and dates, old data is replaced
                                 row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
                                 row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
                                 
@@ -2631,7 +2633,7 @@ else:
             st.markdown("""
                 <div class="corporate-card">
                     <h3>🗑️ Requesting Case Deletions</h3>
-                    <p>Code an update request, or click 'Request Delete' with a mandatory reason. Admin reviews and approves/rejects requests.</p>
+                    <p>If a case needs removal, click 'Request Delete' and provide a mandatory reason. Admin reviews and approves/rejects your request.</p>
                 </div>
                 <div class="corporate-card">
                     <h3>🔒 Security & Password</h3>
