@@ -21,6 +21,7 @@ if not os.path.exists(PDF_DIR):
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
+# 🌟 Perfect IST Timezone Helper (Cloud Server UTC + 5:30 hours for Indian Standard Time)
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
@@ -141,6 +142,7 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
+# 🌟 ULTRA-FAST CACHING: Reads all sheets once into memory so switching/filtering is instantaneous
 @st.cache_data(ttl=600)
 def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
@@ -166,6 +168,13 @@ def load_all_sheets_cached(file_mtime):
                     df["Appointment_Entry"] = ""
                 if "Appointment_PDF" not in df.columns:
                     df["Appointment_PDF"] = ""
+                # Reschedule fields addition
+                if "Preferred_Location" not in df.columns:
+                    df["Preferred_Location"] = ""
+                if "Preferred_Dates" not in df.columns:
+                    df["Preferred_Dates"] = ""
+                if "Prior_Notice" not in df.columns:
+                    df["Prior_Notice"] = ""
                 processed[s_name] = df
             return processed
         except Exception:
@@ -311,6 +320,7 @@ def toggle_all_workers_block(block_status: bool):
             record_worker_logout(w)
     save_permissions(current_perms)
 
+# 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -369,6 +379,7 @@ if st.session_state["logged_in"] and "edit_row" in qp:
         st.session_state["open_dialog"] = "edit_case_popup"
         st.session_state["is_editing_popup"] = False
         st.session_state["is_delete_request_mode"] = False
+        st.session_state["is_reschedule_mode"] = False
         if "edit_row" in st.query_params:
             del st.query_params["edit_row"]
     except:
@@ -390,6 +401,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
+# 🌟 SUBDUED, SOPHISTICATED & PROFESSIONAL CORPORATE STYLING
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -570,6 +582,8 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
+    
+    /* 🌟 ELITE GLASSMORPHIC KPI CARDS WITH PROFESSIONAL MUTED TONES */
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -623,6 +637,8 @@ st.markdown("""
         letter-spacing: 0.5px;
         text-shadow: 0 2px 4px rgba(0,0,0,0.25);
     }
+
+    /* 🌟 SOPHISTICATED SUBDUED PROFESSIONAL BUTTONS */
     div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
@@ -671,6 +687,7 @@ st.markdown("""
         border-bottom: 3px solid #f87171 !important;
         color: #ffffff !important;
     }
+
     .section-banner {
         background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
         border-left: 5px solid #1e293b;
@@ -773,6 +790,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
+# 🌟 ENHANCED DIALOG WITH RESCHEDULE OPTION & 3 TEXT BOXES FOR BOOKED CASES
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -794,8 +812,12 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         st.session_state["is_editing_popup"] = False
     if "is_delete_request_mode" not in st.session_state:
         st.session_state["is_delete_request_mode"] = False
+    if "is_reschedule_mode" not in st.session_state:
+        st.session_state["is_reschedule_mode"] = False
 
-    if not st.session_state["is_editing_popup"] and not st.session_state["is_delete_request_mode"]:
+    is_booked_sheet = "booked" in sheet_name.lower()
+
+    if not st.session_state["is_editing_popup"] and not st.session_state["is_delete_request_mode"] and not st.session_state["is_reschedule_mode"]:
         st.markdown("### 📄 Case Information")
         for col in df_full.columns:
             if col not in [p_col, "Appointment_PDF"]:
@@ -807,6 +829,13 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         app_entry = str(row_data.get("Appointment_Entry", "")).strip()
         if app_entry:
             st.markdown(f"📝 **Current Appointment Entry:** `{app_entry}`")
+
+        # Show reschedule details if available
+        pref_loc = str(row_data.get("Preferred_Location", "")).strip()
+        pref_dates = str(row_data.get("Preferred_Dates", "")).strip()
+        prior_notice = str(row_data.get("Prior_Notice", "")).strip()
+        if pref_loc or pref_dates or prior_notice:
+            st.markdown(f"🔄 **Reschedule Info:** Location: `{pref_loc}` | Dates: `{pref_dates}` | Prior Notice: `{prior_notice}`")
 
         pdf_path = str(row_data.get("Appointment_PDF", "")).strip()
         if pdf_path and os.path.exists(pdf_path):
@@ -828,27 +857,92 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         if role == "worker" and not can_update:
             st.warning("⚠️ View Only Mode: Admin has disabled update permissions for your account.")
         else:
-            col_act1, col_act2 = st.columns(2)
-            with col_act1:
-                if st.button("✏️ Edit Case & Update Booking", type="primary", use_container_width=True, key="btn_trigger_edit"):
-                    st.session_state["is_editing_popup"] = True
-                    st.rerun()
-            with col_act2:
-                if role == "admin":
-                    if st.button("🗑️ Delete Case", type="secondary", use_container_width=True, key="btn_trigger_delete"):
-                        try:
-                            df_full = df_full.drop(row_idx)
-                            save_data(df_full, sheet_name=sheet_name)
-                            st.session_state["selected_row_idx"] = None
-                            st.session_state["open_dialog"] = None
-                            st.success("✅ Case deleted successfully!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error deleting case: {e}")
-                else:
-                    if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req_mode"):
-                        st.session_state["is_delete_request_mode"] = True
+            if is_booked_sheet:
+                col_act1, col_act2, col_act3 = st.columns(3)
+                with col_act1:
+                    if st.button("✏️ Edit Case", type="primary", use_container_width=True, key="btn_trigger_edit"):
+                        st.session_state["is_editing_popup"] = True
                         st.rerun()
+                with col_act2:
+                    if st.button("🔄 Reschedule", type="secondary", use_container_width=True, key="btn_trigger_reschedule"):
+                        st.session_state["is_reschedule_mode"] = True
+                        st.rerun()
+                with col_act3:
+                    if role == "admin":
+                        if st.button("🗑️ Delete", type="secondary", use_container_width=True, key="btn_trigger_delete"):
+                            try:
+                                df_full = df_full.drop(row_idx)
+                                save_data(df_full, sheet_name=sheet_name)
+                                st.session_state["selected_row_idx"] = None
+                                st.session_state["open_dialog"] = None
+                                st.success("✅ Case deleted successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error deleting case: {e}")
+                    else:
+                        if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req_mode"):
+                            st.session_state["is_delete_request_mode"] = True
+                            st.rerun()
+            else:
+                col_act1, col_act2 = st.columns(2)
+                with col_act1:
+                    if st.button("✏️ Edit Case & Update Booking", type="primary", use_container_width=True, key="btn_trigger_edit"):
+                        st.session_state["is_editing_popup"] = True
+                        st.rerun()
+                with col_act2:
+                    if role == "admin":
+                        if st.button("🗑️ Delete Case", type="secondary", use_container_width=True, key="btn_trigger_delete"):
+                            try:
+                                df_full = df_full.drop(row_idx)
+                                save_data(df_full, sheet_name=sheet_name)
+                                st.session_state["selected_row_idx"] = None
+                                st.session_state["open_dialog"] = None
+                                st.success("✅ Case deleted successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error deleting case: {e}")
+                    else:
+                        if st.button("🗑️ Request Delete", type="secondary", use_container_width=True, key="btn_trigger_del_req_mode"):
+                            st.session_state["is_delete_request_mode"] = True
+                            st.rerun()
+
+    elif st.session_state["is_reschedule_mode"]:
+        st.markdown("### 🔄 Reschedule Appointment Case")
+        with st.form(f"reschedule_form_{row_idx}"):
+            pref_loc_input = st.text_input("Preferred Location", value=str(row_data.get("Preferred_Location", "")), placeholder="Enter preferred location...")
+            pref_dates_input = st.text_input("Preferred Dates", value=str(row_data.get("Preferred_Dates", "")), placeholder="Enter preferred dates...")
+            prior_notice_input = st.text_input("Prior Notice", value=str(row_data.get("Prior_Notice", "")), placeholder="Enter prior notice details...")
+            
+            col_res_save, col_res_back = st.columns(2)
+            with col_res_save:
+                submitted_res = st.form_submit_button("💾 Save Reschedule", type="primary", use_container_width=True)
+            with col_res_back:
+                cancelled_res = st.form_submit_button("↩️ Back", use_container_width=True)
+
+            if submitted_res:
+                if not pref_loc_input.strip() or not pref_dates_input.strip() or not prior_notice_input.strip():
+                    st.warning("⚠️ Please fill all 3 fields (Preferred Location, Preferred Dates, and Prior Notice) before saving.")
+                else:
+                    try:
+                        df_full.at[row_idx, "Preferred_Location"] = pref_loc_input.strip()
+                        df_full.at[row_idx, "Preferred_Dates"] = pref_dates_input.strip()
+                        df_full.at[row_idx, "Prior_Notice"] = prior_notice_input.strip()
+                        df_full.at[row_idx, "Updated_By"] = current_user
+                        df_full.at[row_idx, "Updated_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
+                        
+                        save_data(df_full, sheet_name=sheet_name)
+                        st.session_state["is_reschedule_mode"] = False
+                        st.session_state["selected_row_idx"] = None
+                        st.session_state["open_dialog"] = None
+                        st.success("✅ Case successfully rescheduled and saved!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error saving reschedule: {e}")
+
+            if cancelled_res:
+                st.session_state["is_reschedule_mode"] = False
+                st.rerun()
 
     elif st.session_state["is_delete_request_mode"]:
         st.markdown("### 🗑️ Request Delete Case")
@@ -886,7 +980,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         st.markdown("### ✏️ Edit Case & Booking Status")
         with st.form(f"popup_edit_form_{row_idx}"):
             updated_values = {}
-            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status"]]
+            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
             
             f_col1, f_col2 = st.columns(2)
             for i, col_name in enumerate(cols_to_show):
@@ -957,6 +1051,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Updated_At"] = current_time
                             df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
+                        # 🌟 AUTO TRANSFER TO BOOKED CASES SHEET IF BOOKED
                         target_save_sheet = sheet_name
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
@@ -966,6 +1061,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_target_booked = load_data(sheet_name=booked_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
                                 
+                                # Align columns strictly with booked cases sheet headers
                                 for col in df_target_booked.columns:
                                     if col not in row_to_transfer:
                                         row_to_transfer[col] = ""
@@ -973,6 +1069,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_target_booked = pd.concat([df_target_booked, pd.DataFrame([row_to_transfer])], ignore_index=True)
                                 save_data(df_target_booked, sheet_name=booked_sheet_name)
                                 
+                                # Remove from current active sheet
                                 df_full = df_full.drop(row_idx)
 
                         save_data(df_full, sheet_name=sheet_name)
@@ -990,6 +1087,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
+# 🌟 ADMIN PDF DOWNLOAD CENTER DIALOG
 @st.dialog("📥 Appointment PDFs Download Center", width="large")
 def admin_pdf_download_dialog():
     st.info("💡 Download all uploaded Appointment PDFs across all sheets:")
@@ -1035,7 +1133,7 @@ def admin_pdf_download_dialog():
                         use_container_width=True
                     )
 
-# 🌟 FIXED TABLE RENDERER TO PRESERVE ORIGINAL EXCEL COLUMN ORDER
+# 🌟 MILLISECOND ZERO-LAG PAGINATED TABLE RENDERER
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
         st.info("No cases found.")
@@ -1079,11 +1177,8 @@ def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100
                 st.session_state[page_state_key] = int(jump_page)
                 st.rerun()
 
-    # 🌟 PRESERVE EXACT ORIGINAL EXCEL COLUMN ORDER (Hiding Password & Appointment_PDF from direct table view)
-    excluded_cols = [p_col, "Appointment_PDF", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"]
-    display_cols = [c for c in df.columns if c not in excluded_cols]
+    display_cols = [c for c in page_df.columns if c not in [p_col, "Appointment_PDF"]]
     
-    # Ensure PASSWORD and NO OF APP appear right after USERNAME or in their exact original order
     curr_logged = qp.get("logged_in", "true" if st.session_state.get("logged_in") else "false")
     curr_user = qp.get("username", st.session_state.get("username", ""))
     curr_role = qp.get("role", st.session_state.get("role", ""))
@@ -1232,6 +1327,7 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
+# 🌟 STRICTLY BOOKED CASES SHEET WORKER REPORT
 @st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
     st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types (from 'Booked Cases' sheet):")
@@ -1706,7 +1802,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF"]]
+        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
         for col_name in cols:
             c_lower = col_name.lower()
             if 'date' in c_lower and 'prefer' not in c_lower:
@@ -1734,6 +1830,9 @@ def add_case_dialog(worker_name):
                 new_row["Booking_Status"] = "Active"
                 new_row["Appointment_Entry"] = ""
                 new_row["Appointment_PDF"] = ""
+                new_row["Preferred_Location"] = ""
+                new_row["Preferred_Dates"] = ""
+                new_row["Prior_Notice"] = ""
                 
                 for k, v in form_data.items():
                     new_row[k] = v
@@ -1766,7 +1865,7 @@ def search_data_dialog():
                 st.warning(f"No details found for '{search_query}'.")
             else:
                 st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
-                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF", "Appointment_Entry"], errors="ignore")
+                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Preferred_Location", "Preferred_Dates", "Prior_Notice"], errors="ignore")
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
