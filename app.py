@@ -21,7 +21,6 @@ if not os.path.exists(PDF_DIR):
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
-# 🌟 Perfect IST Timezone Helper (Cloud Server UTC + 5:30 hours for Indian Standard Time)
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
@@ -142,7 +141,6 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-# 🌟 ULTRA-FAST CACHING: Reads all sheets once into memory so switching/filtering is instantaneous
 @st.cache_data(ttl=600)
 def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
@@ -313,7 +311,6 @@ def toggle_all_workers_block(block_status: bool):
             record_worker_logout(w)
     save_permissions(current_perms)
 
-# 🌟 Session State & Query Params Initialization
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -393,7 +390,6 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# 🌟 SUBDUED, SOPHISTICATED & PROFESSIONAL CORPORATE STYLING
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -574,8 +570,6 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
-    
-    /* 🌟 ELITE GLASSMORPHIC KPI CARDS WITH PROFESSIONAL MUTED TONES */
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -629,8 +623,6 @@ st.markdown("""
         letter-spacing: 0.5px;
         text-shadow: 0 2px 4px rgba(0,0,0,0.25);
     }
-
-    /* 🌟 SOPHISTICATED SUBDUED PROFESSIONAL BUTTONS */
     div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
@@ -679,7 +671,6 @@ st.markdown("""
         border-bottom: 3px solid #f87171 !important;
         color: #ffffff !important;
     }
-
     .section-banner {
         background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
         border-left: 5px solid #1e293b;
@@ -782,15 +773,6 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-def update_admin_sheet():
-    st.session_state["active_sheet"] = st.session_state["admin_sheet_radio"]
-    st.query_params["active_sheet"] = st.session_state["admin_sheet_radio"]
-
-def update_worker_sheet():
-    st.session_state["active_sheet"] = st.session_state["worker_sheet_radio"]
-    st.query_params["active_sheet"] = st.session_state["worker_sheet_radio"]
-
-# 🌟 ENHANCED DIALOG WITH ACTIVE/BOOKED DROPDOWN & APPOINTMENT ENTRY & PDF
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -975,7 +957,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Updated_At"] = current_time
                             df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
-                        # 🌟 AUTO TRANSFER TO BOOKED CASES SHEET IF BOOKED
                         target_save_sheet = sheet_name
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
@@ -985,7 +966,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_target_booked = load_data(sheet_name=booked_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
                                 
-                                # Align columns strictly with booked cases sheet headers
                                 for col in df_target_booked.columns:
                                     if col not in row_to_transfer:
                                         row_to_transfer[col] = ""
@@ -993,7 +973,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_target_booked = pd.concat([df_target_booked, pd.DataFrame([row_to_transfer])], ignore_index=True)
                                 save_data(df_target_booked, sheet_name=booked_sheet_name)
                                 
-                                # Remove from current active sheet
                                 df_full = df_full.drop(row_idx)
 
                         save_data(df_full, sheet_name=sheet_name)
@@ -1011,7 +990,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["open_dialog"] = None
                 st.rerun()
 
-# 🌟 ADMIN PDF DOWNLOAD CENTER DIALOG
 @st.dialog("📥 Appointment PDFs Download Center", width="large")
 def admin_pdf_download_dialog():
     st.info("💡 Download all uploaded Appointment PDFs across all sheets:")
@@ -1057,7 +1035,7 @@ def admin_pdf_download_dialog():
                         use_container_width=True
                     )
 
-# 🌟 MILLISECOND ZERO-LAG PAGINATED TABLE RENDERER
+# 🌟 FIXED TABLE RENDERER TO PRESERVE ORIGINAL EXCEL COLUMN ORDER
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
         st.info("No cases found.")
@@ -1101,8 +1079,11 @@ def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100
                 st.session_state[page_state_key] = int(jump_page)
                 st.rerun()
 
-    display_cols = [c for c in page_df.columns if c not in [p_col, "Appointment_PDF"]]
+    # 🌟 PRESERVE EXACT ORIGINAL EXCEL COLUMN ORDER (Hiding Password & Appointment_PDF from direct table view)
+    excluded_cols = [p_col, "Appointment_PDF", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"]
+    display_cols = [c for c in df.columns if c not in excluded_cols]
     
+    # Ensure PASSWORD and NO OF APP appear right after USERNAME or in their exact original order
     curr_logged = qp.get("logged_in", "true" if st.session_state.get("logged_in") else "false")
     curr_user = qp.get("username", st.session_state.get("username", ""))
     curr_role = qp.get("role", st.session_state.get("role", ""))
@@ -1251,7 +1232,6 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 STRICTLY BOOKED CASES SHEET WORKER REPORT
 @st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
     st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types (from 'Booked Cases' sheet):")
