@@ -2847,7 +2847,7 @@ else:
             else:
                 st.markdown('<span class="admin-btn-7" style="display:none;"></span>', unsafe_allow_html=True)
                 st.button("🚫 No Search Access", disabled=True, use_container_width=True, key="worker_search_disabled")
-        ith w_cols[2]:
+        with w_cols[2]:
             if worker_perm.get("can_download", False):
                 st.markdown('<span class="admin-btn-3" style="display:none;"></span>', unsafe_allow_html=True)
                 worker_excel_bytes = get_worker_export_bytes(_get_file_mtime(), current_user, current_sheet)
