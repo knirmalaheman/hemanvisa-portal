@@ -142,6 +142,24 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
+# 🌟 STRICT COLUMN REORDERING HELPER: Case, Username, Password, No of App & Lead always first
+def reorder_dataframe_columns(df):
+    if df is None or df.empty:
+        return df
+    cols = list(df.columns)
+    
+    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
+    found_priority = []
+    
+    for prefix in desired_order_prefixes:
+        for c in cols:
+            c_low = c.strip().lower().replace("_", " ")
+            if (c_low == prefix or prefix in c_low) and c not in found_priority:
+                found_priority.append(c)
+                
+    remaining_cols = [c for c in cols if c not in found_priority]
+    return df[found_priority + remaining_cols]
+
 # 🌟 ULTRA-FAST CACHING: Reads all sheets once into memory so switching/filtering is instantaneous
 @st.cache_data(ttl=600)
 def load_all_sheets_cached(file_mtime):
@@ -168,13 +186,14 @@ def load_all_sheets_cached(file_mtime):
                     df["Appointment_Entry"] = ""
                 if "Appointment_PDF" not in df.columns:
                     df["Appointment_PDF"] = ""
-                # Reschedule fields addition
                 if "Preferred_Location" not in df.columns:
                     df["Preferred_Location"] = ""
                 if "Preferred_Dates" not in df.columns:
                     df["Preferred_Dates"] = ""
                 if "Prior_Notice" not in df.columns:
                     df["Prior_Notice"] = ""
+                
+                df = reorder_dataframe_columns(df)
                 processed[s_name] = df
             return processed
         except Exception:
@@ -193,11 +212,13 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
                 u_rows_s = df_s[df_s[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
                 if not u_rows_s.empty:
                     has_user_data = True
+                    u_rows_s = reorder_dataframe_columns(u_rows_s)
                     u_rows_s.to_excel(writer, sheet_name=s, index=False)
         if not has_user_data and current_sheet in all_sheets:
             df_cur = all_sheets[current_sheet]
             login_cs = find_login_user_column(df_cur)
             u_rows_cur = df_cur[df_cur[login_cs].astype(str).str.strip().str.lower() == current_user.lower()]
+            u_rows_cur = reorder_dataframe_columns(u_rows_cur)
             u_rows_cur.to_excel(writer, sheet_name=current_sheet, index=False)
     return worker_buffer.getvalue()
 
@@ -234,10 +255,12 @@ def save_data(df_to_save, sheet_name=0):
         except Exception:
             pass
     
+    df_to_save = reorder_dataframe_columns(df_to_save)
     sheets_data[sheet_name] = df_to_save
 
     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
         for s, df_val in sheets_data.items():
+            df_val = reorder_dataframe_columns(df_val)
             df_val.to_excel(writer, sheet_name=str(s), index=False)
             
     st.cache_data.clear()
@@ -583,7 +606,6 @@ st.markdown("""
         margin-bottom: 16px;
     }
     
-    /* 🌟 ELITE GLASSMORPHIC KPI CARDS WITH PROFESSIONAL MUTED TONES */
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -638,7 +660,6 @@ st.markdown("""
         text-shadow: 0 2px 4px rgba(0,0,0,0.25);
     }
 
-    /* 🌟 SOPHISTICATED SUBDUED PROFESSIONAL BUTTONS */
     div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
@@ -790,7 +811,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# 🌟 ENHANCED DIALOG WITH RESCHEDULE OPTION & 3 TEXT BOXES FOR BOOKED CASES
+# 🌟 ENHANCED DIALOG WITH RESCHEDULE OPTION & ORDERED COLUMNS VIEW
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     df_full = load_data(sheet_name=sheet_name)
@@ -798,6 +819,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         st.error("Case data not found.")
         return
 
+    df_full = reorder_dataframe_columns(df_full)
     row_data = df_full.loc[row_idx]
     display_c = find_display_username_column(df_full)
     p_col = find_password_column(df_full)
@@ -830,7 +852,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         if app_entry:
             st.markdown(f"📝 **Current Appointment Entry:** `{app_entry}`")
 
-        # Show reschedule details if available
         pref_loc = str(row_data.get("Preferred_Location", "")).strip()
         pref_dates = str(row_data.get("Preferred_Dates", "")).strip()
         prior_notice = str(row_data.get("Prior_Notice", "")).strip()
@@ -1051,7 +1072,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Updated_At"] = current_time
                             df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
-                        # 🌟 AUTO TRANSFER TO BOOKED CASES SHEET IF BOOKED
                         target_save_sheet = sheet_name
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
@@ -1061,28 +1081,30 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_target_booked = load_data(sheet_name=booked_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
                                 
-                                # Align columns strictly with booked cases sheet headers
                                 for col in df_target_booked.columns:
                                     if col not in row_to_transfer:
                                         row_to_transfer[col] = ""
                                 
                                 df_target_booked = pd.concat([df_target_booked, pd.DataFrame([row_to_transfer])], ignore_index=True)
                                 save_data(df_target_booked, sheet_name=booked_sheet_name)
-                                
-                                # Remove from current active sheet
                                 df_full = df_full.drop(row_idx)
 
                         save_data(df_full, sheet_name=sheet_name)
+                        # Cleanly clear all popup states to prevent re-opening loop
                         st.session_state["is_editing_popup"] = False
+                        st.session_state["is_reschedule_mode"] = False
+                        st.session_state["is_delete_request_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully updated and transferred to Booked Cases sheet!")
+                        st.success("✅ Case successfully updated and saved!")
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
             
             if cancelled:
                 st.session_state["is_editing_popup"] = False
+                st.session_state["is_reschedule_mode"] = False
+                st.session_state["is_delete_request_mode"] = False
                 st.session_state["selected_row_idx"] = None
                 st.session_state["open_dialog"] = None
                 st.rerun()
@@ -1133,12 +1155,13 @@ def admin_pdf_download_dialog():
                         use_container_width=True
                     )
 
-# 🌟 MILLISECOND ZERO-LAG PAGINATED TABLE RENDERER
+# 🌟 MILLISECOND ZERO-LAG PAGINATED TABLE RENDERER WITH ORDERED COLUMNS
 def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
         st.info("No cases found.")
         return
 
+    df = reorder_dataframe_columns(df)
     total_rows = len(df)
     total_pages = max(1, math.ceil(total_rows / page_size))
     page_state_key = f"page_num_{table_key}"
@@ -1327,7 +1350,6 @@ def admin_attendance_dialog():
             key="download_attendance_excel"
         )
 
-# 🌟 STRICTLY BOOKED CASES SHEET WORKER REPORT
 @st.dialog("📊 Case Worker & Visa Type Booked Cases Report", width="large")
 def admin_worker_wise_report_dialog():
     st.info("💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types (from 'Booked Cases' sheet):")
@@ -1679,10 +1701,11 @@ def permissions_dialog():
                                     mask = df_s[lc].astype(str).str.strip().str.lower() == u_name.lower()
                                     if mask.any():
                                         df_s.loc[mask, pc] = new_pwd_val.strip()
-                                all_sheets_data[s] = df_s
+                                all_sheets_data[s] = reorder_dataframe_columns(df_s)
                             
                             with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                                 for s, df_val in all_sheets_data.items():
+                                    df_val = reorder_dataframe_columns(df_val)
                                     df_val.to_excel(writer, sheet_name=str(s), index=False)
                             
                             current_perms[matched_key] = {
@@ -1770,10 +1793,11 @@ def worker_password_dialog(worker_name):
                             mask = df_s[lc].astype(str).str.strip().str.lower() == worker_name.lower()
                             if mask.any():
                                 df_s.loc[mask, pc] = new_wp.strip()
-                        all_sheets_data[s] = df_s
+                        all_sheets_data[s] = reorder_dataframe_columns(df_s)
                     
                     with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
                         for s, df_val in all_sheets_data.items():
+                            df_val = reorder_dataframe_columns(df_val)
                             df_val.to_excel(writer, sheet_name=str(s), index=False)
                     st.cache_data.clear()
                     st.success("✅ Password updated successfully!")
@@ -1866,6 +1890,7 @@ def search_data_dialog():
             else:
                 st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
                 view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Preferred_Location", "Preferred_Dates", "Prior_Notice"], errors="ignore")
+                view_only_df = reorder_dataframe_columns(view_only_df)
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
 
@@ -2130,6 +2155,7 @@ elif st.session_state["role"] == "admin":
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
+    df = reorder_dataframe_columns(df)
     login_c = find_login_user_column(df)
     display_c = find_display_username_column(df)
     p_col = find_password_column(df)
@@ -2385,6 +2411,7 @@ else:
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
+    df = reorder_dataframe_columns(df)
     current_user = st.session_state["username"].strip()
     
     all_perms = load_permissions()
