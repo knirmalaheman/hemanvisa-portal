@@ -428,6 +428,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
+# --- BENTO GRID & MODERN STYLING ENHANCEMENTS ---
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -608,17 +609,19 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
+    
+    /* --- BENTO GRID KPI CARDS STYLING --- */
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
         padding: 22px 16px;
-        border-radius: 14px;
-        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.15);
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
         text-align: center;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.12);
         border-bottom: 4px solid #64748b;
         margin-bottom: 12px;
-        height: 115px;
+        height: 120px;
         width: 100%;
         display: flex;
         flex-direction: column;
@@ -628,8 +631,9 @@ st.markdown("""
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .kpi-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+        transform: translateY(-4px);
+        box-shadow: 0 14px 30px rgba(56, 189, 248, 0.25);
+        border-color: #38bdf8;
     }
     .kpi-card.gold {
         background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
@@ -644,7 +648,7 @@ st.markdown("""
         border-bottom: 4px solid #6366f1;
     }
     .kpi-title {
-        font-size: 11px;
+        font-size: 11.5px;
         text-transform: uppercase;
         letter-spacing: 1.4px;
         opacity: 0.9;
@@ -654,7 +658,7 @@ st.markdown("""
         color: #f1f5f9;
     }
     .kpi-value {
-        font-size: 28px;
+        font-size: 30px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
@@ -734,22 +738,23 @@ st.markdown("""
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 44px !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
         font-weight: 600 !important;
         font-size: 13.5px !important;
         padding: 10px 16px !important;
         color: #ffffff !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
-        transition: all 0.2s ease;
+        transition: all 0.25s ease;
         white-space: nowrap !important;
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(56, 189, 248, 0.3);
+        border-color: #38bdf8 !important;
         opacity: 0.95;
     }
     .username-hyperlink {
@@ -767,7 +772,7 @@ st.markdown("""
         gap: 12px !important;
         background: #f8fafc;
         padding: 10px 16px;
-        border-radius: 10px;
+        border-radius: 12px;
         border: 1px solid #cbd5e1;
     }
     div[data-testid="stExpander"] {
@@ -1212,7 +1217,6 @@ def admin_pdf_download_dialog():
                         "sheet": s
                     }
 
-    # Bayata Overall Search Bar (Case Username or File Name)
     search_query = st.text_input("🔍 Search PDFs by Case Username or Filename across all folders:", placeholder="Type case username here...", key="pdf_overall_search").strip().lower()
 
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
@@ -1383,7 +1387,7 @@ def admin_notice_dialog():
     st.info("💡 Add or update the scrolling marquee notice for all case workers:")
     
     with st.form("admin_notice_form"):
-        notice_input = st.text_area("Notice Text:", value=current_notice, placeholder="e.g., All case workers must complete pending cases by today...")
+        notice_input = st.text_input("Notice Text:", value=current_notice, placeholder="e.g., All case workers must complete pending cases by today...")
         col_save_n, col_clear_n = st.columns(2)
         with col_save_n:
             submitted_notice = st.form_submit_button("💾 Save Notice", type="primary", use_container_width=True)
@@ -2345,6 +2349,7 @@ elif st.session_state["role"] == "admin":
                         st.rerun()
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
+        # --- BENTO GRID KPI METRICS CARDS ---
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
@@ -2603,6 +2608,7 @@ else:
             v_series = v_series[v_series != ""]
             visa_counts = v_series.value_counts().to_dict()
 
+        # --- BENTO GRID WORKER KPI METRICS CARDS ---
         k1, k2 = st.columns(2, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
