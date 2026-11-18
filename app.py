@@ -19,9 +19,6 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
 
-st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
-ensure_case_ids_on_disk()
-
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
@@ -201,6 +198,9 @@ def ensure_case_ids_on_disk():
                     df_val.to_excel(writer, sheet_name=str(s), index=False)
     except Exception:
         pass
+
+st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
+ensure_case_ids_on_disk()
 
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
