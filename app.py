@@ -2477,7 +2477,7 @@ elif st.session_state["role"] == "admin":
                         st.query_params["active_sheet"] = s_name
                         st.rerun()
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-            # --- ఇక్కడ లీడ్స్ ఫిల్టర్ కోడ్ జోడించాలి ---
+    # --- ఇక్కడ లీడ్స్ ఫిల్టర్ కోడ్ జోడించాలి ---
         all_workers_for_filter = get_all_workers_list()
         if all_workers_for_filter:
             st.markdown("<div class='action-group-title'>👥 Filter by Lead Name:</div>", unsafe_allow_html=True)
@@ -2494,7 +2494,7 @@ elif st.session_state["role"] == "admin":
             )
             st.session_state["admin_selected_lead"] = selected_lead
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-            # టేబుల్ లేదా కౌంట్స్ లెక్కించే ముందు ఈ ఫిల్టర్ వర్తింపజేయాలి:
+    # టేబుల్ లేదా కౌంట్స్ లెక్కించే ముందు ఈ ఫిల్టర్ వర్తింపజేయాలి:
     if "admin_selected_lead" in st.session_state and st.session_state["admin_selected_lead"] != "All":
         target_lead = st.session_state["admin_selected_lead"]
         df = df[df[login_c].astype(str).str.strip().str.lower() == target_lead.lower()]
