@@ -956,10 +956,28 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
                         
                         save_data(df_full, sheet_name=sheet_name)
+
+                        # Also ensure a copy/record is added to Active Sheet while staying in Booked Sheet
+                        sheets_all = get_sheet_names()
+                        active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0] if sheets_all else None)
+                        if active_sheet_name and active_sheet_name != sheet_name:
+                            df_active = load_data(sheet_name=active_sheet_name)
+                            if df_active is not None:
+                                row_to_active = df_full.loc[row_idx].copy()
+                                row_to_active["Booking_Status"] = "Rescheduled"
+                                row_to_active["Preferred_Location"] = pref_loc_input.strip()
+                                row_to_active["Preferred_Dates"] = pref_dates_input.strip()
+                                row_to_active["Prior_Notice"] = prior_notice_input.strip()
+                                for col in df_active.columns:
+                                    if col not in row_to_active:
+                                        row_to_active[col] = ""
+                                df_active = pd.concat([df_active, pd.DataFrame([row_to_active])], ignore_index=True)
+                                save_data(df_active, sheet_name=active_sheet_name)
+
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully rescheduled and saved!")
+                        st.success("✅ Case successfully rescheduled and saved in both sheets!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error saving reschedule: {e}")
@@ -1005,7 +1023,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
         with st.form(f"popup_edit_form_{row_idx}"):
             updated_values = {}
             
-            # Get all available workers list for Case Worker dropdown
             all_workers_list = get_all_workers_list()
             if not all_workers_list:
                 all_workers_list = ["Not Assigned"]
@@ -1013,41 +1030,33 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 if "Not Assigned" not in all_workers_list:
                     all_workers_list.insert(0, "Not Assigned")
 
-            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [display_c, login_c, p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
+            cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
             
             f_col1, f_col2 = st.columns(2)
             
-            # 1. Display Case Username (Editable or Viewable clearly)
-            with f_col1:
-                if role == "admin":
-                    updated_values[display_c] = st.text_input(f"{display_c} (Case Username)", value=str(row_data[display_c]), key=f"popup_field_{row_idx}_{display_c}")
-                else:
-                    st.text_input(f"Case Username", value=str(row_data[display_c]), disabled=True, key=f"popup_field_disabled_{row_idx}_{display_c}")
-                    updated_values[display_c] = str(row_data[display_c])
-
-            # 2. Case Worker Dropdown (Editable for Admin / Worker)
-            with f_col2:
-                curr_worker_val = str(row_data.get(login_c, "")).strip()
-                w_idx = all_workers_list.index(curr_worker_val) if curr_worker_val in all_workers_list else 0
-                selected_worker = st.selectbox("Case Worker", options=all_workers_list, index=w_idx, key=f"popup_worker_select_{row_idx}")
-                updated_values[login_c] = selected_worker
-
-            # 3. Render remaining columns
             for i, col_name in enumerate(cols_to_show):
-                if col_name in [display_c, login_c]:
-                    continue
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
-                    c_lower = col_name.lower()
-                    if 'date' in c_lower and 'prefer' not in c_lower:
-                        try:
-                            parsed_d = datetime.datetime.strptime(str(row_data[col_name]).split()[0], "%Y-%m-%d").date()
-                        except:
-                            parsed_d = datetime.date.today()
-                        sel_d = st.date_input(f"{col_name}", value=parsed_d, key=f"popup_date_{row_idx}_{col_name}")
-                        updated_values[col_name] = sel_d.strftime("%Y-%m-%d")
+                    if col_name == display_c:
+                        # Case Username is now editable
+                        updated_values[display_c] = st.text_input(f"{col_name} (Case Username)", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
+                    elif col_name == login_c:
+                        # Case Worker Dropdown
+                        curr_worker_val = str(row_data.get(login_c, "")).strip()
+                        w_idx = all_workers_list.index(curr_worker_val) if curr_worker_val in all_workers_list else 0
+                        selected_worker = st.selectbox(f"{col_name} (Case Worker)", options=all_workers_list, index=w_idx, key=f"popup_worker_select_{row_idx}")
+                        updated_values[login_c] = selected_worker
                     else:
-                        updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
+                        c_lower = col_name.lower()
+                        if 'date' in c_lower and 'prefer' not in c_lower:
+                            try:
+                                parsed_d = datetime.datetime.strptime(str(row_data[col_name]).split()[0], "%Y-%m-%d").date()
+                            except:
+                                parsed_d = datetime.date.today()
+                            sel_d = st.date_input(f"{col_name}", value=parsed_d, key=f"popup_date_{row_idx}_{col_name}")
+                            updated_values[col_name] = sel_d.strftime("%Y-%m-%d")
+                        else:
+                            updated_values[col_name] = st.text_input(f"{col_name}", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             curr_bs = str(row_data.get("Booking_Status", "Active")).strip()
@@ -1102,7 +1111,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             changed = True
 
                             if uploaded_pdf_file is not None:
-                                safe_uname = str(row_data.get(display_c, "case")).strip().replace(" ", "_")
+                                safe_uname = str(df_full.at[row_idx, display_c] if display_c in df_full.columns else "case").strip().replace(" ", "_")
                                 pdf_filename = f"Appointment_{safe_uname}_{row_idx}_{int(datetime.datetime.now().timestamp())}.pdf"
                                 full_pdf_path = os.path.join(PDF_DIR, pdf_filename)
                                 with open(full_pdf_path, "wb") as pf:
@@ -1139,6 +1148,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
 
                         elif booking_status_choice == "Rescheduled" and is_booked_sheet:
+                            # Keep in Booked sheet AND also add/sync to Active Sheet
                             sheets_all = get_sheet_names()
                             active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
                             if active_sheet_name:
@@ -1155,7 +1165,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 
                                 df_target_active = pd.concat([df_target_active, pd.DataFrame([row_to_transfer])], ignore_index=True)
                                 save_data(df_target_active, sheet_name=active_sheet_name)
-                                df_full = df_full.drop(row_idx)
 
                         save_data(df_full, sheet_name=sheet_name)
                         st.session_state["is_editing_popup"] = False
@@ -1163,7 +1172,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["is_delete_request_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully updated and moved!")
+                        st.success("✅ Case successfully updated and saved in both sheets!")
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
