@@ -381,14 +381,6 @@ def find_visa_type_column(df):
             return c
     return None
 
-def find_lead_column(df):
-    if df is None or df.empty:
-        return None
-    for c in df.columns:
-        if any(term in c.lower() for term in ['lead', 'lead name', 'client lead']):
-            return c
-    return None
-
 def get_all_workers_list():
     sheets = get_sheet_names()
     all_workers = set()
@@ -444,9 +436,6 @@ if "attendance_recorded" not in st.session_state:
 
 if "selected_visa_filter" not in st.session_state:
     st.session_state["selected_visa_filter"] = "All"
-
-if "selected_lead_filter" not in st.session_state:
-    st.session_state["selected_lead_filter"] = "All"
 
 if "force_logged_out_msg" not in st.session_state:
     st.session_state["force_logged_out_msg"] = False
@@ -1141,9 +1130,11 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 if "Not Assigned" not in all_workers_list:
                     all_workers_list.insert(0, "Not Assigned")
 
+            # Exclude Case_ID from editable fields so HV Case ID cannot be edited
             cols_to_show = list(df_full.columns) if role == "admin" else [c for c in df_full.columns if c not in [p_col, "Updated_By", "Updated_At", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Booking_Status", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
             cols_to_show = [c for c in cols_to_show if c.strip().lower() not in ["case_id", "case id", "caseid"]]
             
+            # Show Case_ID as read-only info at the top of the form
             existing_case_id = str(row_data.get("Case_ID", "N/A"))
             st.markdown(f"🔒 **Case ID (Read-Only):** `{existing_case_id}`")
             st.divider()
@@ -1219,6 +1210,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 changed = True
                             df_full.at[row_idx, col_name] = str(new_val).strip()
 
+                        # Ensure Case_ID remains unchanged
                         df_full.at[row_idx, "Case_ID"] = existing_case_id
 
                         if str(df_full.at[row_idx, "Booking_Status"]) != booking_status_choice:
@@ -2470,20 +2462,14 @@ elif st.session_state["role"] == "admin":
         v_series = v_series[v_series != ""]
         visa_counts = v_series.value_counts().to_dict()
 
-    lead_col = find_lead_column(df)
-    lead_names_list = []
-    if lead_col and not df.empty:
-        l_series = df[lead_col].astype(str).str.strip()
-        lead_names_list = sorted([l for l in l_series.unique() if l != "" and l.lower() != "nan"])
-
-    if admin_dash_tab == "📊 Dashboard & Quick Actions":
+   if admin_dash_tab == "📊 Dashboard & Quick Actions":
         if sheets:
             st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
             for idx, s_name in enumerate(sheets):
                 with sw_cols[idx]:
                     is_active = (s_name == current_sheet)
-                    color_cls = "admin-btn-1" if is_active else "admin-btn-6"
+                    color_cls = "admin-api-1" if is_active else "admin-btn-6"
                     btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
                     st.markdown(f'<span class="{color_cls}" style="display:none;"></span>', unsafe_allow_html=True)
                     if st.button(btn_txt, key=f"dash_switch_sheet_{s_name}_{idx}", use_container_width=True):
@@ -2491,6 +2477,27 @@ elif st.session_state["role"] == "admin":
                         st.query_params["active_sheet"] = s_name
                         st.rerun()
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            # --- ఇక్కడ లీడ్స్ ఫిల్టర్ కోడ్ జోడించాలి ---
+        all_workers_for_filter = get_all_workers_list()
+        if all_workers_for_filter:
+            st.markdown("<div class='action-group-title'>👥 Filter by Lead Name:</div>", unsafe_allow_html=True)
+            lead_options = ["All"] + all_workers_for_filter
+            if "admin_selected_lead" not in st.session_state:
+                st.session_state["admin_selected_lead"] = "All"
+            
+            selected_lead = st.radio(
+                "Filter by Lead Name",
+                options=lead_options,
+                horizontal=True,
+                key="admin_lead_radio_filter",
+                label_visibility="collapsed"
+            )
+            st.session_state["admin_selected_lead"] = selected_lead
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            # టేబుల్ లేదా కౌంట్స్ లెక్కించే ముందు ఈ ఫిల్టర్ వర్తింపజేయాలి:
+    if "admin_selected_lead" in st.session_state and st.session_state["admin_selected_lead"] != "All":
+        target_lead = st.session_state["admin_selected_lead"]
+        df = df[df[login_c].astype(str).str.strip().str.lower() == target_lead.lower()]
 
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
@@ -2575,48 +2582,33 @@ elif st.session_state["role"] == "admin":
         st.divider()
 
     elif admin_dash_tab == "📂 Case Records & Search":
-        st.markdown("<div class='section-banner'>📂 Case Records & Lead / Visa Management Hub</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
-        # --- RADIO BUTTON STYLE LEAD FILTER ---
-        if lead_names_list:
-            st.markdown("<div class='action-group-title'>👥 Filter by Lead Name:</div>", unsafe_allow_html=True)
-            lead_options = ["All"] + lead_names_list
-            current_lead_val = st.session_state.get("selected_lead_filter", "All")
-            if current_lead_val not in lead_options:
-                current_lead_val = "All"
-            
-            selected_lead_radio = st.radio(
-                "Lead Filter Options",
-                options=lead_options,
-                index=lead_options.index(current_lead_val),
-                horizontal=True,
-                label_visibility="collapsed",
-                key="admin_lead_radio_filter"
-            )
-            if selected_lead_radio != st.session_state["selected_lead_filter"]:
-                st.session_state["selected_lead_filter"] = selected_lead_radio
-                st.rerun()
-            st.divider()
-
         if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click to filter):</div>", unsafe_allow_html=True)
+            st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
-            v_cols = st.columns(min(len(visa_items), 4), gap="medium")
-            for idx, (v_name, v_count) in enumerate(visa_items):
-                col_idx = idx % len(v_cols)
-                with v_cols[col_idx]:
-                    btn_label = f"✈️ {v_name}: {v_count}"
-                    color_idx = idx % 8
-                    st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
-                    if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
-                        if st.session_state["selected_visa_filter"] == v_name:
-                            st.session_state["selected_visa_filter"] = "All"
-                        else:
-                            st.session_state["selected_visa_filter"] = v_name
-                        st.rerun()
+            mid = (len(visa_items) + 1) // 2
+            rows = [visa_items[:mid], visa_items[mid:]]
+            
+            btn_counter = 0
+            for row_items in rows:
+                if row_items:
+                    v_cols = st.columns(len(row_items), gap="medium")
+                    for idx, (v_name, v_count) in enumerate(row_items):
+                        with v_cols[idx]:
+                            btn_label = f"✈️ {v_name}: {v_count}"
+                            color_idx = btn_counter % 8
+                            st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
+                            if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
+                                if st.session_state["selected_visa_filter"] == v_name:
+                                    st.session_state["selected_visa_filter"] = "All"
+                                else:
+                                    st.session_state["selected_visa_filter"] = v_name
+                                st.rerun()
+                            btn_counter += 1
             
             if st.session_state["selected_visa_filter"] != "All":
-                if st.button(f"🔄 Active Visa Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset Visa Filter", use_container_width=True, key="reset_visa_filter"):
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All Cases)", use_container_width=True, key="reset_visa_filter"):
                     st.session_state["selected_visa_filter"] = "All"
                     st.rerun()
             st.divider()
@@ -2649,10 +2641,6 @@ elif st.session_state["role"] == "admin":
         if st.session_state["selected_visa_filter"] != "All" and visa_col:
             target_visa = st.session_state["selected_visa_filter"]
             display_df = display_df[display_df[visa_col].astype(str).str.strip().str.upper() == target_visa]
-
-        if st.session_state["selected_lead_filter"] != "All" and lead_col:
-            target_lead = st.session_state["selected_lead_filter"]
-            display_df = display_df[display_df[lead_col].astype(str).str.strip() == target_lead]
 
         st.caption(f"💡 Showing {len(display_df)} cases. Click USERNAME inside the table to view, edit, or delete details.")
         render_clickable_table(display_df, display_c, p_col, table_key=f"admin_{current_sheet}")
@@ -2771,57 +2759,32 @@ else:
             v_series = v_series[v_series != ""]
             visa_counts = v_series.value_counts().to_dict()
 
-        lead_col = find_lead_column(user_rows)
-        worker_lead_names = []
-        if lead_col and not user_rows.empty:
-            l_series = user_rows[lead_col].astype(str).str.strip()
-            worker_lead_names = sorted([l for l in l_series.unique() if l != "" and l.lower() != "nan"])
-
         k1, k2 = st.columns(2, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
         with k2:
             st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
-        # --- WORKER RADIO BUTTON STYLE LEAD FILTER ---
-        if worker_lead_names:
-            st.markdown("<div class='action-group-title'>👥 Filter My Cases by Lead:</div>", unsafe_allow_html=True)
-            w_lead_options = ["All"] + worker_lead_names
-            w_current_lead_val = st.session_state.get("selected_lead_filter", "All")
-            if w_current_lead_val not in w_lead_options:
-                w_current_lead_val = "All"
-            
-            w_selected_lead_radio = st.radio(
-                "Worker Lead Filter Options",
-                options=w_lead_options,
-                index=w_lead_options.index(w_current_lead_val),
-                horizontal=True,
-                label_visibility="collapsed",
-                key="worker_lead_radio_filter"
-            )
-            if w_selected_lead_radio != st.session_state["selected_lead_filter"]:
-                st.session_state["selected_lead_filter"] = w_selected_lead_radio
-                st.rerun()
-
         if visa_counts:
-            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click to filter):</div>", unsafe_allow_html=True)
+            st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts.items())
-            w_cols = st.columns(min(len(visa_items), 4), gap="medium")
-            for idx, (v_name, v_count) in enumerate(visa_items):
-                col_idx = idx % len(w_cols)
-                with w_cols[col_idx]:
-                    btn_label = f"✈️ {v_name}: {v_count}"
-                    color_idx = idx % 8
-                    st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
-                    if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
-                        if st.session_state["selected_visa_filter"] == v_name:
-                            st.session_state["selected_visa_filter"] = "All"
-                        else:
-                            st.session_state["selected_visa_filter"] = v_name
-                        st.rerun()
+            
+            if visa_items:
+                w_cols = st.columns(len(visa_items), gap="medium")
+                for idx, (v_name, v_count) in enumerate(visa_items):
+                    with w_cols[idx]:
+                        btn_label = f"✈️ {v_name}: {v_count}"
+                        color_idx = idx % 8
+                        st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button(btn_label, key=f"worker_visa_btn_{v_name}_{idx}", use_container_width=True):
+                            if st.session_state["selected_visa_filter"] == v_name:
+                                st.session_state["selected_visa_filter"] = "All"
+                            else:
+                                st.session_state["selected_visa_filter"] = v_name
+                            st.rerun()
             
             if st.session_state["selected_visa_filter"] != "All":
-                if st.button(f"🔄 Active Visa Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset", use_container_width=True, key="reset_worker_visa_filter"):
+                if st.button(f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset (Show All My Cases)", use_container_width=True, key="reset_worker_visa_filter"):
                     st.session_state["selected_visa_filter"] = "All"
                     st.rerun()
 
