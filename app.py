@@ -428,7 +428,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
 
-# --- BENTO GRID & MODERN STYLING ENHANCEMENTS ---
+# --- SIDEBAR NAVIGATION STYLING & SETUP ---
 st.markdown("""
 <style>
     [data-testid="stHeader"] {
@@ -609,19 +609,17 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
-    
-    /* --- BENTO GRID KPI CARDS STYLING --- */
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
         padding: 22px 16px;
-        border-radius: 16px;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+        border-radius: 14px;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.15);
         text-align: center;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         border-bottom: 4px solid #64748b;
         margin-bottom: 12px;
-        height: 120px;
+        height: 115px;
         width: 100%;
         display: flex;
         flex-direction: column;
@@ -631,9 +629,8 @@ st.markdown("""
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .kpi-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 14px 30px rgba(56, 189, 248, 0.25);
-        border-color: #38bdf8;
+        transform: translateY(-3px);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
     }
     .kpi-card.gold {
         background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
@@ -648,7 +645,7 @@ st.markdown("""
         border-bottom: 4px solid #6366f1;
     }
     .kpi-title {
-        font-size: 11.5px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 1.4px;
         opacity: 0.9;
@@ -658,7 +655,7 @@ st.markdown("""
         color: #f1f5f9;
     }
     .kpi-value {
-        font-size: 30px;
+        font-size: 28px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
@@ -738,23 +735,22 @@ st.markdown("""
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
         min-height: 44px !important;
-        border-radius: 12px !important;
+        border-radius: 10px !important;
         font-weight: 600 !important;
         font-size: 13.5px !important;
         padding: 10px 16px !important;
         color: #ffffff !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
         margin-top: 4px !important;
         margin-bottom: 8px !important;
-        transition: all 0.25s ease;
+        transition: all 0.2s ease;
         white-space: nowrap !important;
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(56, 189, 248, 0.3);
-        border-color: #38bdf8 !important;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
         opacity: 0.95;
     }
     .username-hyperlink {
@@ -765,15 +761,6 @@ st.markdown("""
     }
     .username-hyperlink:hover {
         color: #2563eb !important;
-    }
-    div[data-testid="stRadio"] > div {
-        flex-direction: row !important;
-        flex-wrap: wrap !important;
-        gap: 12px !important;
-        background: #f8fafc;
-        padding: 10px 16px;
-        border-radius: 12px;
-        border: 1px solid #cbd5e1;
     }
     div[data-testid="stExpander"] {
         width: 100% !important;
@@ -2073,15 +2060,23 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         c_upd = True if curr_role == "admin" else perms.get(curr_u, {}).get("can_update", True)
         view_and_edit_case_dialog(st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd)
 
+# --- SIDEBAR NAVIGATION IMPLEMENTATION ---
+with st.sidebar:
+    found_logo_sb = next((f for f in LOGO_FILES if os.path.exists(f)), None)
+    if found_logo_sb:
+        st.image(found_logo_sb, width=100)
+    st.markdown("### 🌐 GLOBAL VISA & IMMIGRATION")
+    st.markdown("<p style='color: #38bdf8; font-size: 12px;'>Your Gateway to Study, Work & Travel Worldwide</p>", unsafe_allow_html=True)
+    st.markdown("---")
+
 if not st.session_state["logged_in"]:
-    default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
-    selected_page = st.radio(
-        "Navigation",
-        ["🏠 Home", "ℹ️ About Us", "✈️ Services", "⭐ Success Stories", "📞 Contact Us", "🔐 Portal Login"],
-        index=default_nav_idx,
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+    with st.sidebar:
+        default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
+        selected_page = st.radio(
+            "📌 నావిగేషన్ (Navigation)",
+            ["🏠 Home", "ℹ️ About Us", "✈️ Services", "⭐ Success Stories", "📞 Contact Us", "🔐 Portal Login"],
+            index=default_nav_idx
+        )
     
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
@@ -2291,18 +2286,21 @@ elif st.session_state["role"] == "admin":
     display_c = find_display_username_column(df)
     p_col = find_password_column(df)
     
-    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
-    with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
-    with top_col2:
-        if st.button("🔄 Refresh", key="admin_refresh"):
+    # --- ADMIN SIDEBAR NAVIGATION ---
+    with st.sidebar:
+        st.markdown("### 👑 Admin Panel")
+        admin_dash_tab = st.radio(
+            "Admin Navigation",
+            ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
+            key="admin_dash_tab_radio"
+        )
+        st.markdown("---")
+        if st.button("🔄 Refresh", key="admin_refresh", use_container_width=True):
             st.cache_data.clear()
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
-    with top_col3:
-        if st.button("🚪 Logout", key="admin_logout"):
+        if st.button("🚪 Logout", key="admin_logout", use_container_width=True):
             st.query_params.clear()
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
@@ -2310,16 +2308,6 @@ elif st.session_state["role"] == "admin":
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    admin_dash_tab = st.radio(
-        "Admin Navigation",
-        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="admin_dash_tab_radio"
-    )
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     total_cases = len(df)
     updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
@@ -2334,6 +2322,7 @@ elif st.session_state["role"] == "admin":
         visa_counts = v_series.value_counts().to_dict()
 
     if admin_dash_tab == "📊 Dashboard & Quick Actions":
+        st.markdown(f"<div class='section-banner'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
         if sheets:
             st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
@@ -2349,7 +2338,6 @@ elif st.session_state["role"] == "admin":
                         st.rerun()
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-        # --- BENTO GRID KPI METRICS CARDS ---
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📋 Total Cases</div><div class='kpi-value'>{total_cases}</div></div>", unsafe_allow_html=True)
@@ -2557,18 +2545,21 @@ else:
     user_mask = df[login_c].astype(str).str.strip().str.lower() == current_user.lower()
     user_rows = df[user_mask]
         
-    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
-    with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
-    with top_col2:
-        if st.button("🔄 Refresh", key="worker_refresh"):
+    # --- WORKER SIDEBAR NAVIGATION ---
+    with st.sidebar:
+        st.markdown(f"### 👋 {current_user}")
+        worker_dash_tab = st.radio(
+            "Worker Navigation",
+            ["📊 My Workspace", "ℹ️ Case Worker Guide"],
+            key="worker_dash_tab_radio"
+        )
+        st.markdown("---")
+        if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
             st.cache_data.clear()
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
-    with top_col3:
-        if st.button("🚪 Logout", key="worker_logout"):
+        if st.button("🚪 Logout", key="worker_logout", use_container_width=True):
             record_worker_logout(current_user)
             st.query_params.clear()
             st.session_state["logged_in"] = False
@@ -2578,18 +2569,9 @@ else:
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    worker_dash_tab = st.radio(
-        "Worker Navigation",
-        ["📊 My Workspace", "ℹ️ Case Worker Guide"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="worker_dash_tab_radio"
-    )
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     if worker_dash_tab == "📊 My Workspace":
+        st.markdown(f"<div class='section-banner'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
         admin_notice = get_admin_notice()
         if admin_notice:
             st.markdown(f"""
@@ -2608,7 +2590,6 @@ else:
             v_series = v_series[v_series != ""]
             visa_counts = v_series.value_counts().to_dict()
 
-        # --- BENTO GRID WORKER KPI METRICS CARDS ---
         k1, k2 = st.columns(2, gap="medium")
         with k1:
             st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
