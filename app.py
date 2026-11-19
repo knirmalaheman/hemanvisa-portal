@@ -2682,8 +2682,8 @@ if worker_dash_tab == "📊 My Workspace":
         filtered_user_rows = user_rows
     # ----------------------------------------------
 
-    my_total = len(filtered_user_rows)
-        my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
+my_total = len(filtered_user_rows)
+    my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
 
         k1, k2 = st.columns(2, gap="medium")
         with k1:
