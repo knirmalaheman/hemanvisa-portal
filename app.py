@@ -4023,6 +4023,53 @@ else:
             search_main_data_any(user_rows_w, worker_search_q)
         ]
 
+    total_w_cases = len(user_rows_w) if not user_rows_w.empty else 0
+    today_str_w = get_ist_now().strftime("%Y-%m-%d")
+    today_w_cases = 0
+    booked_resched_w = 0
+    active_w_cases = 0
+
+    if not user_rows_w.empty:
+        date_cols_w = [
+            c
+            for c in user_rows_w.columns
+            if any(k in c.lower() for k in ["date", "time", "day", "created"])
+        ]
+        for _, r in user_rows_w.iterrows():
+            if any(
+                today_str_w in str(r.get(dc, "")).strip() for dc in date_cols_w
+            ) or today_str_w in str(r.get("Updated_At", "")):
+                today_w_cases += 1
+
+            bs_val = str(r.get("Booking_Status", "Active")).strip().lower()
+            if bs_val in ["booked", "rescheduled"]:
+                booked_resched_w += 1
+            else:
+                active_w_cases += 1
+
+    st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+    wk1, wk2, wk3, wk4 = st.columns(4, gap="medium")
+    with wk1:
+        st.markdown(
+            f"<div class='kpi-card'><div class='kpi-title'>Total Cases ({current_sheet})</div><div class='kpi-value'>{total_w_cases}</div></div>",
+            unsafe_allow_html=True,
+        )
+    with wk2:
+        st.markdown(
+            f"<div class='kpi-card green'><div class='kpi-title'>Today's Cases</div><div class='kpi-value'>{today_w_cases}</div></div>",
+            unsafe_allow_html=True,
+        )
+    with wk3:
+        st.markdown(
+            f"<div class='kpi-card purple'><div class='kpi-title'>Booked / Rescheduled</div><div class='kpi-value'>{booked_resched_w}</div></div>",
+            unsafe_allow_html=True,
+        )
+    with wk4:
+        st.markdown(
+            f"<div class='kpi-card gold'><div class='kpi-title'>Active Cases</div><div class='kpi-value'>{active_w_cases}</div></div>",
+            unsafe_allow_html=True,
+        )
+
     st.markdown(
         f"<div class='section-banner'>📋 Your Assigned Cases — {current_sheet} ({len(user_rows_w)})</div>",
         unsafe_allow_html=True,
