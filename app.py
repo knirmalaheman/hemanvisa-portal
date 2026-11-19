@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 import io
@@ -728,6 +729,87 @@ def is_today_updated_row(row, today_str):
     return False
 
 
+def enable_right_cursor_navigation_in_popup():
+    components.html(
+        """
+        <script>
+        (function() {
+            const doc = window.parent.document;
+
+            function getPopupInputs() {
+                const dialog = doc.querySelector('[data-testid="stDialog"]');
+                if (!dialog) return [];
+                const elements = Array.from(
+                    dialog.querySelectorAll('input:not([type="file"]):not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
+                );
+                return elements.filter(el => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && !el.closest('[data-testid="stSidebar"]');
+                });
+            }
+
+            function moveCursorRight(currentEl) {
+                const inputs = getPopupInputs();
+                if (!inputs.length) return;
+                const idx = inputs.indexOf(currentEl);
+                if (idx === -1) return;
+
+                const curRect = currentEl.getBoundingClientRect();
+                const curMidY = curRect.top + curRect.height / 2;
+
+                // First check if there is an input directly to the right on roughly the same horizontal row
+                let rightCandidate = null;
+                let bestRightScore = Infinity;
+
+                for (let i = 0; i < inputs.length; i++) {
+                    if (i === idx) continue;
+                    const cand = inputs[i];
+                    const r = cand.getBoundingClientRect();
+                    const midY = r.top + r.height / 2;
+                    const dy = Math.abs(midY - curMidY);
+                    const dx = r.left - curRect.right;
+
+                    if (dx > -10 && dy < 36) {
+                        const score = Math.max(0, dx) + dy * 4;
+                        if (score < bestRightScore) {
+                            bestRightScore = score;
+                            rightCandidate = cand;
+                        }
+                    }
+                }
+
+                const nextEl = rightCandidate || inputs[(idx + 1) % inputs.length];
+                if (nextEl) {
+                    nextEl.focus();
+                    if (typeof nextEl.select === "function" && nextEl.tagName === "INPUT") {
+                        try { nextEl.select(); } catch (e) {}
+                    }
+                }
+            }
+
+            if (!doc.__hemanPopupRightNavBound) {
+                doc.addEventListener("keydown", function(e) {
+                    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+                    const dialog = doc.querySelector('[data-testid="stDialog"]');
+                    if (!dialog) return;
+                    const active = doc.activeElement;
+                    if (!active || !dialog.contains(active)) return;
+                    if (active.tagName === "TEXTAREA" || active.tagName === "BUTTON") return;
+
+                    e.preventDefault();
+                    e.stopPropagation();
+                    moveCursorRight(active);
+                }, true);
+                doc.__hemanPopupRightNavBound = true;
+            }
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -1446,6 +1528,7 @@ def render_clickable_table(
 
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
+    enable_right_cursor_navigation_in_popup()
     df_full = load_data(sheet_name=sheet_name)
     if df_full is None or row_idx not in df_full.index:
         st.error("Case data not found.")
