@@ -1260,162 +1260,42 @@ def render_clickable_table(
     page_size=100,
     allow_edit=True,
 ):
-    if df.empty:
+    if df is None or df.empty:
         st.info("No cases found.")
         return
 
     df = reorder_dataframe_columns(df)
-    total_rows = len(df)
-    total_pages = max(1, math.ceil(total_rows / page_size))
-    page_state_key = f"page_num_{table_key}"
-
-    if page_state_key not in st.session_state:
-        st.session_state[page_state_key] = 1
-    if st.session_state[page_state_key] > total_pages:
-        st.session_state[page_state_key] = total_pages
-    if st.session_state[page_state_key] < 1:
-        st.session_state[page_state_key] = 1
-
-    curr_page = st.session_state[page_state_key]
-    start_idx = (curr_page - 1) * page_size
-    end_idx = min(start_idx + page_size, total_rows)
-    page_df = df.iloc[start_idx:end_idx]
-
-    if total_pages > 1:
-        p_c1, p_c2, p_c3, p_c4 = st.columns([1.2, 2.6, 1.2, 1.2], gap="small")
-        with p_c1:
-            if st.button(
-                "⬅️ Previous",
-                key=f"prev_{table_key}",
-                disabled=(curr_page <= 1),
-                use_container_width=True,
-            ):
-                st.session_state[page_state_key] = curr_page - 1
-                st.rerun()
-        with p_c2:
-            st.markdown(
-                f"<div style='text-align:center; padding-top:10px; font-weight:700; color:#1e293b; font-size:13.5px;'>"
-                f"Page {curr_page} of {total_pages} &nbsp;|&nbsp; Showing {start_idx + 1}–{end_idx} of {total_rows} cases</div>",
-                unsafe_allow_html=True,
-            )
-        with p_c3:
-            if st.button(
-                "Next ➡️",
-                key=f"next_{table_key}",
-                disabled=(curr_page >= total_pages),
-                use_container_width=True,
-            ):
-                st.session_state[page_state_key] = curr_page + 1
-                st.rerun()
-        with p_c4:
-            jump_page = st.number_input(
-                "Page",
-                min_value=1,
-                max_value=total_pages,
-                value=curr_page,
-                label_visibility="collapsed",
-                key=f"jump_{table_key}",
-            )
-            if jump_page != curr_page:
-                st.session_state[page_state_key] = int(jump_page)
-                st.rerun()
-
     cols_to_hide = (
         ["Appointment_PDF"] if allow_edit else [p_col, "Appointment_PDF"]
     )
-    display_cols = [c for c in page_df.columns if c not in cols_to_hide]
+    show_df = df.drop(columns=cols_to_hide, errors="ignore").copy()
+    show_df.index = range(1, len(show_df) + 1)
 
-    curr_logged = qp.get(
-        "logged_in", "true" if st.session_state.get("logged_in") else "false"
+    if not allow_edit:
+        st.dataframe(show_df, use_container_width=True, height=460)
+        return
+
+    event = st.dataframe(
+        show_df,
+        use_container_width=True,
+        height=460,
+        on_select="rerun",
+        selection_mode="single-row",
+        key=f"df_select_{table_key}",
     )
-    curr_user = qp.get("username", st.session_state.get("username", ""))
-    curr_role = qp.get("role", st.session_state.get("role", ""))
-    curr_sheet = (
-        sheet_for_link
-        or qp.get("active_sheet", st.session_state.get("active_sheet", ""))
-    )
 
-    html_parts = [
-        '<div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 14px;">',
-        '<table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">',
-        '<thead><tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">',
-        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: center;">#</th>',
-    ]
-    for col in display_cols:
-        html_parts.append(
-            f'<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
-        )
-    html_parts.append(
-        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
-    )
-    html_parts.append("</tr></thead><tbody>")
-
-    base_link = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row="
-    indices = page_df.index.tolist()
-    act_col_vals = (
-        page_df["Action_Type"].astype(str).str.strip().str.lower().tolist()
-        if "Action_Type" in page_df.columns
-        else [""] * len(page_df)
-    )
-    booking_status_vals = (
-        page_df["Booking_Status"].astype(str).str.strip().tolist()
-        if "Booking_Status" in page_df.columns
-        else ["Active"] * len(page_df)
-    )
-    col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
-
-    for i, idx in enumerate(indices):
-        serial_no = start_idx + i + 1
-        act_t = act_col_vals[i]
-        b_status = booking_status_vals[i]
-        row_bg = (
-            "#fee2e2"
-            if act_t == "delete rejected"
-            else ("#f8fafc" if i % 2 == 0 else "#ffffff")
-        )
-        html_parts.append(f'<tr style="background-color: {row_bg};">')
-        html_parts.append(
-            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 700;">{serial_no}</td>'
-        )
-
-        for col in display_cols:
-            val = col_data[col][i]
-            if col == "Case_ID":
-                cell_content = f'<span style="font-weight:800; color:#1e3a8a; background:#eff6ff; padding:2px 8px; border-radius:6px; border:1px solid #bfdbfe;">{val if val != "" else "-"}</span>'
-            elif col == display_c:
-                display_val = (
-                    val.strip() if val.strip() != "" else "Not Assigned"
-                )
-                if allow_edit:
-                    cell_content = f'<a href="{base_link}{idx}" target="_self" class="username-hyperlink">{display_val}</a>'
-                else:
-                    cell_content = f'<span style="font-weight:700; color:#1e293b;">{display_val}</span>'
-            else:
-                cell_content = val if val != "" else "-"
-            html_parts.append(
-                f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
-            )
-
-        if act_t == "delete rejected":
-            status_display = "Rejected"
-            status_color = "#b91c1c"
-        elif b_status.lower() == "rescheduled":
-            status_display = "Rescheduled"
-            status_color = "#d97706"
-        elif b_status.lower() == "booked":
-            status_display = "Booked"
-            status_color = "#059669"
-        else:
-            status_display = "Active"
-            status_color = "#1e293b"
-
-        html_parts.append(
-            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: {status_color}; font-weight: 700; white-space: nowrap;">{status_display}</td>'
-        )
-        html_parts.append("</tr>")
-
-    html_parts.append("</tbody></table></div>")
-    st.markdown("".join(html_parts), unsafe_allow_html=True)
+    selected_rows = event.selection.rows if hasattr(event, "selection") else []
+    if selected_rows:
+        pos = selected_rows[0]
+        actual_idx = df.index[pos]
+        if sheet_for_link:
+            st.session_state["active_sheet"] = sheet_for_link
+        st.session_state["selected_row_idx"] = actual_idx
+        st.session_state["is_editing_popup"] = False
+        st.session_state["is_delete_request_mode"] = False
+        st.session_state["is_reschedule_mode"] = False
+        st.session_state["open_dialog"] = "edit_case_popup"
+        st.rerun()
 
 
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
@@ -3229,9 +3109,8 @@ elif st.session_state["open_dialog"] == "admin_kpi_popup":
         lead_filter=kpi_meta.get("lead", "All"),
     )
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "edit_case_popup":
+elif st.session_state.get("open_dialog") == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
-    st.session_state["open_dialog"] = None
     if r_idx is not None:
         curr_role = st.session_state.get("role", "worker")
         curr_u = st.session_state.get("username", "")
