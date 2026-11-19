@@ -964,13 +964,13 @@ st.markdown("""
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
-        padding: 18px 14px;
+        padding: 14px 10px;
         border-radius: 13px;
         box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
         text-align: center;
         border-bottom: 4px solid #64748b;
         margin-bottom: 6px;
-        height: 104px;
+        height: 92px;
         width: 100%;
         display: flex;
         flex-direction: column;
@@ -998,16 +998,20 @@ st.markdown("""
         border-bottom: 4px solid #fb7185;
     }
     .kpi-title {
-        font-size: 11px;
+        font-size: 10.5px;
         text-transform: uppercase;
-        letter-spacing: 1.1px;
+        letter-spacing: 0.9px;
         opacity: 0.92;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
         font-weight: 700;
         color: #f1f5f9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
     }
     .kpi-value {
-        font-size: 27px;
+        font-size: 24px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
@@ -1083,11 +1087,11 @@ st.markdown("""
     }
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
-        min-height: 42px !important;
+        min-height: 40px !important;
         border-radius: 10px !important;
         font-weight: 600 !important;
-        font-size: 13.5px !important;
-        padding: 8px 14px !important;
+        font-size: 13px !important;
+        padding: 6px 10px !important;
         color: #ffffff !important;
         border: 1px solid rgba(255,255,255,0.2) !important;
         box-shadow: 0 3px 8px rgba(15, 23, 42, 0.1);
@@ -3550,30 +3554,18 @@ elif st.session_state["role"] == "admin":
         )
 
         st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-        k1, k2, k3, k4 = st.columns(4, gap="medium")
-        with k1:
+        k_cols = st.columns(6, gap="small")
+        with k_cols[0]:
             st.markdown(
-                f"<div class='kpi-card'><div class='kpi-title'>Total Cases ({dash_s_name})</div><div class='kpi-value'>{total_cases_d}</div></div>",
+                f"<div class='kpi-card'><div class='kpi-title'>Total ({dash_s_name})</div><div class='kpi-value'>{total_cases_d}</div></div>",
                 unsafe_allow_html=True,
             )
-        with k2:
+        with k_cols[1]:
             st.markdown(
                 f"<div class='kpi-card green'><div class='kpi-title'>Today's Cases</div><div class='kpi-value'>{today_count_d}</div></div>",
                 unsafe_allow_html=True,
             )
-        with k3:
-            st.markdown(
-                f"<div class='kpi-card purple'><div class='kpi-title'>Workers Online</div><div class='kpi-value'>{logged_in_cnt_d} / {len(all_workers_d)}</div></div>",
-                unsafe_allow_html=True,
-            )
-        with k4:
-            st.markdown(
-                f"<div class='kpi-card gold'><div class='kpi-title'>Delete Requests</div><div class='kpi-value'>{del_reqs_count_d}</div></div>",
-                unsafe_allow_html=True,
-            )
-
-        k5, k6, _, _ = st.columns(4, gap="medium")
-        with k5:
+        with k_cols[2]:
             st.markdown(
                 f"<div class='kpi-card teal'><div class='kpi-title'>Today Updated</div><div class='kpi-value'>{today_updated_count_d}</div></div>",
                 unsafe_allow_html=True,
@@ -3583,7 +3575,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"🕒 View Today Updated ({today_updated_count_d})",
+                f"🕒 View ({today_updated_count_d})",
                 key="kpi_btn_today_updated",
                 use_container_width=True,
             ):
@@ -3594,7 +3586,7 @@ elif st.session_state["role"] == "admin":
                 }
                 st.session_state["open_dialog"] = "admin_kpi_popup"
                 st.rerun()
-        with k6:
+        with k_cols[3]:
             st.markdown(
                 f"<div class='kpi-card rose'><div class='kpi-title'>Not Assigned</div><div class='kpi-value'>{not_assigned_count_d}</div></div>",
                 unsafe_allow_html=True,
@@ -3604,7 +3596,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"👤 View Not Assigned ({not_assigned_count_d})",
+                f"👤 View ({not_assigned_count_d})",
                 key="kpi_btn_not_assigned",
                 use_container_width=True,
             ):
@@ -3615,6 +3607,16 @@ elif st.session_state["role"] == "admin":
                 }
                 st.session_state["open_dialog"] = "admin_kpi_popup"
                 st.rerun()
+        with k_cols[4]:
+            st.markdown(
+                f"<div class='kpi-card purple'><div class='kpi-title'>Workers Online</div><div class='kpi-value'>{logged_in_cnt_d} / {len(all_workers_d)}</div></div>",
+                unsafe_allow_html=True,
+            )
+        with k_cols[5]:
+            st.markdown(
+                f"<div class='kpi-card gold'><div class='kpi-title'>Delete Reqs</div><div class='kpi-value'>{del_reqs_count_d}</div></div>",
+                unsafe_allow_html=True,
+            )
 
         st.markdown(
             "<div class='action-group-title'>⚡ QUICK ACTIONS & REPORTS:</div>",
@@ -4173,7 +4175,6 @@ else:
     today_str_w = get_ist_now().strftime("%Y-%m-%d")
     today_w_cases = 0
     booked_resched_w = 0
-    active_w_cases = 0
 
     if not user_rows_w.empty:
         date_cols_w = [
@@ -4190,11 +4191,9 @@ else:
             bs_val = str(r.get("Booking_Status", "Active")).strip().lower()
             if bs_val in ["booked", "rescheduled"]:
                 booked_resched_w += 1
-            else:
-                active_w_cases += 1
 
     st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-    wk1, wk2, wk3, wk4 = st.columns(4, gap="medium")
+    wk1, wk2, wk3 = st.columns(3, gap="medium")
     with wk1:
         st.markdown(
             f"<div class='kpi-card'><div class='kpi-title'>Total Cases ({current_sheet})</div><div class='kpi-value'>{total_w_cases}</div></div>",
@@ -4208,11 +4207,6 @@ else:
     with wk3:
         st.markdown(
             f"<div class='kpi-card purple'><div class='kpi-title'>Booked / Rescheduled</div><div class='kpi-value'>{booked_resched_w}</div></div>",
-            unsafe_allow_html=True,
-        )
-    with wk4:
-        st.markdown(
-            f"<div class='kpi-card gold'><div class='kpi-title'>Active Cases</div><div class='kpi-value'>{active_w_cases}</div></div>",
             unsafe_allow_html=True,
         )
 
