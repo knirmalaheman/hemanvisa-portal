@@ -874,14 +874,6 @@ st.markdown("""
     div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) p {
         color: #ffffff !important;
     }
-    .overall-search-box {
-        background: #f8fafc;
-        border: 1.5px solid #cbd5e1;
-        border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
-    }
     div[data-testid="stExpander"] {
         width: 100% !important;
         max-width: 950px !important;
@@ -2451,25 +2443,32 @@ elif st.session_state["role"] == "admin":
         df_d_base = load_data(sheet_name=dash_s_name)
         df_d_base = reorder_dataframe_columns(df_d_base)
         login_c_d = find_login_user_column(df_d_base)
+        display_c_d = find_display_username_column(df_d_base)
+        p_col_d = find_password_column(df_d_base)
         lead_col_d = next((c for c in df_d_base.columns if "lead" in c.strip().lower()), login_c_d)
 
-        # 1st: FILTER BY LEAD NAME (Top)
+        # 1. Overall Search Bar inside Dashboard (Username & DS160 Only)
+        dash_search_query = st.text_input(
+            "🔍 Overall Search (Username & DS160 Number Only):",
+            placeholder="Type Username or DS160 number...",
+            key="dash_overall_search_input"
+        ).strip()
+
+        # 2. FILTER BY LEAD NAME as horizontal buttons (All, Kiran, Shanthi)
         st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
         lead_options = ["All", "Kiran", "Shanthi"]
-        curr_idx = lead_options.index(st.session_state["admin_selected_lead"]) if st.session_state["admin_selected_lead"] in lead_options else 0
-        selected_lead = st.radio(
-            "Filter by Lead Name",
-            options=lead_options,
-            index=curr_idx,
-            horizontal=True,
-            key="admin_lead_radio_filter",
-            label_visibility="collapsed"
-        )
-        if selected_lead != st.session_state["admin_selected_lead"]:
-            st.session_state["admin_selected_lead"] = selected_lead
-            st.rerun()
+        l_btn_cols = st.columns([1.2, 1.2, 1.2, 4.4], gap="small")
+        for l_idx, l_name in enumerate(lead_options):
+            with l_btn_cols[l_idx]:
+                is_l_act = (st.session_state["admin_selected_lead"] == l_name)
+                l_cls = "admin-btn-0" if is_l_act else "admin-btn-6"
+                l_lbl = f"✅ {l_name}" if is_l_act else l_name
+                st.markdown(f'<span class="{l_cls}" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button(l_lbl, key=f"dash_lead_btn_{l_name}_{l_idx}", use_container_width=True):
+                    st.session_state["admin_selected_lead"] = l_name
+                    st.rerun()
 
-        # 2nd: SWITCH SHEET (Below Lead Filter - filters ONLY Dashboard view)
+        # 3. SWITCH SHEET (Below Lead Filter - filters ONLY Dashboard view)
         if sheets:
             st.markdown("<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
@@ -2489,6 +2488,12 @@ elif st.session_state["role"] == "admin":
             df_dash = df_d_base[df_d_base[lead_col_d].astype(str).str.strip().str.lower().str.contains(sel_l, na=False)]
         else:
             df_dash = df_d_base
+
+        if dash_search_query != "":
+            df_dash_search_results = df_dash[search_username_and_ds160(df_dash, dash_search_query)]
+            st.markdown(f"<div class='section-banner'>🔍 Dashboard Search Results for '<b>{dash_search_query}</b>' ({len(df_dash_search_results)} found in {dash_s_name})</div>", unsafe_allow_html=True)
+            render_clickable_table(df_dash_search_results, display_c_d, p_col_d, table_key=f"dash_search_{dash_s_name}", sheet_for_link=dash_s_name)
+            st.divider()
 
         total_cases = len(df_dash)
         updated_cases = len(df_dash[df_dash["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in df_dash.columns else 0
@@ -2595,32 +2600,8 @@ elif st.session_state["role"] == "admin":
             v_series = v_series[v_series != ""]
             visa_counts_r = v_series.value_counts().to_dict()
 
-        st.markdown(f"<div class='section-banner'>📂 Case Records & Search — Sheet: <b>{rec_s_name}</b></div>", unsafe_allow_html=True)
-
-        # Overall Search Bar (Username & DS160 Number Only)
-        st.markdown("<div class='overall-search-box'>", unsafe_allow_html=True)
-        admin_search = st.text_input(
-            "🔎 Overall Search (Username & DS160 Number Only):",
-            placeholder="Type Username or DS160 number to search...",
-            key="admin_overall_search_input"
-        ).strip()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Switch Sheet buttons (Filters ONLY Case Records view)
-        if sheets:
-            st.markdown("<div class='action-group-title'>📑 SWITCH SHEET (CASE RECORDS FILTER):</div>", unsafe_allow_html=True)
-            sw_cols_r = st.columns(len(sheets), gap="small")
-            for s_idx, s_name in enumerate(sheets):
-                with sw_cols_r[s_idx]:
-                    is_act = (s_name == rec_s_name)
-                    color_c = "admin-btn-1" if is_act else "admin-btn-6"
-                    b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
-                    st.markdown(f'<span class="{color_c}" style="display:none;"></span>', unsafe_allow_html=True)
-                    if st.button(b_txt, key=f"records_only_sheet_btn_{s_idx}", use_container_width=True):
-                        st.session_state["records_sheet"] = s_name
-                        st.session_state["selected_visa_filter"] = "All"
-                        st.rerun()
-
+        st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
+        
         if visa_counts_r:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
             visa_items = list(visa_counts_r.items())
@@ -2650,6 +2631,27 @@ elif st.session_state["role"] == "admin":
                     st.rerun()
             st.divider()
 
+        # Compact Search Bar & Switch Sheet (Old Style, Username & DS160 Only)
+        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
+        with col_search:
+            admin_search = st.text_input("Search by Username or DS160 Number only:", placeholder="Type Username or DS160 number...", key="admin_search_input").strip()
+        with col_sheets:
+            if sheets:
+                st.markdown("📑 **Switch Sheet:**")
+                sw_cols_r = st.columns(len(sheets), gap="small")
+                for s_idx, s_name in enumerate(sheets):
+                    with sw_cols_r[s_idx]:
+                        is_act = (s_name == rec_s_name)
+                        color_c = "admin-btn-1" if is_act else "admin-btn-6"
+                        b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
+                        st.markdown(f'<span class="{color_c}" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button(b_txt, key=f"records_only_sheet_btn_{s_idx}", use_container_width=True):
+                            st.session_state["records_sheet"] = s_name
+                            st.session_state["selected_visa_filter"] = "All"
+                            st.rerun()
+
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
         display_df = df_r
         if admin_search != "":
             admin_search_mask = search_username_and_ds160(display_df, admin_search)
@@ -2659,7 +2661,7 @@ elif st.session_state["role"] == "admin":
             target_visa = st.session_state["selected_visa_filter"]
             display_df = display_df[display_df[visa_col_r].astype(str).str.strip().str.upper() == target_visa]
 
-        st.caption(f"💡 Showing {len(display_df)} cases in '{rec_s_name}' (Overall Search: Username & DS160 only). Click USERNAME inside the table to view, edit, or delete details.")
+        st.caption(f"💡 Showing {len(display_df)} cases in '{rec_s_name}' (filtered by Username & DS160). Click USERNAME inside the table to view, edit, or delete details.")
         render_clickable_table(display_df, display_c_r, p_col_r, table_key=f"admin_{rec_s_name}", sheet_for_link=rec_s_name)
                     
         if os.path.exists(EXCEL_FILE):
@@ -2769,18 +2771,16 @@ else:
             st.session_state["worker_selected_lead"] = "All"
 
         lead_options_w = ["All", "Kiran", "Shanthi"]
-        curr_idx_w = lead_options_w.index(st.session_state["worker_selected_lead"]) if st.session_state["worker_selected_lead"] in lead_options_w else 0
-        selected_lead_w = st.radio(
-            "Filter by Lead Name",
-            options=lead_options_w,
-            index=curr_idx_w,
-            horizontal=True,
-            key="worker_lead_radio_filter",
-            label_visibility="collapsed"
-        )
-        if selected_lead_w != st.session_state["worker_selected_lead"]:
-            st.session_state["worker_selected_lead"] = selected_lead_w
-            st.rerun()
+        w_l_cols = st.columns([1.2, 1.2, 1.2, 4.4], gap="small")
+        for l_idx_w, l_name_w in enumerate(lead_options_w):
+            with w_l_cols[l_idx_w]:
+                is_wl_act = (st.session_state["worker_selected_lead"] == l_name_w)
+                wl_cls = "admin-btn-0" if is_wl_act else "admin-btn-6"
+                wl_lbl = f"✅ {l_name_w}" if is_wl_act else l_name_w
+                st.markdown(f'<span class="{wl_cls}" style="display:none;"></span>', unsafe_allow_html=True)
+                if st.button(wl_lbl, key=f"worker_lead_btn_{l_name_w}_{l_idx_w}", use_container_width=True):
+                    st.session_state["worker_selected_lead"] = l_name_w
+                    st.rerun()
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
         login_c_val = globals().get("login_c", login_c)
