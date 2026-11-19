@@ -19,6 +19,8 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
 
+st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
+
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
@@ -139,69 +141,6 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
-def get_next_case_id(all_sheets_dict=None):
-    max_num = 1000
-    if all_sheets_dict is None and os.path.exists(EXCEL_FILE):
-        try:
-            all_sheets_dict = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-        except Exception:
-            all_sheets_dict = {}
-    if all_sheets_dict:
-        for _, df_s in all_sheets_dict.items():
-            if df_s is not None and not df_s.empty:
-                for col in df_s.columns:
-                    if col.strip().lower().replace("_", " ") in ["case id", "caseid"]:
-                        for val in df_s[col].astype(str):
-                            digits = "".join(ch for ch in val if ch.isdigit())
-                            if digits:
-                                num = int(digits)
-                                if num > max_num:
-                                    max_num = num
-    return f"HV-{max_num + 1}"
-
-def ensure_case_ids_on_disk():
-    if not os.path.exists(EXCEL_FILE):
-        return
-    try:
-        sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-        updated_any = False
-        max_num = 1000
-
-        for _, df_s in sheets_data.items():
-            if df_s is not None and not df_s.empty:
-                for col in df_s.columns:
-                    if col.strip().lower().replace("_", " ") in ["case id", "caseid"]:
-                        for val in df_s[col].astype(str):
-                            digits = "".join(ch for ch in val if ch.isdigit())
-                            if digits:
-                                num = int(digits)
-                                if num > max_num:
-                                    max_num = num
-
-        for s_name, df_s in sheets_data.items():
-            if df_s is not None:
-                df_s.columns = df_s.columns.str.strip()
-                if "Case_ID" not in df_s.columns:
-                    df_s.insert(0, "Case_ID", "")
-                    updated_any = True
-                for idx in df_s.index:
-                    curr_id = str(df_s.at[idx, "Case_ID"]).strip()
-                    if curr_id == "" or curr_id.lower() == "nan":
-                        max_num += 1
-                        df_s.at[idx, "Case_ID"] = f"HV-{max_num}"
-                        updated_any = True
-                sheets_data[s_name] = df_s
-
-        if updated_any:
-            with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
-                for s, df_val in sheets_data.items():
-                    df_val.to_excel(writer, sheet_name=str(s), index=False)
-    except Exception:
-        pass
-
-st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
-ensure_case_ids_on_disk()
-
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
         return df
@@ -210,7 +149,7 @@ def reorder_dataframe_columns(df):
         df = df.drop(columns=cols_to_drop, errors="ignore")
 
     cols = list(df.columns)
-    desired_order_prefixes = ["case id", "case_id", "case", "username", "password", "no of app", "lead"]
+    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
     found_priority = []
     
     for prefix in desired_order_prefixes:
@@ -231,8 +170,6 @@ def load_all_sheets_cached(file_mtime):
             for s_name, df in all_sheets.items():
                 df.columns = df.columns.str.strip()
                 df = df.fillna("")
-                if "Case_ID" not in df.columns:
-                    df.insert(0, "Case_ID", "")
                 if "Unnamed: 5" in df.columns:
                     df = df.rename(columns={"Unnamed: 5": "Category"})
                 if "Updated_By" not in df.columns:
@@ -994,21 +931,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     elif st.session_state["is_reschedule_mode"]:
         st.markdown("### 🔄 Reschedule Appointment Case")
-        
-        all_workers_list_res = get_all_workers_list()
-        if not all_workers_list_res:
-            all_workers_list_res = ["Not Assigned"]
-        else:
-            if "Not Assigned" not in all_workers_list_res:
-                all_workers_list_res.insert(0, "Not Assigned")
-        
-        curr_worker_res = str(row_data.get(login_c, "")).strip()
-        if curr_worker_res and curr_worker_res not in all_workers_list_res:
-            all_workers_list_res.append(curr_worker_res)
-        w_idx_res = all_workers_list_res.index(curr_worker_res) if curr_worker_res in all_workers_list_res else 0
-
         with st.form(f"reschedule_form_{row_idx}"):
-            selected_res_worker = st.selectbox(f"👤 Assign Case Worker for Rescheduled Case ({login_c})", options=all_workers_list_res, index=w_idx_res, key=f"res_worker_select_{row_idx}")
             pref_loc_input = st.text_input("Preferred Location", value="", placeholder="Enter preferred location...")
             pref_dates_input = st.text_input("Preferred Dates", value="", placeholder="Enter preferred dates...")
             prior_notice_input = st.text_input("Prior Notice", value="", placeholder="Enter prior notice details...")
@@ -1036,21 +959,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         sheets_all = get_sheet_names()
                         active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0] if sheets_all else None)
-                        new_reschedule_id = get_next_case_id()
                         if active_sheet_name and active_sheet_name != sheet_name:
                             df_active = load_data(sheet_name=active_sheet_name)
                             if df_active is not None:
-                                active_login_c = find_login_user_column(df_active)
-                                active_p_col = find_password_column(df_active)
-                                final_assigned_worker = "" if selected_res_worker == "Not Assigned" else selected_res_worker.strip()
-
                                 row_to_active = df_full.loc[row_idx].copy()
-                                row_to_active["Case_ID"] = new_reschedule_id
-                                row_to_active[active_login_c] = final_assigned_worker
-                                if active_p_col in df_active.columns and final_assigned_worker != "":
-                                    matched_w = df_active[df_active[active_login_c].astype(str).str.strip().str.lower() == final_assigned_worker.lower()]
-                                    if not matched_w.empty:
-                                        row_to_active[active_p_col] = str(matched_w.iloc[0][active_p_col]).strip()
                                 row_to_active["Booking_Status"] = "Rescheduled"
                                 row_to_active["Preferred_Location"] = pref_loc_input.strip()
                                 row_to_active["Preferred_Dates"] = pref_dates_input.strip()
@@ -1064,7 +976,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success(f"✅ Case rescheduled with New ID ({new_reschedule_id}) and assigned to {selected_res_worker}!")
+                        st.success("✅ Case successfully rescheduled and saved in both sheets!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error saving reschedule: {e}")
@@ -1240,21 +1152,11 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
 
                         elif booking_status_choice == "Rescheduled" and is_booked_sheet:
-                            orig_booked_worker = str(row_data.get(login_c, "")).strip()
-                            selected_edit_worker = str(updated_values.get(login_c, orig_booked_worker)).strip()
-                            final_assigned_worker = "" if selected_edit_worker == "Not Assigned" else selected_edit_worker
-                            df_full.at[row_idx, login_c] = orig_booked_worker
-
                             sheets_all = get_sheet_names()
                             active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
                             if active_sheet_name:
                                 df_target_active = load_data(sheet_name=active_sheet_name)
-                                active_login_c = find_login_user_column(df_target_active)
-                                new_res_id = get_next_case_id()
-
                                 row_to_transfer = df_full.loc[row_idx].copy()
-                                row_to_transfer["Case_ID"] = new_res_id
-                                row_to_transfer[active_login_c] = final_assigned_worker
                                 row_to_transfer["Booking_Status"] = "Rescheduled"
                                 row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
                                 row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
@@ -1310,6 +1212,7 @@ def admin_pdf_download_dialog():
                         "sheet": s
                     }
 
+    # Bayata Overall Search Bar (Case Username or File Name)
     search_query = st.text_input("🔍 Search PDFs by Case Username or Filename across all folders:", placeholder="Type case username here...", key="pdf_overall_search").strip().lower()
 
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
@@ -2050,7 +1953,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Case_ID", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
+        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
         for col_name in cols:
             c_lower = col_name.lower()
             if 'date' in c_lower and 'prefer' not in c_lower:
@@ -2062,8 +1965,6 @@ def add_case_dialog(worker_name):
         if st.form_submit_button("🚀 Submit New Case", type="primary", use_container_width=True):
             try:
                 new_row = {col: "" for col in target_df.columns}
-                new_case_id = get_next_case_id()
-                new_row["Case_ID"] = new_case_id
                 final_assigned_user = "" if assigned_username == "Not Assigned" else assigned_username.strip()
                 new_row[t_login_col] = final_assigned_user
                 
