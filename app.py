@@ -356,7 +356,13 @@ def generate_next_case_id(extra_reserved_ids=None):
 
 
 def append_rescheduled_to_active_sheet(
-    source_row, pref_loc, pref_dates, prior_notice, updated_by, updated_at
+    source_row,
+    pref_loc,
+    pref_dates,
+    prior_notice,
+    updated_by,
+    updated_at,
+    assigned_worker=None,
 ):
     sheets_all = get_sheet_names()
     active_sheet_name = get_default_active_sheet(sheets_all)
@@ -369,6 +375,11 @@ def append_rescheduled_to_active_sheet(
     new_rescheduled_id = generate_next_case_id()
     row_to_active = source_row.copy()
     row_to_active["Case_ID"] = new_rescheduled_id
+    if assigned_worker is not None:
+        login_c_act = find_login_user_column(df_active)
+        row_to_active[login_c_act] = (
+            "" if assigned_worker.strip() == "Not Assigned" else assigned_worker.strip()
+        )
     row_to_active["Booking_Status"] = "Rescheduled"
     row_to_active["Preferred_Location"] = pref_loc.strip()
     row_to_active["Preferred_Dates"] = pref_dates.strip()
@@ -1513,9 +1524,28 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     elif st.session_state["is_reschedule_mode"]:
         st.markdown(
-            f"### 🔄 Reschedule Appointment Case (Original ID: `{case_id_val}`)"
+            f"### 🔄 Reschedule Appointment Case (Booked ID stays: `{case_id_val}`)"
+        )
+        all_workers_res = get_all_workers_list()
+        worker_opts_res = ["Not Assigned"] + [
+            w for w in all_workers_res if w.lower() != "not assigned"
+        ]
+        curr_w_val = str(row_data.get(login_c, "")).strip()
+        def_w_idx = (
+            worker_opts_res.index(curr_w_val)
+            if curr_w_val in worker_opts_res
+            else (
+                worker_opts_res.index(current_user)
+                if current_user in worker_opts_res
+                else 0
+            )
         )
         with st.form(f"reschedule_form_{row_idx}"):
+            assign_worker_res = st.selectbox(
+                "👷 Allocate Rescheduled Case to Case Worker (Active Sheet)",
+                options=worker_opts_res,
+                index=def_w_idx,
+            )
             pref_loc_input = st.text_input(
                 "Preferred Location",
                 value="",
@@ -1554,6 +1584,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 else:
                     try:
                         ts_now = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        booked_snapshot_row = df_full.loc[row_idx].copy()
+
+                        df_full.at[row_idx, "Case_ID"] = case_id_val
                         df_full.at[row_idx, "Preferred_Location"] = (
                             pref_loc_input.strip()
                         )
@@ -1563,7 +1596,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         df_full.at[row_idx, "Prior_Notice"] = (
                             prior_notice_input.strip()
                         )
-                        df_full.at[row_idx, "Booking_Status"] = "Rescheduled"
+                        df_full.at[row_idx, "Booking_Status"] = (
+                            "Booked" if is_booked_sheet else "Rescheduled"
+                        )
                         df_full.at[row_idx, "Updated_By"] = current_user
                         df_full.at[row_idx, "Updated_At"] = ts_now
                         df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
@@ -1574,12 +1609,13 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         if is_booked_sheet:
                             new_rescheduled_id = (
                                 append_rescheduled_to_active_sheet(
-                                    source_row=df_full.loc[row_idx],
+                                    source_row=booked_snapshot_row,
                                     pref_loc=pref_loc_input,
                                     pref_dates=pref_dates_input,
                                     prior_notice=prior_notice_input,
                                     updated_by=current_user,
                                     updated_at=ts_now,
+                                    assigned_worker=assign_worker_res,
                                 )
                             )
 
@@ -1588,7 +1624,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["open_dialog"] = None
                         if new_rescheduled_id:
                             st.success(
-                                f"✅ Rescheduled! Kept in Booked sheet ({case_id_val}) & added to Active sheet with new ID: {new_rescheduled_id}"
+                                f"✅ Booked sheet keeps ID {case_id_val} (Status: Booked) & Active sheet created new ID {new_rescheduled_id} assigned to {assign_worker_res}!"
                             )
                         else:
                             st.success("✅ Case successfully rescheduled!")
@@ -1926,6 +1962,12 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             booking_status_choice == "Rescheduled"
                             and is_booked_sheet
                         ):
+                            active_worker_pick = str(
+                                df_full.at[row_idx, login_c]
+                            ).strip()
+                            df_full.at[row_idx, "Case_ID"] = case_id_val
+                            df_full.at[row_idx, "Booking_Status"] = "Booked"
+                            save_data(df_full, sheet_name=sheet_name)
                             new_resched_id = (
                                 append_rescheduled_to_active_sheet(
                                     source_row=df_full.loc[row_idx],
@@ -1934,6 +1976,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     prior_notice=popup_prior_notice,
                                     updated_by=current_user,
                                     updated_at=current_time_str,
+                                    assigned_worker=active_worker_pick,
                                 )
                             )
 
