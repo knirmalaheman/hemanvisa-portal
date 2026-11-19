@@ -2670,12 +2670,12 @@ worker_dash_tab = st.session_state.get("worker_dash_tab_radio", "📊 My Workspa
 if worker_dash_tab == "📊 My Workspace":
     admin_notice = get_admin_notice()        
         # --- ఇక్కడ నుండి Lead Filter Logic యాడ్ చేయండి ---
-        if "worker_selected_lead" not in st.session_state:
+if "worker_selected_lead" not in st.session_state:
             st.session_state["worker_selected_lead"] = "All"
 
         lead_col_w = next((c for c in user_rows.columns if "lead" in c.strip().lower()), login_c)
 
-        if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and lead_col_w in user_rows.columns:
+if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and lead_col_w in user_rows.columns:
             sel_l_w = st.session_state["worker_selected_lead"].lower()
             filtered_user_rows = user_rows[user_rows[lead_col_w].astype(str).str.strip().str.lower().str.contains(sel_l_w, na=False)]
         else:
