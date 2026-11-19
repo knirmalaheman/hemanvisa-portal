@@ -377,8 +377,14 @@ def append_rescheduled_to_active_sheet(
     row_to_active["Case_ID"] = new_rescheduled_id
 
     if assigned_worker is not None:
-        clean_worker = "" if str(assigned_worker).strip() in ["", "Not Assigned"] else str(assigned_worker).strip()
+        raw_w = str(assigned_worker).strip()
+        clean_worker = "" if raw_w.lower() in ["", "not assigned"] else raw_w
         login_c_act = find_login_user_column(df_active)
+        if clean_worker and not df_active.empty and login_c_act in df_active.columns:
+            existing_vals = [str(x).strip() for x in df_active[login_c_act].dropna().unique() if str(x).strip()]
+            exact_ci = next((ev for ev in existing_vals if ev.lower() == clean_worker.lower()), None)
+            if exact_ci:
+                clean_worker = exact_ci
         row_to_active[login_c_act] = clean_worker
         for col in df_active.columns:
             c_low = col.strip().lower()
@@ -647,8 +653,13 @@ def get_all_workers_list():
             lc = find_login_user_column(df_s)
             users = df_s[lc].astype(str).str.strip()
             for u in users.unique():
-                if u != "" and u.lower() != "admin":
+                if u != "" and u.lower() not in ["", "admin", "not assigned", "nan", "none"]:
                     all_workers.add(u)
+    perms_map = load_permissions()
+    for p_user in perms_map.keys():
+        u_clean = str(p_user).strip()
+        if u_clean and u_clean.lower() not in ["admin", "not assigned"]:
+            all_workers.add(u_clean)
     return sorted(list(all_workers))
 
 
@@ -1674,7 +1685,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["open_dialog"] = None
                         if new_rescheduled_id:
                             st.success(
-                                f"✅ Booked sheet keeps ID {case_id_val} (Status: Booked) & {target_act_sheet} created new ID {new_rescheduled_id} assigned to {assign_worker_res}!"
+                                f"✅ Old ID ({case_id_val}) Booked sheet lone undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki assign ayyindi!"
                             )
                         else:
                             st.success("✅ Case successfully rescheduled!")
@@ -4307,6 +4318,22 @@ else:
         st.markdown(
             f"<div class='kpi-card gold'><div class='kpi-title'>Booked / Rescheduled</div><div class='kpi-value'>{booked_resched_w}</div></div>",
             unsafe_allow_html=True,
+        )
+
+    act_s_name_info = get_default_active_sheet(sheets)
+    resched_in_active_cnt = 0
+    if act_s_name_info in all_sheets_map_w and not all_sheets_map_w[act_s_name_info].empty:
+        df_act_info = all_sheets_map_w[act_s_name_info]
+        lc_act_info = find_login_user_column(df_act_info)
+        if "Booking_Status" in df_act_info.columns:
+            resched_in_active_cnt = int((
+                (df_act_info[lc_act_info].astype(str).str.strip().str.lower() == current_user.lower())
+                & (df_act_info["Booking_Status"].astype(str).str.strip().str.lower() == "rescheduled")
+            ).sum())
+
+    if "booked" in current_sheet.lower():
+        st.caption(
+            f"ℹ️ Booked Cases lo existing booked records ({len(user_rows_w)}) untayi. Reschedule chesinappudu kotha Case ID tho **{act_s_name_info}** sheet lo assign chesina Case Worker ki veltundi (Meeku {act_s_name_info} lo Rescheduled cases: **{resched_in_active_cnt}**)."
         )
 
     st.markdown(
