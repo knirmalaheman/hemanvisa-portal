@@ -373,13 +373,7 @@ def append_rescheduled_to_active_sheet(
         return None, None
 
     new_rescheduled_id = generate_next_case_id()
-    row_to_active = {col: "" for col in df_active.columns}
-
-    # Copy matching fields from the booked row without mutating the booked row
-    for col in df_active.columns:
-        if col in source_row.index:
-            row_to_active[col] = str(source_row[col])
-
+    row_to_active = source_row.copy()
     row_to_active["Case_ID"] = new_rescheduled_id
 
     if assigned_worker is not None:
@@ -388,8 +382,8 @@ def append_rescheduled_to_active_sheet(
         login_c_act = find_login_user_column(df_active)
         row_to_active[login_c_act] = clean_worker
         for col in df_active.columns:
-            c_low = col.strip().lower().replace("_", " ")
-            if c_low in ["case worker", "cases worker", "worker", "assigned to", "user"]:
+            c_low = col.strip().lower()
+            if c_low in ["case worker", "cases_worker", "worker", "assigned_to", "assigned to"]:
                 row_to_active[col] = clean_worker
 
     row_to_active["Booking_Status"] = "Rescheduled"
@@ -400,11 +394,16 @@ def append_rescheduled_to_active_sheet(
     row_to_active["Updated_At"] = updated_at
     row_to_active["Action_Type"] = "Rescheduled Case"
 
+    for col in df_active.columns:
+        if col not in row_to_active:
+            row_to_active[col] = ""
+
     df_active_ordered = pd.concat(
         [df_active, pd.DataFrame([row_to_active])], ignore_index=True
     )
     save_data(df_active_ordered, sheet_name=active_sheet_name)
     return new_rescheduled_id, active_sheet_name
+
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
@@ -1421,6 +1420,7 @@ def render_clickable_table(
 
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
+    st.session_state["open_dialog"] = None
     df_full = load_data(sheet_name=sheet_name)
     if df_full is None or row_idx not in df_full.index:
         st.error("Case data not found.")
@@ -1649,15 +1649,22 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 else:
                     try:
                         ts_now = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
-                        # Take a clean snapshot BEFORE touching anything
                         booked_snapshot_row = df_full.loc[row_idx].copy()
-                        original_booked_worker = str(booked_snapshot_row.get(login_c, "")).strip()
 
                         if is_booked_sheet:
-                            # Keep Kalyan's Booked row 100% intact with Old ID, original worker & Status = Booked
                             df_full.at[row_idx, "Case_ID"] = case_id_val
-                            df_full.at[row_idx, login_c] = original_booked_worker
                             df_full.at[row_idx, "Booking_Status"] = "Booked"
+                            df_full.at[row_idx, "Preferred_Location"] = (
+                                pref_loc_input.strip()
+                            )
+                            df_full.at[row_idx, "Preferred_Dates"] = (
+                                pref_dates_input.strip()
+                            )
+                            df_full.at[row_idx, "Prior_Notice"] = (
+                                prior_notice_input.strip()
+                            )
+                            df_full.at[row_idx, "Updated_By"] = current_user
+                            df_full.at[row_idx, "Updated_At"] = ts_now
                             df_full.at[row_idx, "Action_Type"] = "Booked"
                         else:
                             df_full.at[row_idx, "Case_ID"] = case_id_val
@@ -1697,7 +1704,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["open_dialog"] = None
                         if new_rescheduled_id:
                             st.success(
-                                f"✅ Old ID ({case_id_val}) Booked sheet lo {original_booked_worker} daggarane 'Booked' status tho undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki vellindi!"
+                                f"✅ Old ID ({case_id_val}) Booked sheet lo Kalyan daggarane undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki vellindi!"
                             )
                         else:
                             st.success("✅ Case successfully rescheduled!")
@@ -2036,23 +2043,12 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             booking_status_choice == "Rescheduled"
                             and is_booked_sheet
                         ):
-                            new_resched_id = None
-                        target_act_sheet_p = None
-                        if (
-                            booking_status_choice == "Rescheduled"
-                            and is_booked_sheet
-                        ):
                             active_worker_pick = str(
-                                updated_values.get(login_c, df_full.at[row_idx, login_c])
+                                df_full.at[row_idx, login_c]
                             ).strip()
-                            # Restore original worker (Kalyan), Old ID & Booked status on Booked sheet
-                            orig_worker_booked = str(row_data.get(login_c, "")).strip()
                             df_full.at[row_idx, "Case_ID"] = case_id_val
-                            df_full.at[row_idx, login_c] = orig_worker_booked
                             df_full.at[row_idx, "Booking_Status"] = "Booked"
-                            df_full.at[row_idx, "Action_Type"] = "Booked"
                             save_data(df_full, sheet_name=sheet_name)
-
                             new_resched_id, target_act_sheet_p = (
                                 append_rescheduled_to_active_sheet(
                                     source_row=df_full.loc[row_idx],
@@ -2064,6 +2060,16 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     assigned_worker=active_worker_pick,
                                 )
                             )
+
+                        st.session_state["is_editing_popup"] = False
+                        st.session_state["is_reschedule_mode"] = False
+                        st.session_state["is_delete_request_mode"] = False
+                        st.session_state["selected_row_idx"] = None
+                        st.session_state["open_dialog"] = None
+                        for _qp_key in ["edit_row", "active_sheet", "username", "role", "logged_in"]:
+                            if _qp_key in st.query_params:
+                                del st.query_params[_qp_key]
+                        if new_resched_id:
                             st.success(
                                 f"✅ Kept in Booked sheet ({case_id_val}, Status: Booked) & added to {target_act_sheet_p} with new ID: {new_resched_id} (Worker: {active_worker_pick or 'Not Assigned'})"
                             )
@@ -2079,6 +2085,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["is_delete_request_mode"] = False
                 st.session_state["selected_row_idx"] = None
                 st.session_state["open_dialog"] = None
+                for _qp_key in ["edit_row", "active_sheet", "username", "role", "logged_in"]:
+                    if _qp_key in st.query_params:
+                        del st.query_params[_qp_key]
                 st.rerun()
 
 
@@ -3222,6 +3231,7 @@ elif st.session_state["open_dialog"] == "admin_kpi_popup":
     st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
+    st.session_state["open_dialog"] = None
     if r_idx is not None:
         curr_role = st.session_state.get("role", "worker")
         curr_u = st.session_state.get("username", "")
