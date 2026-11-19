@@ -3233,14 +3233,7 @@ elif st.session_state["open_dialog"] == "admin_kpi_popup":
     admin_kpi_cases_dialog(
         sheet_name=kpi_meta.get("sheet", default_s_init),
         filter_mode=kpi_meta.get("mode", "today_updated"),
-elif st.session_state["open_dialog"] == "admin_kpi_popup":
-    kpi_meta = st.session_state.get("admin_kpi_popup_meta", {})
-    admin_kpi_cases_dialog(
-        sheet_name=kpi_meta.get("sheet", default_s_init),
-        filter_mode=kpi_meta.get("mode", "today_updated"),
         lead_filter=kpi_meta.get("lead", "All"),
-    )
-    st.session_state["open_dialog"] = None
     )
     st.session_state["open_dialog"] = None
 elif (
