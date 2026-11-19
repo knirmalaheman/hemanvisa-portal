@@ -7,6 +7,7 @@ import base64
 import json
 import math
 import re
+import urllib.parse
 
 EXCEL_FILE = "Heman_Report.xlsx"
 ADMIN_FILE = "admin_config.txt"
@@ -163,6 +164,14 @@ def record_worker_logout(worker_name):
             entry["Status"] = "Logged Out"
             break
     save_attendance(attendance)
+
+
+def close_case_popup_state():
+    st.session_state["is_editing_popup"] = False
+    st.session_state["is_delete_request_mode"] = False
+    st.session_state["is_reschedule_mode"] = False
+    st.session_state["selected_row_idx"] = None
+    st.session_state["open_dialog"] = None
 
 
 def reorder_dataframe_columns(df):
@@ -375,7 +384,6 @@ def append_rescheduled_to_active_sheet(
     new_rescheduled_id = generate_next_case_id()
     row_to_active = {col: "" for col in df_active.columns}
 
-    # Copy matching fields from the booked row without mutating the booked row
     for col in df_active.columns:
         if col in source_row.index:
             row_to_active[col] = str(source_row[col])
@@ -405,6 +413,7 @@ def append_rescheduled_to_active_sheet(
     )
     save_data(df_active_ordered, sheet_name=active_sheet_name)
     return new_rescheduled_id, active_sheet_name
+
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
@@ -735,6 +744,15 @@ if "selected_visa_filter" not in st.session_state:
 if "force_logged_out_msg" not in st.session_state:
     st.session_state["force_logged_out_msg"] = False
 
+if "is_editing_popup" not in st.session_state:
+    st.session_state["is_editing_popup"] = False
+
+if "is_delete_request_mode" not in st.session_state:
+    st.session_state["is_delete_request_mode"] = False
+
+if "is_reschedule_mode" not in st.session_state:
+    st.session_state["is_reschedule_mode"] = False
+
 if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
     qp_role = qp.get("role", "worker")
     qp_user = qp.get("username", "")
@@ -759,8 +777,7 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
         st.session_state["username"] = ""
         st.session_state["role"] = ""
         st.session_state["attendance_recorded"] = False
-        st.session_state["open_dialog"] = None
-        st.session_state["selected_row_idx"] = None
+        close_case_popup_state()
         st.session_state["force_logged_out_msg"] = True
         st.rerun()
 
@@ -811,6 +828,9 @@ st.markdown("""
 <style>
     [data-testid="stHeader"] {
         display: none !important;
+    }
+    [data-testid="stDialog"] {
+        z-index: 100005 !important;
     }
     .sticky-top-banner {
         position: fixed;
@@ -1351,7 +1371,12 @@ def render_clickable_table(
     )
     html_parts.append("</tr></thead><tbody>")
 
-    base_link = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row="
+    q_logged = urllib.parse.quote(str(curr_logged))
+    q_user = urllib.parse.quote(str(curr_user))
+    q_role = urllib.parse.quote(str(curr_role))
+    q_sheet = urllib.parse.quote(str(curr_sheet))
+    base_link = f"?logged_in={q_logged}&username={q_user}&role={q_role}&active_sheet={q_sheet}&edit_row="
+
     indices = page_df.index.tolist()
     act_col_vals = (
         page_df["Action_Type"].astype(str).str.strip().str.lower().tolist()
@@ -1424,6 +1449,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     df_full = load_data(sheet_name=sheet_name)
     if df_full is None or row_idx not in df_full.index:
         st.error("Case data not found.")
+        if st.button("✖️ Close Popup", key="dlg_missing_close"):
+            close_case_popup_state()
+            st.rerun()
         return
 
     df_full = reorder_dataframe_columns(df_full)
@@ -1440,13 +1468,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
     if role == "worker" and action_type_val == "delete rejected":
         st.error("❌ Your delete request was rejected by Admin.")
-
-    if "is_editing_popup" not in st.session_state:
-        st.session_state["is_editing_popup"] = False
-    if "is_delete_request_mode" not in st.session_state:
-        st.session_state["is_delete_request_mode"] = False
-    if "is_reschedule_mode" not in st.session_state:
-        st.session_state["is_reschedule_mode"] = False
 
     is_booked_sheet = "booked" in sheet_name.lower()
 
@@ -1528,8 +1549,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             try:
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
-                                st.session_state["selected_row_idx"] = None
-                                st.session_state["open_dialog"] = None
+                                close_case_popup_state()
                                 st.success("✅ Case deleted successfully!")
                                 st.rerun()
                             except Exception as e:
@@ -1565,8 +1585,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             try:
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
-                                st.session_state["selected_row_idx"] = None
-                                st.session_state["open_dialog"] = None
+                                close_case_popup_state()
                                 st.success("✅ Case deleted successfully!")
                                 st.rerun()
                             except Exception as e:
@@ -1649,12 +1668,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 else:
                     try:
                         ts_now = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
-                        # Take a clean snapshot BEFORE touching anything
                         booked_snapshot_row = df_full.loc[row_idx].copy()
                         original_booked_worker = str(booked_snapshot_row.get(login_c, "")).strip()
 
                         if is_booked_sheet:
-                            # Keep Kalyan's Booked row 100% intact with Old ID, original worker & Status = Booked
                             df_full.at[row_idx, "Case_ID"] = case_id_val
                             df_full.at[row_idx, login_c] = original_booked_worker
                             df_full.at[row_idx, "Booking_Status"] = "Booked"
@@ -1692,9 +1709,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 )
                             )
 
-                        st.session_state["is_reschedule_mode"] = False
-                        st.session_state["selected_row_idx"] = None
-                        st.session_state["open_dialog"] = None
+                        close_case_popup_state()
                         if new_rescheduled_id:
                             st.success(
                                 f"✅ Old ID ({case_id_val}) Booked sheet lo {original_booked_worker} daggarane 'Booked' status tho undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki vellindi!"
@@ -1740,9 +1755,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         df_full.at[row_idx, "Action_Type"] = "Delete Request"
                         df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
                         save_data(df_full, sheet_name=sheet_name)
-                        st.session_state["is_delete_request_mode"] = False
-                        st.session_state["selected_row_idx"] = None
-                        st.session_state["open_dialog"] = None
+                        close_case_popup_state()
                         st.success(
                             "✅ Delete request sent to Admin with reason successfully!"
                         )
@@ -2030,22 +2043,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         save_data(df_full, sheet_name=sheet_name)
 
-                        new_resched_id = None
-                        target_act_sheet_p = None
-                        if (
-                            booking_status_choice == "Rescheduled"
-                            and is_booked_sheet
-                        ):
-                            new_resched_id = None
-                        target_act_sheet_p = None
-                        if (
-                            booking_status_choice == "Rescheduled"
-                            and is_booked_sheet
-                        ):
+                        if booking_status_choice == "Rescheduled" and is_booked_sheet:
                             active_worker_pick = str(
                                 updated_values.get(login_c, df_full.at[row_idx, login_c])
                             ).strip()
-                            # Restore original worker (Kalyan), Old ID & Booked status on Booked sheet
                             orig_worker_booked = str(row_data.get(login_c, "")).strip()
                             df_full.at[row_idx, "Case_ID"] = case_id_val
                             df_full.at[row_idx, login_c] = orig_worker_booked
@@ -2064,21 +2065,19 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     assigned_worker=active_worker_pick,
                                 )
                             )
+                            close_case_popup_state()
                             st.success(
                                 f"✅ Kept in Booked sheet ({case_id_val}, Status: Booked) & added to {target_act_sheet_p} with new ID: {new_resched_id} (Worker: {active_worker_pick or 'Not Assigned'})"
                             )
                         else:
+                            close_case_popup_state()
                             st.success("✅ Case successfully updated and saved!")
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
 
             if cancelled:
-                st.session_state["is_editing_popup"] = False
-                st.session_state["is_reschedule_mode"] = False
-                st.session_state["is_delete_request_mode"] = False
-                st.session_state["selected_row_idx"] = None
-                st.session_state["open_dialog"] = None
+                close_case_popup_state()
                 st.rerun()
 
 
@@ -3234,6 +3233,8 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         view_and_edit_case_dialog(
             st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd
         )
+    else:
+        close_case_popup_state()
 
 if not st.session_state["logged_in"]:
     default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
@@ -3465,8 +3466,7 @@ elif st.session_state["role"] == "admin":
             st.session_state["records_sheet"] = act_s
             st.session_state["selected_visa_filter"] = "All"
             st.session_state["records_selected_lead"] = "All"
-            st.session_state["open_dialog"] = None
-            st.session_state["selected_row_idx"] = None
+            close_case_popup_state()
             st.query_params["active_sheet"] = act_s
             st.rerun()
     with top_col3:
@@ -3476,6 +3476,7 @@ elif st.session_state["role"] == "admin":
             st.session_state["username"] = ""
             st.session_state["role"] = ""
             st.session_state["admin_active_view"] = "dashboard"
+            close_case_popup_state()
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -4103,8 +4104,7 @@ else:
             act_s = get_default_active_sheet(get_sheet_names())
             st.session_state["active_sheet"] = act_s
             st.session_state["worker_selected_lead"] = "All"
-            st.session_state["open_dialog"] = None
-            st.session_state["selected_row_idx"] = None
+            close_case_popup_state()
             st.query_params["active_sheet"] = act_s
             st.rerun()
     with w_top4:
