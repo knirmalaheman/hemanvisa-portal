@@ -1133,13 +1133,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Updated_At"] = current_time_str
                             df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
-                        target_save_sheet = sheet_name
-                        
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
                             booked_sheet_name = next((s for s in sheets_all if "booked" in s.lower()), None)
                             if booked_sheet_name and booked_sheet_name != sheet_name:
-                                target_save_sheet = booked_sheet_name
                                 df_target_booked = load_data(sheet_name=booked_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
                                 
@@ -1212,7 +1209,6 @@ def admin_pdf_download_dialog():
                         "sheet": s
                     }
 
-    # Bayata Overall Search Bar (Case Username or File Name)
     search_query = st.text_input("🔍 Search PDFs by Case Username or Filename across all folders:", placeholder="Type case username here...", key="pdf_overall_search").strip().lower()
 
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
@@ -2320,7 +2316,6 @@ elif st.session_state["role"] == "admin":
     if "admin_selected_lead" not in st.session_state:
         st.session_state["admin_selected_lead"] = "All"
 
-    # Excel lo 'Lead' column unte daani dwara, lekapothe login_c dwara filter chestundi
     lead_col = next((c for c in df.columns if "lead" in c.strip().lower()), login_c)
 
     if st.session_state["admin_selected_lead"] != "All" and not df.empty and lead_col in df.columns:
@@ -2621,7 +2616,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- FILTER BY LEAD NAME (రేడియో బటన్స్) ---
         st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
         if "worker_selected_lead" not in st.session_state:
             st.session_state["worker_selected_lead"] = "All"
@@ -2641,8 +2635,8 @@ else:
             st.rerun()
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-        # --- LEAD FILTER LOGIC ---
-        lead_col_w = next((c for c in user_rows.columns if "lead" in c.strip().lower()), login_c)
+        login_c_val = globals().get("login_c", login_c)
+        lead_col_w = next((c for c in user_rows.columns if "lead" in c.strip().lower()), login_c_val)
 
         if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and lead_col_w in user_rows.columns:
             sel_l_w = st.session_state["worker_selected_lead"].lower()
@@ -2651,12 +2645,13 @@ else:
             filtered_user_rows = user_rows
 
         my_total = len(filtered_user_rows)
-        
-        if "Updated_By" in filtered_user_rows.columns:
-            my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""])
-        else:
-            my_updated = 0
-        my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
+        my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
+
+        k1, k2 = st.columns(2, gap="medium")
+        with k1:
+            st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
+        with k2:
+            st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
         visa_col = find_visa_type_column(user_rows)
         visa_counts = {}
@@ -2664,32 +2659,6 @@ else:
             v_series = user_rows[visa_col].astype(str).str.strip().str.upper()
             v_series = v_series[v_series != ""]
             visa_counts = v_series.value_counts().to_dict()
-
-worker_dash_tab = st.session_state.get("worker_dash_tab_radio", "📊 My Workspace")
-
-if worker_dash_tab == "📊 My Workspace":
-    admin_notice = get_admin_notice()
-    # --- ఇక్కడ నుండి Lead Filter Logic యాడ్ చేయండి ---
-if "worker_selected_lead" not in st.session_state:
-    st.session_state["worker_selected_lead"] = "All"
-login_c = globals().get("login_c", "Login_ID")
-lead_col_w = next((c for c in user_rows.columns if "lead" in c.strip().lower()), login_c)
-
-if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and lead_col_w in user_rows.columns:
-        sel_l_w = st.session_state["worker_selected_lead"].lower()
-        filtered_user_rows = user_rows[user_rows[lead_col_w].astype(str).str.strip().str.lower().str.contains(sel_l_w, na=False)]
-else:
-    filtered_user_rows = user_rows
-# ----------------------------------------------
-
-my_total = len(filtered_user_rows)
-my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
-
-k1, k2 = st.columns(2, gap="medium")
-with k1:
-    st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
-with k2:
-    st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
@@ -2795,7 +2764,7 @@ with k2:
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
             render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}")
 
-elif worker_dash_tab == "ℹ️ Case Worker Guide":
+    elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
         w_g1, w_g2 = st.columns(2, gap="medium")
         with w_g1:
