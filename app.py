@@ -324,6 +324,26 @@ def search_username_and_ds160(df, query_text):
         mask = mask | col_mask
     return mask
 
+def search_main_data_any(df, query_text):
+    if df is None or df.empty or not query_text:
+        return pd.Series([True] * len(df), index=df.index) if df is not None else pd.Series([], dtype=bool)
+
+    q = query_text.strip().lower()
+    p_col = find_password_column(df)
+    excluded_cols = {
+        p_col, "Appointment_PDF", "Updated_By", "Updated_At",
+        "Action_Type", "Delete_Reason"
+    }
+    search_cols = [c for c in df.columns if c not in excluded_cols and "password" not in c.strip().lower()]
+    if not search_cols:
+        search_cols = [c for c in df.columns if c != p_col]
+
+    mask = pd.Series([False] * len(df), index=df.index)
+    for col in search_cols:
+        col_mask = df[col].astype(str).str.lower().str.contains(q, case=False, na=False, regex=False)
+        mask = mask | col_mask
+    return mask
+
 def find_password_column(df):
     for col in df.columns:
         if col.strip().lower() in ["password", "pass"]:
@@ -2097,7 +2117,7 @@ def add_case_dialog(worker_name):
             except Exception as e:
                 st.error(f"❌ Error: {e}")
 
-@st.dialog("🔍 Search Main Data (Username & DS160 Only)", width="large")
+@st.dialog("🔍 Search Main Data", width="large")
 def search_data_dialog():
     sheets = get_sheet_names()
     selected_search_sheet = st.selectbox("Select Sheet to Search:", options=sheets, key="dlg_search_sheet")
@@ -2106,17 +2126,17 @@ def search_data_dialog():
         display_c = find_display_username_column(df_search)
         p_col = find_password_column(df_search)
         
-        search_query = st.text_input("Search by Username or DS160 Number only:", placeholder="Type Username or DS160 number...", key="dlg_search_input").strip()
+        search_query = st.text_input("Search any main data (Username, DS160, Visa Type, Lead, etc.):", placeholder="Type any keyword to search main data...", key="dlg_search_input").strip()
         
         if search_query != "":
-            main_search_mask = search_username_and_ds160(df_search, search_query)
+            main_search_mask = search_main_data_any(df_search, search_query)
             found_data = df_search[main_search_mask]
             
             if found_data.empty:
-                st.warning(f"No matching Username or DS160 Number found for '{search_query}'.")
+                st.warning(f"No matching main data found for '{search_query}'.")
             else:
-                st.success(f"Matching Username / DS160 results for '{search_query}' ({len(found_data)} rows):")
-                view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Preferred_Location", "Preferred_Dates", "Prior_Notice"], errors="ignore")
+                st.success(f"Matching main data results for '{search_query}' ({len(found_data)} rows):")
+                view_only_df = found_data.drop(columns=[p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF"], errors="ignore")
                 view_only_df = reorder_dataframe_columns(view_only_df)
                 view_only_df.index = range(1, len(view_only_df) + 1)
                 st.dataframe(view_only_df, use_container_width=True)
@@ -2447,14 +2467,12 @@ elif st.session_state["role"] == "admin":
         p_col_d = find_password_column(df_d_base)
         lead_col_d = next((c for c in df_d_base.columns if "lead" in c.strip().lower()), login_c_d)
 
-        # 1. Overall Search Bar inside Dashboard (Username & DS160 Only)
         dash_search_query = st.text_input(
             "🔍 Overall Search (Username & DS160 Number Only):",
             placeholder="Type Username or DS160 number...",
             key="dash_overall_search_input"
         ).strip()
 
-        # 2. FILTER BY LEAD NAME as horizontal buttons (All, Kiran, Shanthi)
         st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
         lead_options = ["All", "Kiran", "Shanthi"]
         l_btn_cols = st.columns([1.2, 1.2, 1.2, 4.4], gap="small")
@@ -2468,7 +2486,6 @@ elif st.session_state["role"] == "admin":
                     st.session_state["admin_selected_lead"] = l_name
                     st.rerun()
 
-        # 3. SWITCH SHEET (Below Lead Filter - filters ONLY Dashboard view)
         if sheets:
             st.markdown("<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
@@ -2631,10 +2648,9 @@ elif st.session_state["role"] == "admin":
                     st.rerun()
             st.divider()
 
-        # Compact Search Bar & Switch Sheet (Old Style, Username & DS160 Only)
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
         with col_search:
-            admin_search = st.text_input("Search by Username or DS160 Number only:", placeholder="Type Username or DS160 number...", key="admin_search_input").strip()
+            admin_search = st.text_input("Search main data (any field):", placeholder="Type Username, DS160, Visa Type, Lead, etc...", key="admin_search_input").strip()
         with col_sheets:
             if sheets:
                 st.markdown("📑 **Switch Sheet:**")
@@ -2654,14 +2670,14 @@ elif st.session_state["role"] == "admin":
 
         display_df = df_r
         if admin_search != "":
-            admin_search_mask = search_username_and_ds160(display_df, admin_search)
+            admin_search_mask = search_main_data_any(display_df, admin_search)
             display_df = display_df[admin_search_mask]
 
         if st.session_state["selected_visa_filter"] != "All" and visa_col_r:
             target_visa = st.session_state["selected_visa_filter"]
             display_df = display_df[display_df[visa_col_r].astype(str).str.strip().str.upper() == target_visa]
 
-        st.caption(f"💡 Showing {len(display_df)} cases in '{rec_s_name}' (filtered by Username & DS160). Click USERNAME inside the table to view, edit, or delete details.")
+        st.caption(f"💡 Showing {len(display_df)} cases in '{rec_s_name}' (searching main data). Click USERNAME inside the table to view, edit, or delete details.")
         render_clickable_table(display_df, display_c_r, p_col_r, table_key=f"admin_{rec_s_name}", sheet_for_link=rec_s_name)
                     
         if os.path.exists(EXCEL_FILE):
@@ -2765,6 +2781,13 @@ else:
                     <marquee scrollamount="5">📢 <b>Admin Announcement / Note:</b> {admin_notice}</marquee>
                 </div>
             """, unsafe_allow_html=True)
+
+        # Case Worker Workspace Search Bar (searches main data across worker's cases)
+        worker_search_query = st.text_input(
+            "🔍 Search My Cases (Main Data):",
+            placeholder="Type Username, DS160, Visa Type, Lead, etc...",
+            key="worker_workspace_search_input"
+        ).strip()
 
         st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
         if "worker_selected_lead" not in st.session_state:
@@ -2900,6 +2923,9 @@ else:
         st.divider()
         
         display_user_rows = filtered_user_rows
+        if worker_search_query != "":
+            display_user_rows = display_user_rows[search_main_data_any(display_user_rows, worker_search_query)]
+
         if st.session_state["selected_visa_filter"] != "All" and visa_col:
             target_visa = st.session_state["selected_visa_filter"]
             display_user_rows = display_user_rows[display_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
