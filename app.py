@@ -367,19 +367,24 @@ def append_rescheduled_to_active_sheet(
     sheets_all = get_sheet_names()
     active_sheet_name = get_default_active_sheet(sheets_all)
     if not active_sheet_name:
-        return None
+        return None, None
     df_active = load_data(sheet_name=active_sheet_name)
     if df_active is None:
-        return None
+        return None, None
 
     new_rescheduled_id = generate_next_case_id()
     row_to_active = source_row.copy()
     row_to_active["Case_ID"] = new_rescheduled_id
+
     if assigned_worker is not None:
+        clean_worker = "" if str(assigned_worker).strip() in ["", "Not Assigned"] else str(assigned_worker).strip()
         login_c_act = find_login_user_column(df_active)
-        row_to_active[login_c_act] = (
-            "" if assigned_worker.strip() == "Not Assigned" else assigned_worker.strip()
-        )
+        row_to_active[login_c_act] = clean_worker
+        for col in df_active.columns:
+            c_low = col.strip().lower()
+            if c_low in ["case worker", "cases_worker", "worker", "assigned_to", "assigned to"]:
+                row_to_active[col] = clean_worker
+
     row_to_active["Booking_Status"] = "Rescheduled"
     row_to_active["Preferred_Location"] = pref_loc.strip()
     row_to_active["Preferred_Dates"] = pref_dates.strip()
@@ -396,7 +401,7 @@ def append_rescheduled_to_active_sheet(
         [df_active, pd.DataFrame([row_to_active])], ignore_index=True
     )
     save_data(df_active_ordered, sheet_name=active_sheet_name)
-    return new_rescheduled_id
+    return new_rescheduled_id, active_sheet_name
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -1154,6 +1159,50 @@ st.markdown("""
     div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) p {
         color: #ffffff !important;
     }
+    .worker-hero-banner {
+        background: linear-gradient(135deg, #0f1c3f 0%, #1e3a8a 45%, #065f46 100%);
+        color: #ffffff;
+        padding: 13px 18px;
+        border-radius: 12px;
+        border-left: 5px solid #fbbf24;
+        border-bottom: 2px solid rgba(251, 191, 36, 0.45);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+    .worker-hero-title {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+    }
+    .worker-pill-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .worker-pill-gold {
+        background: rgba(251, 191, 36, 0.2);
+        border: 1px solid #fbbf24;
+        color: #fef08a;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .worker-pill-cyan {
+        background: rgba(56, 189, 248, 0.2);
+        border: 1px solid #38bdf8;
+        color: #bae6fd;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+    }
     [data-testid="stVerticalBlock"] {
         gap: 0.35rem !important;
     }
@@ -1606,8 +1655,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         save_data(df_full, sheet_name=sheet_name)
 
                         new_rescheduled_id = None
+                        target_act_sheet = None
                         if is_booked_sheet:
-                            new_rescheduled_id = (
+                            new_rescheduled_id, target_act_sheet = (
                                 append_rescheduled_to_active_sheet(
                                     source_row=booked_snapshot_row,
                                     pref_loc=pref_loc_input,
@@ -1624,7 +1674,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["open_dialog"] = None
                         if new_rescheduled_id:
                             st.success(
-                                f"✅ Booked sheet keeps ID {case_id_val} (Status: Booked) & Active sheet created new ID {new_rescheduled_id} assigned to {assign_worker_res}!"
+                                f"✅ Booked sheet keeps ID {case_id_val} (Status: Booked) & {target_act_sheet} created new ID {new_rescheduled_id} assigned to {assign_worker_res}!"
                             )
                         else:
                             st.success("✅ Case successfully rescheduled!")
@@ -1958,6 +2008,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         save_data(df_full, sheet_name=sheet_name)
 
                         new_resched_id = None
+                        target_act_sheet_p = None
                         if (
                             booking_status_choice == "Rescheduled"
                             and is_booked_sheet
@@ -1968,7 +2019,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Case_ID"] = case_id_val
                             df_full.at[row_idx, "Booking_Status"] = "Booked"
                             save_data(df_full, sheet_name=sheet_name)
-                            new_resched_id = (
+                            new_resched_id, target_act_sheet_p = (
                                 append_rescheduled_to_active_sheet(
                                     source_row=df_full.loc[row_idx],
                                     pref_loc=popup_pref_loc,
@@ -1987,7 +2038,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["open_dialog"] = None
                         if new_resched_id:
                             st.success(
-                                f"✅ Rescheduled! Kept in Booked sheet ({case_id_val}) & added to Active sheet with new ID: {new_resched_id}"
+                                f"✅ Kept in Booked sheet ({case_id_val}, Status: Booked) & added to {target_act_sheet_p} with new ID: {new_resched_id} (Worker: {active_worker_pick or 'Not Assigned'})"
                             )
                         else:
                             st.success("✅ Case successfully updated and saved!")
@@ -3995,7 +4046,7 @@ else:
     w_top1, w_top2, w_top3, w_top4 = st.columns([5.4, 1.2, 1.2, 1.2], gap="small")
     with w_top1:
         st.markdown(
-            f"<div class='workspace-header-bar'><span>👷 Case Worker: {current_user}</span><span class='workspace-sheet-pill'>📂 {current_sheet}</span></div>",
+            f"<div class='worker-hero-banner'><span class='worker-hero-title'>👷 Case Worker: {current_user}</span><div class='worker-pill-group'><span class='worker-pill-gold'>📂 {current_sheet}</span><span class='worker-pill-cyan'>🎯 Lead: {st.session_state['worker_selected_lead']}</span></div></div>",
             unsafe_allow_html=True,
         )
     with w_top2:
@@ -4090,7 +4141,7 @@ else:
             )
     with w_c3:
         st.markdown(
-            '<span class="admin-btn-6" style="display:none;"></span>',
+            '<span class="admin-btn-2" style="display:none;"></span>',
             unsafe_allow_html=True,
         )
         if st.button(
@@ -4102,6 +4153,10 @@ else:
             st.rerun()
     with w_c4:
         if can_download:
+            st.markdown(
+                '<span class="admin-btn-5" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
             w_dl_bytes_bar = get_worker_export_bytes(
                 _get_file_mtime(), current_user, current_sheet
             )
@@ -4127,10 +4182,11 @@ else:
             unsafe_allow_html=True,
         )
         w_sw_cols = st.columns(len(sheets), gap="small")
+        palette_w = ["admin-btn-0", "admin-btn-1", "admin-btn-2", "admin-btn-3", "admin-btn-4", "admin-btn-5"]
         for s_idx_w, s_name_w in enumerate(sheets):
             with w_sw_cols[s_idx_w]:
                 is_act_w = s_name_w == current_sheet
-                c_cls_w = "admin-btn-1" if is_act_w else "admin-btn-6"
+                c_cls_w = palette_w[s_idx_w % len(palette_w)] if is_act_w else "admin-btn-6"
                 b_txt_w = f"✅ {s_name_w}" if is_act_w else f"📄 {s_name_w}"
                 st.markdown(
                     f'<span class="{c_cls_w}" style="display:none;"></span>',
@@ -4239,7 +4295,7 @@ else:
     wk1, wk2, wk3 = st.columns(3, gap="medium")
     with wk1:
         st.markdown(
-            f"<div class='kpi-card'><div class='kpi-title'>Total Cases ({current_sheet})</div><div class='kpi-value'>{total_w_cases}</div></div>",
+            f"<div class='kpi-card teal'><div class='kpi-title'>Total Cases ({current_sheet})</div><div class='kpi-value'>{total_w_cases}</div></div>",
             unsafe_allow_html=True,
         )
     with wk2:
@@ -4249,7 +4305,7 @@ else:
         )
     with wk3:
         st.markdown(
-            f"<div class='kpi-card purple'><div class='kpi-title'>Booked / Rescheduled</div><div class='kpi-value'>{booked_resched_w}</div></div>",
+            f"<div class='kpi-card gold'><div class='kpi-title'>Booked / Rescheduled</div><div class='kpi-value'>{booked_resched_w}</div></div>",
             unsafe_allow_html=True,
         )
 
