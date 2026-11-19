@@ -293,6 +293,36 @@ def find_display_username_column(df):
             return col
     return df.columns[0]
 
+def find_ds160_columns(df):
+    ds_cols = []
+    for col in df.columns:
+        c_norm = col.strip().lower().replace("-", "").replace("_", "").replace(" ", "")
+        if "ds160" in c_norm:
+            ds_cols.append(col)
+    return ds_cols
+
+def search_username_and_ds160(df, query_text):
+    if df is None or df.empty or not query_text:
+        return pd.Series([True] * len(df), index=df.index) if df is not None else pd.Series([], dtype=bool)
+    
+    q = query_text.strip().lower()
+    target_cols = set()
+    for c in df.columns:
+        if c.strip().lower() == "username":
+            target_cols.add(c)
+    for ds_c in find_ds160_columns(df):
+        target_cols.add(ds_c)
+
+    if not target_cols:
+        disp_c = find_display_username_column(df)
+        target_cols.add(disp_c)
+
+    mask = pd.Series([False] * len(df), index=df.index)
+    for col in target_cols:
+        col_mask = df[col].astype(str).str.lower().str.contains(q, case=False, na=False, regex=False)
+        mask = mask | col_mask
+    return mask
+
 def find_password_column(df):
     for col in df.columns:
         if col.strip().lower() in ["password", "pass"]:
@@ -784,7 +814,7 @@ st.markdown("""
     .username-hyperlink:hover {
         color: #2563eb !important;
     }
-    /* Modern Segmented Pill Navigation Tabs */
+    /* Modern Segmented Pill Navigation Tabs (Hide default radio circles completely) */
     div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex !important;
         flex-direction: row !important;
@@ -808,8 +838,13 @@ st.markdown("""
         display: flex !important;
         align-items: center !important;
     }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label > div:first-child {
+    div[data-testid="stRadio"] > div[role="radiogroup"] label > div:first-child,
+    div[data-testid="stRadio"] > div[role="radiogroup"] label input[type="radio"] {
         display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        opacity: 0 !important;
+        position: absolute !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] label p {
         font-size: 14px !important;
@@ -2054,7 +2089,7 @@ def add_case_dialog(worker_name):
             except Exception as e:
                 st.error(f"❌ Error: {e}")
 
-@st.dialog("🔍 Search Main Data", width="large")
+@st.dialog("🔍 Search Main Data (Username & DS160 Only)", width="large")
 def search_data_dialog():
     sheets = get_sheet_names()
     selected_search_sheet = st.selectbox("Select Sheet to Search:", options=sheets, key="dlg_search_sheet")
@@ -2063,16 +2098,16 @@ def search_data_dialog():
         display_c = find_display_username_column(df_search)
         p_col = find_password_column(df_search)
         
-        search_query = st.text_input("Type any branch name or person name:", placeholder="e.g., ALLAGADDA, Adoni...", key="dlg_search_input").strip()
+        search_query = st.text_input("Search by Username or DS160 Number only:", placeholder="Type Username or DS160 number...", key="dlg_search_input").strip()
         
         if search_query != "":
-            main_search_mask = df_search.apply(lambda row: row.astype(str).str.contains(search_query, case=False, na=False).any(), axis=1)
+            main_search_mask = search_username_and_ds160(df_search, search_query)
             found_data = df_search[main_search_mask]
             
             if found_data.empty:
-                st.warning(f"No details found for '{search_query}'.")
+                st.warning(f"No matching Username or DS160 Number found for '{search_query}'.")
             else:
-                st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
+                st.success(f"Matching Username / DS160 results for '{search_query}' ({len(found_data)} rows):")
                 view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Preferred_Location", "Preferred_Dates", "Prior_Notice"], errors="ignore")
                 view_only_df = reorder_dataframe_columns(view_only_df)
                 view_only_df.index = range(1, len(view_only_df) + 1)
@@ -2282,6 +2317,7 @@ if not st.session_state["logged_in"]:
                                 st.session_state["logged_in"] = True
                                 st.session_state["username"] = admin_u
                                 st.session_state["role"] = "admin"
+                                st.session_state["admin_active_view"] = None
                                 st.session_state["open_dialog"] = None
                                 st.session_state["selected_row_idx"] = None
                                 st.query_params.clear()
@@ -2343,6 +2379,9 @@ elif st.session_state["role"] == "admin":
     login_c = find_login_user_column(df)
     display_c = find_display_username_column(df)
     p_col = find_password_column(df)
+
+    if "admin_active_view" not in st.session_state:
+        st.session_state["admin_active_view"] = None
     
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
@@ -2360,18 +2399,33 @@ elif st.session_state["role"] == "admin":
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
+            st.session_state["admin_active_view"] = None
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    admin_dash_tab = st.radio(
-        "Admin Navigation",
-        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="admin_dash_tab_radio"
-    )
+    nav_tab_options = ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"]
+    t_c1, t_c2, t_c3 = st.columns([1.4, 1.4, 1.4], gap="small")
+    with t_c1:
+        is_d_act = (st.session_state["admin_active_view"] == "dashboard")
+        st.markdown(f'<span class="{"admin-btn-0" if is_d_act else "admin-btn-6"}" style="display:none;"></span>', unsafe_allow_html=True)
+        if st.button("📊 Dashboard & Quick Actions", key="admin_tab_dash_btn", use_container_width=True):
+            st.session_state["admin_active_view"] = "dashboard"
+            st.rerun()
+    with t_c2:
+        is_r_act = (st.session_state["admin_active_view"] == "records")
+        st.markdown(f'<span class="{"admin-btn-0" if is_r_act else "admin-btn-6"}" style="display:none;"></span>', unsafe_allow_html=True)
+        if st.button("📂 Case Records & Search", key="admin_tab_rec_btn", use_container_width=True):
+            st.session_state["admin_active_view"] = "records"
+            st.rerun()
+    with t_c3:
+        is_g_act = (st.session_state["admin_active_view"] == "guidelines")
+        st.markdown(f'<span class="{"admin-btn-0" if is_g_act else "admin-btn-6"}" style="display:none;"></span>', unsafe_allow_html=True)
+        if st.button("ℹ️ System Guidelines", key="admin_tab_guide_btn", use_container_width=True):
+            st.session_state["admin_active_view"] = "guidelines"
+            st.rerun()
+
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     if "admin_selected_lead" not in st.session_state:
@@ -2397,7 +2451,9 @@ elif st.session_state["role"] == "admin":
         v_series = v_series[v_series != ""]
         visa_counts = v_series.value_counts().to_dict()
 
-    if admin_dash_tab == "📊 Dashboard & Quick Actions":
+    active_admin_view = st.session_state.get("admin_active_view")
+
+    if active_admin_view == "dashboard":
         if sheets:
             st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
@@ -2511,7 +2567,7 @@ elif st.session_state["role"] == "admin":
 
         st.divider()
 
-    elif admin_dash_tab == "📂 Case Records & Search":
+    elif active_admin_view == "records":
         st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
         
         if visa_counts:
@@ -2545,7 +2601,7 @@ elif st.session_state["role"] == "admin":
 
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
         with col_search:
-            admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
+            admin_search = st.text_input("Search by Username or DS160 Number only:", placeholder="Type Username or DS160 number...", key="admin_search_input").strip()
         with col_sheets:
             if sheets:
                 st.markdown("📑 **Switch Sheet:**")
@@ -2565,14 +2621,14 @@ elif st.session_state["role"] == "admin":
 
         display_df = df
         if admin_search != "":
-            admin_search_mask = display_df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
+            admin_search_mask = search_username_and_ds160(display_df, admin_search)
             display_df = display_df[admin_search_mask]
 
         if st.session_state["selected_visa_filter"] != "All" and visa_col:
             target_visa = st.session_state["selected_visa_filter"]
             display_df = display_df[display_df[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
-        st.caption(f"💡 Showing {len(display_df)} cases. Click USERNAME inside the table to view, edit, or delete details.")
+        st.caption(f"💡 Showing {len(display_df)} cases (filtered by Username & DS160). Click USERNAME inside the table to view, edit, or delete details.")
         render_clickable_table(display_df, display_c, p_col, table_key=f"admin_{current_sheet}")
                     
         if os.path.exists(EXCEL_FILE):
@@ -2587,7 +2643,7 @@ elif st.session_state["role"] == "admin":
                 key="admin_dl_all_btn"
             )
 
-    elif admin_dash_tab == "ℹ️ System Guidelines":
+    elif active_admin_view == "guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
         g1, g2 = st.columns(2, gap="medium")
         with g1:
