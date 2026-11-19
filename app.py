@@ -161,7 +161,7 @@ def generate_next_case_id(all_sheets_dict=None):
                     num = int(m.group(1))
                     if num > max_num:
                         max_num = num
-    return f"HV-{max_num + 1}"
+    return f"HM{max_num + 1}"
 
 def ensure_all_cases_have_unique_ids():
     if not os.path.exists(EXCEL_FILE):
@@ -192,7 +192,7 @@ def ensure_all_cases_have_unique_ids():
                 cid = str(df.at[idx, "Case_ID"]).strip()
                 if cid == "" or cid.lower() == "nan" or cid in seen_ids:
                     max_num += 1
-                    new_cid = f"HV-{max_num}"
+                    new_cid = f"HM{max_num}"
                     df.at[idx, "Case_ID"] = new_cid
                     seen_ids.add(new_cid)
                     modified = True
