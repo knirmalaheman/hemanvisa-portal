@@ -2679,11 +2679,11 @@ if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and
         sel_l_w = st.session_state["worker_selected_lead"].lower()
         filtered_user_rows = user_rows[user_rows[lead_col_w].astype(str).str.strip().str.lower().str.contains(sel_l_w, na=False)]
 else:
-        filtered_user_rows = user_rows
-    # ----------------------------------------------
+    filtered_user_rows = user_rows
+# ----------------------------------------------
 
-    my_total = len(filtered_user_rows)
-    my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
+my_total = len(filtered_user_rows)
+my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
 
     k1, k2 = st.columns(2, gap="medium")
     with k1:
