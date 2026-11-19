@@ -301,28 +301,71 @@ def find_ds160_columns(df):
             ds_cols.append(col)
     return ds_cols
 
-def search_username_and_ds160(df, query_text):
+def find_password_column(df):
+    for col in df.columns:
+        if col.strip().lower() in ["password", "pass"]:
+            return col
+    return df.columns[1] if len(df.columns) > 1 else df.columns[0]
+
+def get_target_search_columns(df):
+    target_cols = set()
+    if df is None or df.empty:
+        return []
+    for c in df.columns:
+        c_low = c.strip().lower().replace("_", " ")
+        if (
+            "username" in c_low
+            or "user" in c_low
+            or "case worker" in c_low
+            or "worker" in c_low
+            or "password" in c_low
+            or c_low == "pass"
+        ):
+            target_cols.add(c)
+    for ds_c in find_ds160_columns(df):
+        target_cols.add(ds_c)
+    if not target_cols:
+        target_cols.add(find_display_username_column(df))
+    return [c for c in df.columns if c in target_cols]
+
+def search_username_ds160_password_worker(df, query_text):
     if df is None or df.empty or not query_text:
         return pd.Series([True] * len(df), index=df.index) if df is not None else pd.Series([], dtype=bool)
     
     q = query_text.strip().lower()
-    target_cols = set()
-    for c in df.columns:
-        c_low = c.strip().lower()
-        if c_low == "username" or "username" in c_low:
-            target_cols.add(c)
-    for ds_c in find_ds160_columns(df):
-        target_cols.add(ds_c)
-
-    if not target_cols:
-        disp_c = find_display_username_column(df)
-        target_cols.add(disp_c)
+    target_cols = get_target_search_columns(df)
 
     mask = pd.Series([False] * len(df), index=df.index)
     for col in target_cols:
         col_mask = df[col].astype(str).str.lower().str.contains(q, case=False, na=False, regex=False)
         mask = mask | col_mask
     return mask
+
+def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
+    if not query_text:
+        return pd.DataFrame()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    matched_dfs = []
+    for s_name, df_s in all_sheets.items():
+        if df_s is None or df_s.empty:
+            continue
+        df_curr = reorder_dataframe_columns(df_s.copy())
+        if lead_filter and lead_filter != "All":
+            login_c_s = find_login_user_column(df_curr)
+            lead_col_s = next((c for c in df_curr.columns if "lead" in c.strip().lower()), login_c_s)
+            if lead_col_s in df_curr.columns:
+                df_curr = df_curr[df_curr[lead_col_s].astype(str).str.strip().str.lower().str.contains(lead_filter.lower(), na=False)]
+        if df_curr.empty:
+            continue
+        m = search_username_ds160_password_worker(df_curr, query_text)
+        res_s = df_curr[m]
+        if not res_s.empty:
+            res_s = res_s.copy()
+            res_s.insert(0, "Sheet_Name", s_name)
+            matched_dfs.append(res_s)
+    if not matched_dfs:
+        return pd.DataFrame()
+    return pd.concat(matched_dfs, ignore_index=True)
 
 def search_main_data_any(df, query_text):
     if df is None or df.empty or not query_text:
@@ -343,12 +386,6 @@ def search_main_data_any(df, query_text):
         col_mask = df[col].astype(str).str.lower().str.contains(q, case=False, na=False, regex=False)
         mask = mask | col_mask
     return mask
-
-def find_password_column(df):
-    for col in df.columns:
-        if col.strip().lower() in ["password", "pass"]:
-            return col
-    return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
 def find_visa_type_column(df):
     for c in df.columns:
@@ -840,7 +877,6 @@ st.markdown("""
     .username-hyperlink:hover {
         color: #2563eb !important;
     }
-    /* Modern Segmented Pill Radio Controls (Hide default radio dots completely) */
     div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex !important;
         flex-direction: row !important;
@@ -1394,7 +1430,7 @@ def admin_pdf_download_dialog():
         if search_query != "" and not found_any:
             st.warning(f"No PDFs found matching username or filename: '{search_query}'")
 
-def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_link="", page_size=100):
+def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_link="", page_size=100, allow_edit=True):
     if df.empty:
         st.info("No cases found.")
         return
@@ -1438,7 +1474,8 @@ def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_lin
                 st.session_state[page_state_key] = int(jump_page)
                 st.rerun()
 
-    display_cols = [c for c in page_df.columns if c not in [p_col, "Appointment_PDF"]]
+    cols_to_hide = ["Appointment_PDF"] if allow_edit else [p_col, "Appointment_PDF"]
+    display_cols = [c for c in page_df.columns if c not in cols_to_hide]
     
     curr_logged = qp.get("logged_in", "true" if st.session_state.get("logged_in") else "false")
     curr_user = qp.get("username", st.session_state.get("username", ""))
@@ -1473,7 +1510,10 @@ def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_lin
             val = col_data[col][i]
             if col == display_c:
                 display_val = val.strip() if val.strip() != "" else "Not Assigned"
-                cell_content = f'<a href="{base_link}{idx}" target="_self" class="username-hyperlink">{display_val}</a>'
+                if allow_edit:
+                    cell_content = f'<a href="{base_link}{idx}" target="_self" class="username-hyperlink">{display_val}</a>'
+                else:
+                    cell_content = f'<span style="font-weight:700; color:#1e293b;">{display_val}</span>'
             else:
                 cell_content = val if val != "" else "-"
             html_parts.append(f'<td style="padding: 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>')
@@ -2117,25 +2157,24 @@ def add_case_dialog(worker_name):
             except Exception as e:
                 st.error(f"❌ Error: {e}")
 
-@st.dialog("🔍 Search Main Data", width="large")
+@st.dialog("🔍 Search Records (Read-Only)", width="large")
 def search_data_dialog():
     sheets = get_sheet_names()
     selected_search_sheet = st.selectbox("Select Sheet to Search:", options=sheets, key="dlg_search_sheet")
     df_search = load_data(sheet_name=selected_search_sheet)
     if df_search is not None and not df_search.empty:
-        display_c = find_display_username_column(df_search)
         p_col = find_password_column(df_search)
         
-        search_query = st.text_input("Search any main data (Username, DS160, Visa Type, Lead, etc.):", placeholder="Type any keyword to search main data...", key="dlg_search_input").strip()
+        search_query = st.text_input("Search by Case Username, DS160, Case Password, or Case Worker:", placeholder="Type Username, DS160, Password, or Case Worker...", key="dlg_search_input").strip()
         
         if search_query != "":
-            main_search_mask = search_main_data_any(df_search, search_query)
-            found_data = df_search[main_search_mask]
+            search_mask = search_username_ds160_password_worker(df_search, search_query)
+            found_data = df_search[search_mask]
             
             if found_data.empty:
-                st.warning(f"No matching main data found for '{search_query}'.")
+                st.warning(f"No matching records found for '{search_query}'.")
             else:
-                st.success(f"Matching main data results for '{search_query}' ({len(found_data)} rows):")
+                st.success(f"Read-Only matching results for '{search_query}' ({len(found_data)} rows):")
                 view_only_df = found_data.drop(columns=[p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF"], errors="ignore")
                 view_only_df = reorder_dataframe_columns(view_only_df)
                 view_only_df.index = range(1, len(view_only_df) + 1)
@@ -2468,8 +2507,8 @@ elif st.session_state["role"] == "admin":
         lead_col_d = next((c for c in df_d_base.columns if "lead" in c.strip().lower()), login_c_d)
 
         dash_search_query = st.text_input(
-            "🔍 Overall Search (Username & DS160 Number Only):",
-            placeholder="Type Username or DS160 number...",
+            "🔍 Search All Sheets (Username, DS160, Password & Case Worker):",
+            placeholder="Type Username, DS160, Case Password, or Case Worker...",
             key="dash_overall_search_input"
         ).strip()
 
@@ -2507,9 +2546,17 @@ elif st.session_state["role"] == "admin":
             df_dash = df_d_base
 
         if dash_search_query != "":
-            df_dash_search_results = df_dash[search_username_and_ds160(df_dash, dash_search_query)]
-            st.markdown(f"<div class='section-banner'>🔍 Dashboard Search Results for '<b>{dash_search_query}</b>' ({len(df_dash_search_results)} found in {dash_s_name})</div>", unsafe_allow_html=True)
-            render_clickable_table(df_dash_search_results, display_c_d, p_col_d, table_key=f"dash_search_{dash_s_name}", sheet_for_link=dash_s_name)
+            df_all_sheets_res = search_across_all_sheets_by_fields(dash_search_query, lead_filter=st.session_state["admin_selected_lead"])
+            st.markdown(f"<div class='section-banner'>🔍 All Sheets Search Results for '<b>{dash_search_query}</b>' ({len(df_all_sheets_res)} found across all sheets)</div>", unsafe_allow_html=True)
+            if df_all_sheets_res.empty:
+                st.info(f"No matching records found across any sheet for '{dash_search_query}'.")
+            else:
+                res_disp = df_all_sheets_res.drop(columns=["Appointment_PDF", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"], errors="ignore")
+                res_disp = reorder_dataframe_columns(res_disp)
+                if "Sheet_Name" in df_all_sheets_res.columns:
+                    res_disp.insert(0, "Sheet_Name", df_all_sheets_res["Sheet_Name"].values)
+                res_disp.index = range(1, len(res_disp) + 1)
+                st.dataframe(res_disp, use_container_width=True)
             st.divider()
 
         total_cases = len(df_dash)
@@ -2678,7 +2725,7 @@ elif st.session_state["role"] == "admin":
             display_df = display_df[display_df[visa_col_r].astype(str).str.strip().str.upper() == target_visa]
 
         st.caption(f"💡 Showing {len(display_df)} cases in '{rec_s_name}' (searching main data). Click USERNAME inside the table to view, edit, or delete details.")
-        render_clickable_table(display_df, display_c_r, p_col_r, table_key=f"admin_{rec_s_name}", sheet_for_link=rec_s_name)
+        render_clickable_table(display_df, display_c_r, p_col_r, table_key=f"admin_{rec_s_name}", sheet_for_link=rec_s_name, allow_edit=True)
                     
         if os.path.exists(EXCEL_FILE):
             with open(EXCEL_FILE, "rb") as f:
@@ -2782,12 +2829,21 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Case Worker Workspace Search Bar (searches main data across worker's cases)
+        # Case Worker Search Bar: searches ONLY Case Username, DS160, Case Password, or Case Worker (Read-Only results)
         worker_search_query = st.text_input(
-            "🔍 Search My Cases (Main Data):",
-            placeholder="Type Username, DS160, Visa Type, Lead, etc...",
+            "🔍 Search (Case Username, DS160, Password & Case Worker — Read-Only):",
+            placeholder="Type Username, DS160, Case Password, or Case Worker...",
             key="worker_workspace_search_input"
         ).strip()
+
+        if worker_search_query != "":
+            worker_search_df = df[search_username_ds160_password_worker(df, worker_search_query)]
+            st.markdown(f"<div class='section-banner'>🔍 Search Results (Read-Only) for '<b>{worker_search_query}</b>' ({len(worker_search_df)} found in {current_sheet})</div>", unsafe_allow_html=True)
+            if worker_search_df.empty:
+                st.info(f"No matching records found for '{worker_search_query}'.")
+            else:
+                render_clickable_table(worker_search_df, display_c, p_col, table_key=f"worker_ro_search_{current_sheet}", sheet_for_link=current_sheet, allow_edit=False)
+            st.divider()
 
         st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
         if "worker_selected_lead" not in st.session_state:
@@ -2923,9 +2979,6 @@ else:
         st.divider()
         
         display_user_rows = filtered_user_rows
-        if worker_search_query != "":
-            display_user_rows = display_user_rows[search_main_data_any(display_user_rows, worker_search_query)]
-
         if st.session_state["selected_visa_filter"] != "All" and visa_col:
             target_visa = st.session_state["selected_visa_filter"]
             display_user_rows = display_user_rows[display_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
@@ -2936,7 +2989,7 @@ else:
             st.info("No cases found matching your criteria in this sheet.")
         else:
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
-            render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}", sheet_for_link=current_sheet)
+            render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}", sheet_for_link=current_sheet, allow_edit=True)
 
     elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
