@@ -1275,6 +1275,7 @@ def render_clickable_table(
         st.dataframe(show_df, use_container_width=True, height=460)
         return
 
+    last_sel_key = f"_last_handled_row_{table_key}"
     event = st.dataframe(
         show_df,
         use_container_width=True,
@@ -1287,20 +1288,25 @@ def render_clickable_table(
     selected_rows = event.selection.rows if hasattr(event, "selection") else []
     if selected_rows:
         pos = selected_rows[0]
-        actual_idx = df.index[pos]
-        if sheet_for_link:
-            st.session_state["active_sheet"] = sheet_for_link
-        st.session_state["selected_row_idx"] = actual_idx
-        st.session_state["is_editing_popup"] = False
-        st.session_state["is_delete_request_mode"] = False
-        st.session_state["is_reschedule_mode"] = False
-        st.session_state["open_dialog"] = "edit_case_popup"
-        st.rerun()
+        if pos < len(df.index):
+            actual_idx = df.index[pos]
+            token = f"{pos}:{actual_idx}"
+            if st.session_state.get(last_sel_key) != token:
+                st.session_state[last_sel_key] = token
+                if sheet_for_link:
+                    st.session_state["active_sheet"] = sheet_for_link
+                st.session_state["selected_row_idx"] = actual_idx
+                st.session_state["is_editing_popup"] = False
+                st.session_state["is_delete_request_mode"] = False
+                st.session_state["is_reschedule_mode"] = False
+                st.session_state["open_dialog"] = "edit_case_popup"
+                st.rerun()
+    else:
+        st.session_state[last_sel_key] = None
 
 
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
-    st.session_state["open_dialog"] = None
     df_full = load_data(sheet_name=sheet_name)
     if df_full is None or row_idx not in df_full.index:
         st.error("Case data not found.")
@@ -3123,6 +3129,7 @@ elif st.session_state.get("open_dialog") == "edit_case_popup":
         view_and_edit_case_dialog(
             st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd
         )
+        st.session_state["open_dialog"] = None
 
 if not st.session_state["logged_in"]:
     default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
