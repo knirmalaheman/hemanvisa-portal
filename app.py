@@ -1,477 +1,753 @@
-import os
-import zipfile
-from datetime import datetime
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import os
+import io
+import datetime
+import base64
+import json
+import math
+import re
+import zipfile
 
-st.set_page_config(page_title="Case Workflow Manager (Kalyan & Anil)", layout="wide")
+EXCEL_FILE = "Heman_Report.xlsx"
+ADMIN_FILE = "admin_config.txt"
+PERMS_FILE = "worker_permissions.json"
+NOTICE_FILE = "admin_notice.txt"
+LOGINS_FILE = "worker_logins_status.json"
+ATTENDANCE_FILE = "worker_attendance.json"
+PDF_BASE_DIR = "uploaded_appointment_pdfs"
+LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
-EXCEL_FILE = "cases_data.xlsx"
-COLUMNS = [
-    "HV_ID",
-    "Client_Name",
-    "Case_Worker",
-    "Bucket",
-    "Status",
-    "Scheduled_Date",
-    "Scheduled_Time",
-    "Previous_ID",
-    "Notes",
-    "Updated_At",
-]
-LOG_COLUMNS = COLUMNS + ["Action", "Details"]
+if not os.path.exists(PDF_BASE_DIR):
+    os.makedirs(PDF_BASE_DIR)
 
-
-def now_12hr() -> str:
-    return datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
-
-
-def generate_new_hv_id(df_all: pd.DataFrame, prefix: str = "HV") -> str:
-    """Generates the next unique HV ID like HV-1001, HV-1002..."""
-    max_num = 1000
-    if not df_all.empty and "HV_ID" in df_all.columns:
-        for cid in df_all["HV_ID"].dropna().astype(str):
-            cleaned = cid.strip().upper()
-            if "-" in cleaned:
-                parts = cleaned.split("-", 1)
-                if parts[1].isdigit():
-                    max_num = max(max_num, int(parts[1]))
-            else:
-                digits = "".join(ch for ch in cleaned if ch.isdigit())
-                if digits.isdigit():
-                    max_num = max(max_num, int(digits))
-    return f"{prefix}-{max_num + 1}"
+st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
 
-def build_default_frames() -> dict[str, pd.DataFrame]:
-    sample_rows = [
-        {
-            "HV_ID": "HV-1001",
-            "Client_Name": "Ramesh Rao",
-            "Case_Worker": "Kalyan",
-            "Bucket": "Booked",
-            "Status": "Booked",
-            "Scheduled_Date": "2026-11-20",
-            "Scheduled_Time": "10:30 AM",
-            "Previous_ID": "",
-            "Notes": "Initial booked case under Kalyan",
-            "Updated_At": now_12hr(),
-        },
-        {
-            "HV_ID": "HV-1002",
-            "Client_Name": "Sita Devi",
-            "Case_Worker": "Kalyan",
-            "Bucket": "Active",
-            "Status": "Active",
-            "Scheduled_Date": "2026-11-21",
-            "Scheduled_Time": "02:00 PM",
-            "Previous_ID": "",
-            "Notes": "Active case under Kalyan",
-            "Updated_At": now_12hr(),
-        },
-        {
-            "HV_ID": "HV-1003",
-            "Client_Name": "Karthik Reddy",
-            "Case_Worker": "Anil",
-            "Bucket": "Active",
-            "Status": "Active",
-            "Scheduled_Date": "2026-11-22",
-            "Scheduled_Time": "11:15 AM",
-            "Previous_ID": "",
-            "Notes": "Existing active case under Anil",
-            "Updated_At": now_12hr(),
-        },
-    ]
-    df_init = pd.DataFrame(sample_rows, columns=COLUMNS)
-    return {
-        "Master_Cases": df_init.copy(),
-        "Kalyan_Cases": df_init[df_init["Case_Worker"] == "Kalyan"].copy().reset_index(drop=True),
-        "Anil_Active": df_init[(df_init["Case_Worker"] == "Anil") & (df_init["Bucket"] == "Active")].copy().reset_index(drop=True),
-        "Audit_Log": pd.DataFrame(columns=LOG_COLUMNS),
+def get_ist_now():
+    return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+
+
+def _get_file_mtime():
+    return os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
+
+
+def get_admin_creds():
+    if os.path.exists(ADMIN_FILE):
+        with open(ADMIN_FILE, "r") as f:
+            lines = f.read().splitlines()
+            if len(lines) >= 2:
+                return lines[0].strip(), lines[1].strip()
+    return "admin", "admin123"
+
+
+def save_admin_creds(new_user, new_pass):
+    with open(ADMIN_FILE, "w") as f:
+        f.write(f"{new_user}\n{new_pass}")
+
+
+def load_permissions():
+    if os.path.exists(PERMS_FILE):
+        try:
+            with open(PERMS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_permissions(perms_dict):
+    with open(PERMS_FILE, "w") as f:
+        json.dump(perms_dict, f, indent=4)
+
+
+def get_admin_notice():
+    if os.path.exists(NOTICE_FILE):
+        try:
+            with open(NOTICE_FILE, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception:
+            return ""
+    return ""
+
+
+def save_admin_notice(notice_text):
+    with open(NOTICE_FILE, "w", encoding="utf-8") as f:
+        f.write(notice_text.strip())
+
+
+def load_login_tracking():
+    if os.path.exists(LOGINS_FILE):
+        try:
+            with open(LOGINS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def load_attendance():
+    if os.path.exists(ATTENDANCE_FILE):
+        try:
+            with open(ATTENDANCE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_attendance(att_list):
+    with open(ATTENDANCE_FILE, "w") as f:
+        json.dump(att_list, f, indent=4)
+
+
+def record_worker_login(worker_name):
+    if not worker_name:
+        return
+    now_dt = get_ist_now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+    full_timestamp = f"{today_str} {time_str}"
+
+    logins = load_login_tracking()
+    logins[worker_name.strip()] = {
+        "status": "Logged In",
+        "last_login": full_timestamp,
     }
+    with open(LOGINS_FILE, "w") as f:
+        json.dump(logins, f, indent=4)
+
+    attendance = load_attendance()
+    found = False
+    for entry in attendance:
+        if (
+            entry.get("Worker", "").lower() == worker_name.strip().lower()
+            and entry.get("Date") == today_str
+        ):
+            if not entry.get("Login_Time") or entry.get("Login_Time") == "-":
+                entry["Login_Time"] = time_str
+            entry["Status"] = "Active"
+            found = True
+            break
+    if not found:
+        attendance.append({
+            "Worker": worker_name.strip(),
+            "Date": today_str,
+            "Login_Time": time_str,
+            "Logout_Time": "-",
+            "Status": "Active",
+        })
+    save_attendance(attendance)
 
 
-def write_workbook_safely(path: str, data: dict[str, pd.DataFrame]):
-    """Writes Excel workbook cleanly and atomically to avoid partial/corrupted files."""
-    parent_dir = os.path.dirname(os.path.abspath(path))
+def record_worker_logout(worker_name):
+    if not worker_name:
+        return
+    now_dt = get_ist_now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+
+    logins = load_login_tracking()
+    for k in list(logins.keys()):
+        if k.lower() == worker_name.strip().lower():
+            logins[k]["status"] = "Not Logged In"
+    with open(LOGINS_FILE, "w") as f:
+        json.dump(logins, f, indent=4)
+
+    attendance = load_attendance()
+    for entry in attendance:
+        if (
+            entry.get("Worker", "").lower() == worker_name.strip().lower()
+            and entry.get("Date") == today_str
+        ):
+            entry["Logout_Time"] = time_str
+            entry["Status"] = "Logged Out"
+            break
+    save_attendance(attendance)
+
+
+def reorder_dataframe_columns(df):
+    if df is None or df.empty:
+        return df
+    cols_to_drop = [
+        c
+        for c in df.columns
+        if c.strip().lower() in ["ds-160 case worker", "ds160 case worker"]
+    ]
+    if cols_to_drop:
+        df = df.drop(columns=cols_to_drop, errors="ignore")
+
+    cols = list(df.columns)
+    found_priority = []
+    if "Case_ID" in cols:
+        found_priority.append("Case_ID")
+
+    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
+    for prefix in desired_order_prefixes:
+        for c in cols:
+            c_low = c.strip().lower().replace("_", " ")
+            if (c_low == prefix or prefix in c_low) and c not in found_priority:
+                found_priority.append(c)
+
+    remaining_cols = [c for c in cols if c not in found_priority]
+    return df[found_priority + remaining_cols]
+
+
+def _read_excel_sheets_safely(excel_path):
+    if not os.path.exists(excel_path):
+        return {}
+    try:
+        if os.path.getsize(excel_path) == 0:
+            raise zipfile.BadZipFile("0-byte Excel file")
+        return pd.read_excel(excel_path, sheet_name=None, dtype=str)
+    except Exception:
+        try:
+            stamp = get_ist_now().strftime("%Y%m%d_%H%M%S")
+            os.replace(excel_path, f"{excel_path}.corrupt_{stamp}.bak")
+        except Exception:
+            pass
+        return {}
+
+
+def _write_excel_sheets_safely(excel_path, sheets_dict):
+    parent_dir = os.path.dirname(os.path.abspath(excel_path))
     if parent_dir and not os.path.exists(parent_dir):
         os.makedirs(parent_dir, exist_ok=True)
-
-    tmp_path = f"{path}.tmp"
+    tmp_path = f"{excel_path}.tmp"
     with pd.ExcelWriter(tmp_path, engine="openpyxl") as writer:
-        for sheet_name in ["Master_Cases", "Kalyan_Cases", "Anil_Active"]:
-            df = data.get(sheet_name, pd.DataFrame(columns=COLUMNS)).copy()
-            for col in COLUMNS:
-                if col not in df.columns:
-                    df[col] = ""
-            df[COLUMNS].to_excel(writer, sheet_name=sheet_name, index=False)
-
-        log_df = data.get("Audit_Log", pd.DataFrame(columns=LOG_COLUMNS)).copy()
-        for col in LOG_COLUMNS:
-            if col not in log_df.columns:
-                log_df[col] = ""
-        log_df[LOG_COLUMNS].to_excel(writer, sheet_name="Audit_Log", index=False)
-
-    os.replace(tmp_path, path)
+        for s, df_val in sheets_dict.items():
+            ordered_df = reorder_dataframe_columns(df_val)
+            ordered_df.to_excel(writer, sheet_name=str(s), index=False)
+    os.replace(tmp_path, excel_path)
 
 
-def quarantine_corrupted_file(path: str):
-    """Backs up an invalid/corrupted xlsx file instead of crashing with BadZipFile."""
-    if os.path.exists(path):
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = f"{path}.corrupt_{stamp}.bak"
+@st.cache_data(ttl=600, show_spinner=False)
+def load_all_sheets_cached(file_mtime):
+    if os.path.exists(EXCEL_FILE):
         try:
-            os.replace(path, backup_path)
-        except OSError:
-            pass
+            all_sheets = _read_excel_sheets_safely(EXCEL_FILE)
+            if not all_sheets:
+                return {}
+            processed = {}
+            max_num = 1000
+            seen_ids = set()
+
+            for s_name, df in all_sheets.items():
+                df.columns = df.columns.str.strip()
+                if "Case_ID" in df.columns:
+                    for val in df["Case_ID"].fillna("").astype(str):
+                        m = re.search(r"(\d+)", val.strip())
+                        if m:
+                            num = int(m.group(1))
+                            if num > max_num:
+                                max_num = num
+
+            for s_name, df in all_sheets.items():
+                df.columns = df.columns.str.strip()
+                df = df.fillna("")
+                if "Case_ID" not in df.columns:
+                    df.insert(0, "Case_ID", "")
+                for idx in df.index:
+                    cid = str(df.at[idx, "Case_ID"]).strip()
+                    if cid == "" or cid.lower() == "nan" or cid in seen_ids:
+                        max_num += 1
+                        new_cid = f"HV-{max_num}"
+                        df.at[idx, "Case_ID"] = new_cid
+                        seen_ids.add(new_cid)
+                    else:
+                        seen_ids.add(cid)
+
+                if "Unnamed: 5" in df.columns:
+                    df = df.rename(columns={"Unnamed: 5": "Category"})
+                if "Updated_By" not in df.columns:
+                    df["Updated_By"] = ""
+                if "Updated_At" not in df.columns:
+                    df["Updated_At"] = ""
+                if "Action_Type" not in df.columns:
+                    df["Action_Type"] = ""
+                if "Delete_Reason" not in df.columns:
+                    df["Delete_Reason"] = ""
+                if "Booking_Status" not in df.columns:
+                    df["Booking_Status"] = "Active"
+
+                if (
+                    "Appointment_Entry" not in df.columns
+                    and "Current Appointment" in df.columns
+                ):
+                    df = df.rename(
+                        columns={"Current Appointment": "Appointment_Entry"}
+                    )
+                elif "Appointment_Entry" not in df.columns:
+                    df["Appointment_Entry"] = ""
+
+                if "Appointment_PDF" not in df.columns:
+                    df["Appointment_PDF"] = ""
+                if "Preferred_Location" not in df.columns:
+                    df["Preferred_Location"] = ""
+                if "Preferred_Dates" not in df.columns:
+                    df["Preferred_Dates"] = ""
+                if "Prior_Notice" not in df.columns:
+                    df["Prior_Notice"] = ""
+
+                df = reorder_dataframe_columns(df)
+                processed[s_name] = df
+            return processed
+        except Exception:
+            return {}
+    return {}
 
 
-def load_data(path: str) -> tuple[dict[str, pd.DataFrame], bool]:
-    """
-    Loads workbook safely. If missing or corrupted (zipfile.BadZipFile / OSError / ValueError),
-    quarantines bad file and recreates a clean workbook so the app never crashes.
-    Returns (data_dict, recovered_flag).
-    """
-    recovered = False
-
-    if not os.path.exists(path):
-        fresh = build_default_frames()
-        write_workbook_safely(path, fresh)
-        return fresh, False
-
+def ensure_all_cases_have_unique_ids(force=False):
+    if not os.path.exists(EXCEL_FILE):
+        return
+    mtime = _get_file_mtime()
+    last_checked_key = "_last_id_sync_mtime"
+    if not force and st.session_state.get(last_checked_key) == mtime:
+        return
     try:
-        if os.path.getsize(path) == 0:
-            raise zipfile.BadZipFile("File is 0 bytes")
+        all_sheets = _read_excel_sheets_safely(EXCEL_FILE)
+        if not all_sheets:
+            return
+        modified = False
+        max_num = 1000
+        seen_ids = set()
 
-        xls = pd.ExcelFile(path, engine="openpyxl")
-        loaded: dict[str, pd.DataFrame] = {}
+        for s_name, df in all_sheets.items():
+            df.columns = df.columns.str.strip()
+            if "Case_ID" in df.columns:
+                for val in df["Case_ID"].fillna("").astype(str):
+                    m = re.search(r"(\d+)", val.strip())
+                    if m:
+                        num = int(m.group(1))
+                        if num > max_num:
+                            max_num = num
 
-        for sheet in ["Master_Cases", "Kalyan_Cases", "Anil_Active"]:
-            if sheet in xls.sheet_names:
-                df = pd.read_excel(xls, sheet_name=sheet, dtype=str).fillna("")
-                for col in COLUMNS:
-                    if col not in df.columns:
-                        df[col] = ""
-                loaded[sheet] = df[COLUMNS].copy()
-            else:
-                loaded[sheet] = pd.DataFrame(columns=COLUMNS)
+        for s_name, df in all_sheets.items():
+            df.columns = df.columns.str.strip()
+            df = df.fillna("")
+            if "Case_ID" not in df.columns:
+                df.insert(0, "Case_ID", "")
+                modified = True
+            for idx in df.index:
+                cid = str(df.at[idx, "Case_ID"]).strip()
+                if cid == "" or cid.lower() == "nan" or cid in seen_ids:
+                    max_num += 1
+                    new_cid = f"HV-{max_num}"
+                    df.at[idx, "Case_ID"] = new_cid
+                    seen_ids.add(new_cid)
+                    modified = True
+                else:
+                    seen_ids.add(cid)
+            all_sheets[s_name] = reorder_dataframe_columns(df)
 
-        if "Audit_Log" in xls.sheet_names:
-            ldf = pd.read_excel(xls, sheet_name="Audit_Log", dtype=str).fillna("")
-            for col in LOG_COLUMNS:
-                if col not in ldf.columns:
-                    ldf[col] = ""
-            loaded["Audit_Log"] = ldf[LOG_COLUMNS].copy()
-        else:
-            loaded["Audit_Log"] = pd.DataFrame(columns=LOG_COLUMNS)
-
-        return loaded, False
-
-    except (zipfile.BadZipFile, OSError, ValueError, KeyError):
-        quarantine_corrupted_file(path)
-        fresh = build_default_frames()
-        write_workbook_safely(path, fresh)
-        recovered = True
-        return fresh, recovered
-
-
-def get_all_ids(data: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    frames = []
-    for name, df in data.items():
-        if name != "Audit_Log" and not df.empty and "HV_ID" in df.columns:
-            frames.append(df[["HV_ID"]])
-    if not frames:
-        return pd.DataFrame(columns=["HV_ID"])
-    return pd.concat(frames, ignore_index=True)
+        if modified:
+            _write_excel_sheets_safely(EXCEL_FILE, all_sheets)
+            st.cache_data.clear()
+        st.session_state[last_checked_key] = _get_file_mtime()
+    except Exception:
+        pass
 
 
-def sync_sheets(data: dict[str, pd.DataFrame]):
-    """Keeps Kalyan_Cases and Anil_Active synchronized with Master_Cases."""
-    master = data["Master_Cases"].copy()
-    data["Kalyan_Cases"] = (
-        master[master["Case_Worker"] == "Kalyan"].copy().reset_index(drop=True)
+def get_sheet_names():
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    if all_sheets:
+        return list(all_sheets.keys())
+    return ["Sheet1"]
+
+
+def get_default_active_sheet(sheets_list=None):
+    if sheets_list is None:
+        sheets_list = get_sheet_names()
+    if not sheets_list:
+        return "Sheet1"
+    return next(
+        (s for s in sheets_list if "booked" not in s.lower()), sheets_list[0]
     )
-    data["Anil_Active"] = (
-        master[(master["Case_Worker"] == "Anil") & (master["Bucket"] == "Active")]
-        .copy()
-        .reset_index(drop=True)
-    )
 
 
-def append_audit_log(
-    data: dict[str, pd.DataFrame],
-    row_dict: dict,
-    action: str,
-    details: str,
+def generate_next_case_id(extra_reserved_ids=None):
+    all_sheets_dict = load_all_sheets_cached(_get_file_mtime())
+    max_num = 1000
+    for s_name, df_s in all_sheets_dict.items():
+        if df_s is not None and not df_s.empty and "Case_ID" in df_s.columns:
+            for val in df_s["Case_ID"].astype(str):
+                m = re.search(r"(\d+)", val.strip())
+                if m:
+                    num = int(m.group(1))
+                    if num > max_num:
+                        max_num = num
+    if extra_reserved_ids:
+        for cid in extra_reserved_ids:
+            m = re.search(r"(\d+)", str(cid).strip())
+            if m:
+                num = int(m.group(1))
+                if num > max_num:
+                    max_num = num
+    return f"HV-{max_num + 1}"
+
+
+def _resolve_target_active_sheet(sheets_all, assigned_worker=None):
+    if assigned_worker and str(assigned_worker).strip().lower() == "anil":
+        for s_name in sheets_all:
+            s_low = s_name.lower()
+            if "anil" in s_low and "active" in s_low:
+                return s_name
+        for s_name in sheets_all:
+            if "anil" in s_name.lower() and "booked" not in s_name.lower():
+                return s_name
+    return get_default_active_sheet(sheets_all)
+
+
+def append_rescheduled_to_active_sheet(
+    source_row,
+    pref_loc,
+    pref_dates,
+    prior_notice,
+    updated_by,
+    updated_at,
+    assigned_worker=None,
 ):
-    entry = {col: str(row_dict.get(col, "")) for col in COLUMNS}
-    entry["Action"] = action
-    entry["Details"] = details
-    data["Audit_Log"] = pd.concat(
-        [data["Audit_Log"], pd.DataFrame([entry], columns=LOG_COLUMNS)],
-        ignore_index=True,
+    sheets_all = get_sheet_names()
+    active_sheet_name = _resolve_target_active_sheet(sheets_all, assigned_worker=assigned_worker)
+    if not active_sheet_name:
+        return None, None
+    df_active = load_data(sheet_name=active_sheet_name)
+    if df_active is None:
+        return None, None
+
+    new_rescheduled_id = generate_next_case_id()
+    row_to_active = source_row.copy()
+    row_to_active["Case_ID"] = new_rescheduled_id
+
+    if assigned_worker is not None:
+        raw_w = str(assigned_worker).strip()
+        clean_worker = "" if raw_w.lower() in ["", "not assigned"] else raw_w
+        login_c_act = find_login_user_column(df_active)
+        if clean_worker and not df_active.empty and login_c_act in df_active.columns:
+            existing_vals = [str(x).strip() for x in df_active[login_c_act].dropna().unique() if str(x).strip()]
+            exact_ci = next((ev for ev in existing_vals if ev.lower() == clean_worker.lower()), None)
+            if exact_ci:
+                clean_worker = exact_ci
+        row_to_active[login_c_act] = clean_worker
+        for col in df_active.columns:
+            c_low = col.strip().lower()
+            if c_low in ["case worker", "cases_worker", "worker", "assigned_to", "assigned to"]:
+                row_to_active[col] = clean_worker
+
+    row_to_active["Booking_Status"] = "Rescheduled"
+    row_to_active["Preferred_Location"] = pref_loc.strip()
+    row_to_active["Preferred_Dates"] = pref_dates.strip()
+    row_to_active["Prior_Notice"] = prior_notice.strip()
+    row_to_active["Updated_By"] = updated_by
+    row_to_active["Updated_At"] = updated_at
+    row_to_active["Action_Type"] = "Rescheduled Case"
+
+    for col in df_active.columns:
+        if col not in row_to_active:
+            row_to_active[col] = ""
+
+    df_active_ordered = pd.concat(
+        [df_active, pd.DataFrame([row_to_active])], ignore_index=True
+    )
+    save_data(df_active_ordered, sheet_name=active_sheet_name)
+    return new_rescheduled_id, active_sheet_name
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_worker_export_bytes(file_mtime, current_user, current_sheet):
+    all_sheets = load_all_sheets_cached(file_mtime)
+    worker_buffer = io.BytesIO()
+    with pd.ExcelWriter(worker_buffer, engine="openpyxl") as writer:
+        has_user_data = False
+        for s, df_s in all_sheets.items():
+            if df_s is not None and not df_s.empty:
+                login_cs = find_login_user_column(df_s)
+                u_rows_s = df_s[
+                    df_s[login_cs].astype(str).str.strip().str.lower()
+                    == current_user.lower()
+                ]
+                if not u_rows_s.empty:
+                    has_user_data = True
+                    u_rows_s = reorder_dataframe_columns(u_rows_s)
+                    u_rows_s.to_excel(writer, sheet_name=s, index=False)
+        if not has_user_data and current_sheet in all_sheets:
+            df_cur = all_sheets[current_sheet]
+            login_cs = find_login_user_column(df_cur)
+            u_rows_cur = df_cur[
+                df_cur[login_cs].astype(str).str.strip().str.lower()
+                == current_user.lower()
+            ]
+            u_rows_cur = reorder_dataframe_columns(u_rows_cur)
+            u_rows_cur.to_excel(writer, sheet_name=current_sheet, index=False)
+    return worker_buffer.getvalue()
+
+
+def load_data(sheet_name=0):
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    if not all_sheets:
+        return None
+    if isinstance(sheet_name, int):
+        keys = list(all_sheets.keys())
+        if 0 <= sheet_name < len(keys):
+            return all_sheets[keys[sheet_name]].copy()
+        return None
+    if sheet_name in all_sheets:
+        return all_sheets[sheet_name].copy()
+    return None
+
+
+def save_data(df_to_save, sheet_name=0):
+    if "Category" in df_to_save.columns:
+        df_to_save = df_to_save.rename(columns={"Category": ""})
+
+    sheets_data = _read_excel_sheets_safely(EXCEL_FILE)
+    df_to_save = reorder_dataframe_columns(df_to_save)
+    sheets_data[sheet_name] = df_to_save
+    _write_excel_sheets_safely(EXCEL_FILE, sheets_data)
+
+    st.cache_data.clear()
+    st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
+
+
+@st.cache_data(show_spinner=False)
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+
+def find_login_user_column(df):
+    for col in df.columns:
+        if col.strip().lower() in ["username", "case worker", "cases_worker", "user"]:
+            if col.strip() != "USERNAME":
+                return col
+    for col in df.columns:
+        if col.strip().lower() in ["case worker", "cases_worker", "user"]:
+            return col
+    return df.columns[0]
+
+
+def find_display_username_column(df):
+    for col in df.columns:
+        if col.strip() == "USERNAME":
+            return col
+    for col in df.columns:
+        if col.strip().lower() == "username" and col.strip() != find_login_user_column(df):
+            return col
+    return df.columns[0]
+
+
+def find_ds160_columns(df):
+    ds_cols = []
+    for col in df.columns:
+        c_norm = col.strip().lower().replace("-", "").replace("_", "").replace(" ", "")
+        if "ds160" in c_norm or "ds 160" in col.strip().lower():
+            ds_cols.append(col)
+    return ds_cols
+
+
+def find_password_column(df):
+    for col in df.columns:
+        if col.strip().lower() in ["password", "pass"]:
+            return col
+    return df.columns[1] if len(df.columns) > 1 else df.columns[0]
+
+
+def get_target_search_columns(df):
+    target_cols = set()
+    if df is None or df.empty:
+        return []
+    for c in df.columns:
+        c_low = c.strip().lower().replace("_", " ")
+        if (
+            "case id" in c_low
+            or "username" in c_low
+            or "user" in c_low
+            or "case worker" in c_low
+            or "worker" in c_low
+            or "password" in c_low
+            or c_low == "pass"
+        ):
+            target_cols.add(c)
+    for ds_c in find_ds160_columns(df):
+        target_cols.add(ds_c)
+    if not target_cols:
+        target_cols.add(find_display_username_column(df))
+    return [c for c in df.columns if c in target_cols]
+
+
+def search_username_ds160_password_worker(df, query_text):
+    if df is None or df.empty or not query_text:
+        return (
+            pd.Series([True] * len(df), index=df.index)
+            if df is not None
+            else pd.Series([], dtype=bool)
+        )
+
+    q = query_text.strip().lower()
+    target_cols = get_target_search_columns(df)
+
+    mask = pd.Series([False] * len(df), index=df.index)
+    for col in target_cols:
+        col_mask = (
+            df[col]
+            .astype(str)
+            .str.lower()
+            .str.contains(q, case=False, na=False, regex=False)
+        )
+        mask = mask | col_mask
+    return mask
+
+
+def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
+    if not query_text:
+        return pd.DataFrame()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    matched_dfs = []
+    for s_name, df_s in all_sheets.items():
+        if df_s is None or df_s.empty:
+            continue
+        df_curr = reorder_dataframe_columns(df_s.copy())
+        if lead_filter and lead_filter != "All":
+            login_c_s = find_login_user_column(df_curr)
+            lead_col_s = next(
+                (c for c in df_curr.columns if "lead" in c.strip().lower()), login_c_s
+            )
+            if lead_col_s in df_curr.columns:
+                df_curr = df_curr[
+                    df_curr[lead_col_s]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                    .str.contains(lead_filter.lower(), na=False)
+                ]
+        if df_curr.empty:
+            continue
+        m = search_username_ds160_password_worker(df_curr, query_text)
+        res_s = df_curr[m]
+        if not res_s.empty:
+            res_s = res_s.copy()
+            res_s["Sheet_Name"] = s_name
+            matched_dfs.append(res_s)
+    if not matched_dfs:
+        return pd.DataFrame()
+    return pd.concat(matched_dfs, ignore_index=True)
+
+
+def search_main_data_any(df, query_text):
+    if df is None or df.empty or not query_text:
+        return (
+            pd.Series([True] * len(df), index=df.index)
+            if df is not None
+            else pd.Series([], dtype=bool)
+        )
+
+    q = query_text.strip().lower()
+    p_col = find_password_column(df)
+    excluded_cols = {
+        p_col,
+        "Appointment_PDF",
+        "Updated_By",
+        "Updated_At",
+        "Action_Type",
+        "Delete_Reason",
+    }
+    search_cols = [
+        c
+        for c in df.columns
+        if c not in excluded_cols and "password" not in c.strip().lower()
+    ]
+    if not search_cols:
+        search_cols = [c for c in df.columns if c != p_col]
+
+    mask = pd.Series([False] * len(df), index=df.index)
+    for col in search_cols:
+        col_mask = (
+            df[col]
+            .astype(str)
+            .str.lower()
+            .str.contains(q, case=False, na=False, regex=False)
+        )
+        mask = mask | col_mask
+    return mask
+
+
+def find_visa_type_column(df):
+    for c in df.columns:
+        if any(term in c.lower() for term in ["visa", "category", "type", "service"]):
+            return c
+    return None
+
+
+def get_all_workers_list():
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    all_workers = set()
+    for _, df_s in all_sheets.items():
+        if df_s is not None and not df_s.empty:
+            lc = find_login_user_column(df_s)
+            users = df_s[lc].astype(str).str.strip()
+            for u in users.unique():
+                if u != "" and u.lower() not in ["", "admin", "not assigned", "nan", "none"]:
+                    all_workers.add(u)
+    perms_map = load_permissions()
+    for p_user in perms_map.keys():
+        u_clean = str(p_user).strip()
+        if u_clean and u_clean.lower() not in ["admin", "not assigned"]:
+            all_workers.add(u_clean)
+    return sorted(list(all_workers))
+
+
+def are_all_workers_blocked():
+    workers = get_all_workers_list()
+    if not workers:
+        return False
+    perms = load_permissions()
+    norm_perms = {k.lower(): v for k, v in perms.items()}
+    return all(
+        norm_perms.get(w.lower(), {}).get("block_login", False) for w in workers
     )
 
 
-# --- App Initialization ---
-data, was_recovered = load_data(EXCEL_FILE)
-sync_sheets(data)
-write_workbook_safely(EXCEL_FILE, data)
-master_df = data["Master_Cases"].copy()
+def is_worker_blocked(worker_name):
+    if not worker_name:
+        return False
+    perms = load_permissions()
+    for k, v in perms.items():
+        if k.lower() == worker_name.strip().lower():
+            return v.get("block_login", False)
+    return False
 
-st.title("Case Workflow Manager — Kalyan & Anil")
-st.caption(
-    "Rules active: (1) Reschedule Kalyan Booked -> Keep Old HV ID | "
-    "(2) Reschedule TO Kalyan -> Generate New HV ID | "
-    "(3) Kalyan Assigns to Anil -> Anil Active Sheet + Generate New HV ID"
-)
 
-if was_recovered:
-    st.warning(
-        f"Previous `{EXCEL_FILE}` was empty or corrupted (BadZipFile). "
-        "A backup copy was saved and a clean workbook was initialized automatically."
-    )
-
-# --- KPI Row ---
-k1, k2, k3, k4 = st.columns(4)
-kalyan_booked_df = master_df[
-    (master_df["Case_Worker"] == "Kalyan") & (master_df["Bucket"] == "Booked")
-]
-kalyan_all_df = master_df[master_df["Case_Worker"] == "Kalyan"]
-anil_active_df = master_df[
-    (master_df["Case_Worker"] == "Anil") & (master_df["Bucket"] == "Active")
-]
-
-k1.metric("Kalyan Booked Cases", len(kalyan_booked_df))
-k2.metric("Kalyan Total Cases", len(kalyan_all_df))
-k3.metric("Anil Active Sheet Cases", len(anil_active_df))
-k4.metric("Master Cases", len(master_df))
-
-st.divider()
-
-# --- SECTION 1: Reschedule within Kalyan Booked -> KEEP OLD ID ---
-st.subheader("1. Reschedule Kalyan's Booked Case (Keep Old HV ID)")
-if kalyan_booked_df.empty:
-    st.info("No Booked cases currently under Kalyan.")
-else:
-    s1_id = st.selectbox(
-        "Select Kalyan Booked Case",
-        options=kalyan_booked_df["HV_ID"].tolist(),
-        key="s1_id",
-    )
-    row1 = kalyan_booked_df[kalyan_booked_df["HV_ID"] == s1_id].iloc[0]
-
-    c1, c2, c3 = st.columns(3)
-    d1 = c1.text_input("New Date", value=row1["Scheduled_Date"], key="d1")
-    t1 = c2.text_input("New Time (12-hr)", value=row1["Scheduled_Time"], key="t1")
-    n1 = c3.text_input("Notes", value=row1["Notes"], key="n1")
-
-    if st.button("Save Reschedule in Kalyan (Keep Old ID)", key="btn_s1"):
-        idx = master_df.index[master_df["HV_ID"] == s1_id][0]
-        ts = now_12hr()
-        master_df.at[idx, "Case_Worker"] = "Kalyan"
-        master_df.at[idx, "Bucket"] = "Booked"
-        master_df.at[idx, "Status"] = "Rescheduled (Booked)"
-        master_df.at[idx, "Scheduled_Date"] = d1.strip()
-        master_df.at[idx, "Scheduled_Time"] = t1.strip()
-        master_df.at[idx, "Notes"] = n1.strip()
-        master_df.at[idx, "Updated_At"] = ts
-
-        data["Master_Cases"] = master_df
-        sync_sheets(data)
-        append_audit_log(
-            data,
-            master_df.loc[idx].to_dict(),
-            "RESCHEDULE_KALYAN_BOOKED_KEEP_ID",
-            f"Rescheduled within Kalyan Booked keeping Old ID {s1_id}",
+def toggle_all_workers_block(block_status: bool):
+    all_workers = get_all_workers_list()
+    current_perms = load_permissions()
+    for w in all_workers:
+        matched_key = next(
+            (k for k in current_perms if k.lower() == w.lower()), w
         )
-        write_workbook_safely(EXCEL_FILE, data)
-        st.success(f"Updated {s1_id} under Kalyan Booked with Old HV ID preserved.")
-        st.rerun()
-
-st.divider()
-
-# --- SECTION 2: Reschedule TO Kalyan -> GENERATE NEW ID ---
-st.subheader("2. Reschedule Case TO Kalyan (Generate New HV ID)")
-eligible_to_kalyan = master_df[
-    ~(
-        (master_df["Case_Worker"] == "Kalyan")
-        & (master_df["Bucket"] == "Booked")
-        & (~master_df["Status"].str.startswith("Rescheduled to Kalyan"))
-    )
-]
-
-if eligible_to_kalyan.empty:
-    st.info("No eligible cases available to reschedule to Kalyan.")
-else:
-    s2_id = st.selectbox(
-        "Select Source Case to Reschedule TO Kalyan",
-        options=eligible_to_kalyan["HV_ID"].tolist(),
-        key="s2_id",
-    )
-    row2 = eligible_to_kalyan[eligible_to_kalyan["HV_ID"] == s2_id].iloc[0]
-
-    c1, c2, c3 = st.columns(3)
-    b2 = c1.selectbox("Kalyan Target Bucket", ["Booked", "Active"], key="b2")
-    d2 = c2.text_input("New Date", value=row2["Scheduled_Date"], key="d2")
-    t2 = c3.text_input("New Time (12-hr)", value=row2["Scheduled_Time"], key="t2")
-
-    if st.button("Reschedule TO Kalyan (Create New ID)", key="btn_s2"):
-        new_hv_id = generate_new_hv_id(get_all_ids(data), prefix="HV")
-        ts = now_12hr()
-
-        src_idx = master_df.index[master_df["HV_ID"] == s2_id][0]
-        master_df.at[src_idx, "Status"] = f"Rescheduled to Kalyan ({new_hv_id})"
-        master_df.at[src_idx, "Updated_At"] = ts
-
-        new_kalyan_row = {
-            "HV_ID": new_hv_id,
-            "Client_Name": row2["Client_Name"],
-            "Case_Worker": "Kalyan",
-            "Bucket": b2,
-            "Status": "Rescheduled",
-            "Scheduled_Date": d2.strip(),
-            "Scheduled_Time": t2.strip(),
-            "Previous_ID": s2_id,
-            "Notes": f"Rescheduled to Kalyan from {s2_id}. {row2['Notes']}".strip(),
-            "Updated_At": ts,
-        }
-
-        master_df = pd.concat(
-            [master_df, pd.DataFrame([new_kalyan_row], columns=COLUMNS)],
-            ignore_index=True,
-        )
-        data["Master_Cases"] = master_df
-        sync_sheets(data)
-        append_audit_log(
-            data,
-            new_kalyan_row,
-            "RESCHEDULE_TO_KALYAN_NEW_ID",
-            f"Created New ID {new_hv_id} for Kalyan from source {s2_id}",
-        )
-        write_workbook_safely(EXCEL_FILE, data)
-        st.success(f"Rescheduled to Kalyan with New HV ID: {new_hv_id} (Old ID: {s2_id})")
-        st.rerun()
-
-st.divider()
-
-# --- SECTION 3: Kalyan Assigns Case to Anil -> Anil Active Sheet + NEW ID ---
-st.subheader("3. Kalyan Assigns Case to Anil (Go to Anil Active Sheet + New HV ID)")
-kalyan_assignable = master_df[
-    (master_df["Case_Worker"] == "Kalyan")
-    & (~master_df["Status"].str.startswith("Assigned to Anil"))
-]
-
-if kalyan_assignable.empty:
-    st.info("No Kalyan cases available to assign to Anil.")
-else:
-    s3_id = st.selectbox(
-        "Select Kalyan Case to Assign to Anil",
-        options=kalyan_assignable["HV_ID"].tolist(),
-        key="s3_id",
-    )
-    row3 = kalyan_assignable[kalyan_assignable["HV_ID"] == s3_id].iloc[0]
-
-    c1, c2, c3 = st.columns(3)
-    d3 = c1.text_input("Anil Active Date", value=row3["Scheduled_Date"], key="d3")
-    t3 = c2.text_input("Anil Active Time (12-hr)", value=row3["Scheduled_Time"], key="t3")
-    n3 = c3.text_input("Assignment Notes", value=row3["Notes"], key="n3")
-
-    if st.button("Assign to Anil Active Sheet (Create New ID)", key="btn_s3"):
-        new_anil_id = generate_new_hv_id(get_all_ids(data), prefix="HV")
-        ts = now_12hr()
-
-        src_idx = master_df.index[master_df["HV_ID"] == s3_id][0]
-        master_df.at[src_idx, "Status"] = f"Assigned to Anil ({new_anil_id})"
-        master_df.at[src_idx, "Updated_At"] = ts
-
-        anil_active_row = {
-            "HV_ID": new_anil_id,
-            "Client_Name": row3["Client_Name"],
-            "Case_Worker": "Anil",
-            "Bucket": "Active",
-            "Status": "Active",
-            "Scheduled_Date": d3.strip(),
-            "Scheduled_Time": t3.strip(),
-            "Previous_ID": s3_id,
-            "Notes": f"Assigned by Kalyan from {s3_id}. {n3.strip()}".strip(),
-            "Updated_At": ts,
-        }
-
-        master_df = pd.concat(
-            [master_df, pd.DataFrame([anil_active_row], columns=COLUMNS)],
-            ignore_index=True,
-        )
-        data["Master_Cases"] = master_df
-        sync_sheets(data)
-        append_audit_log(
-            data,
-            anil_active_row,
-            "ASSIGN_KALYAN_TO_ANIL_ACTIVE_NEW_ID",
-            f"Assigned to Anil_Active with New ID {new_anil_id} from Kalyan ID {s3_id}",
-        )
-        write_workbook_safely(EXCEL_FILE, data)
-        st.success(
-            f"Assigned to Anil Active sheet with New HV ID: {new_anil_id} (from Kalyan ID: {s3_id})"
-        )
-        st.rerun()
-
-st.divider()
-
-# --- SECTION 4: Add New Case ---
-with st.expander("4. Add New Case"):
-    nc1, nc2, nc3, nc4 = st.columns(4)
-    nc_client = nc1.text_input("Client Name", key="nc_client")
-    nc_worker = nc2.selectbox("Case Worker", ["Kalyan", "Anil"], key="nc_worker")
-    nc_bucket = nc3.selectbox("Bucket", ["Booked", "Active"], key="nc_bucket")
-    nc_date = nc4.text_input("Date (YYYY-MM-DD)", value="2026-11-23", key="nc_date")
-
-    nc5, nc6 = st.columns(2)
-    nc_time = nc5.text_input("Time (12-hr)", value="10:00 AM", key="nc_time")
-    nc_notes = nc6.text_input("Notes", key="nc_notes")
-
-    if st.button("Add Case", key="btn_nc"):
-        if nc_client.strip():
-            new_id = generate_new_hv_id(get_all_ids(data), prefix="HV")
-            ts = now_12hr()
-            new_rec = {
-                "HV_ID": new_id,
-                "Client_Name": nc_client.strip(),
-                "Case_Worker": nc_worker,
-                "Bucket": nc_bucket,
-                "Status": nc_bucket,
-                "Scheduled_Date": nc_date.strip(),
-                "Scheduled_Time": nc_time.strip(),
-                "Previous_ID": "",
-                "Notes": nc_notes.strip(),
-                "Updated_At": ts,
+        if matched_key not in current_perms:
+            current_perms[matched_key] = {
+                "can_update": True,
+                "can_add": True,
+                "can_search": True,
+                "can_download": False,
+                "can_sync": False,
+                "block_login": block_status,
             }
-            master_df = pd.concat(
-                [master_df, pd.DataFrame([new_rec], columns=COLUMNS)],
-                ignore_index=True,
-            )
-            data["Master_Cases"] = master_df
-            sync_sheets(data)
-            append_audit_log(
-                data, new_rec, "ADD_NEW_CASE", f"Created new case {new_id} for {nc_worker}"
-            )
-            write_workbook_safely(EXCEL_FILE, data)
-            st.success(f"Added new case {new_id} for {nc_worker} ({nc_bucket}).")
-            st.rerun()
         else:
-            st.warning("Please enter a Client Name.")
+            current_perms[matched_key]["block_login"] = block_status
+        if block_status:
+            record_worker_logout(w)
+    save_permissions(current_perms)
 
-st.divider()
 
-# --- Sheet Views ---
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["Kalyan Cases", "Anil Active Sheet", "Master Cases", "Audit Log"]
-)
-with tab1:
-    st.dataframe(data["Kalyan_Cases"], use_container_width=True)
-with tab2:
-    st.dataframe(data["Anil_Active"], use_container_width=True)
-with tab3:
-    st.dataframe(data["Master_Cases"], use_container_width=True)
-with tab4:
-    st.dataframe(data["Audit_Log"], use_container_width=True)
+def is_not_assigned_value(val):
+    s = str(val).strip().lower()
+    return s in ["", "nan", "none", "not assigned", "unassigned", "-"]
+
+
+def is_today_updated_row(row, today_str):
+    upd_at = str(row.get("Updated_At", "")).strip()
+    upd_by = str(row.get("Updated_By", "")).strip()
+    if today_str in upd_at and upd_by != "":
+        return True
+    return False
