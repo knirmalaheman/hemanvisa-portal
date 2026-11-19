@@ -373,7 +373,13 @@ def append_rescheduled_to_active_sheet(
         return None, None
 
     new_rescheduled_id = generate_next_case_id()
-    row_to_active = source_row.copy()
+    row_to_active = {col: "" for col in df_active.columns}
+
+    # Copy matching fields from the booked row without mutating the booked row
+    for col in df_active.columns:
+        if col in source_row.index:
+            row_to_active[col] = str(source_row[col])
+
     row_to_active["Case_ID"] = new_rescheduled_id
 
     if assigned_worker is not None:
@@ -382,8 +388,8 @@ def append_rescheduled_to_active_sheet(
         login_c_act = find_login_user_column(df_active)
         row_to_active[login_c_act] = clean_worker
         for col in df_active.columns:
-            c_low = col.strip().lower()
-            if c_low in ["case worker", "cases_worker", "worker", "assigned_to", "assigned to"]:
+            c_low = col.strip().lower().replace("_", " ")
+            if c_low in ["case worker", "cases worker", "worker", "assigned to", "user"]:
                 row_to_active[col] = clean_worker
 
     row_to_active["Booking_Status"] = "Rescheduled"
@@ -394,16 +400,11 @@ def append_rescheduled_to_active_sheet(
     row_to_active["Updated_At"] = updated_at
     row_to_active["Action_Type"] = "Rescheduled Case"
 
-    for col in df_active.columns:
-        if col not in row_to_active:
-            row_to_active[col] = ""
-
     df_active_ordered = pd.concat(
         [df_active, pd.DataFrame([row_to_active])], ignore_index=True
     )
     save_data(df_active_ordered, sheet_name=active_sheet_name)
     return new_rescheduled_id, active_sheet_name
-
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
@@ -1260,49 +1261,162 @@ def render_clickable_table(
     page_size=100,
     allow_edit=True,
 ):
-    if df is None or df.empty:
+    if df.empty:
         st.info("No cases found.")
         return
 
     df = reorder_dataframe_columns(df)
+    total_rows = len(df)
+    total_pages = max(1, math.ceil(total_rows / page_size))
+    page_state_key = f"page_num_{table_key}"
+
+    if page_state_key not in st.session_state:
+        st.session_state[page_state_key] = 1
+    if st.session_state[page_state_key] > total_pages:
+        st.session_state[page_state_key] = total_pages
+    if st.session_state[page_state_key] < 1:
+        st.session_state[page_state_key] = 1
+
+    curr_page = st.session_state[page_state_key]
+    start_idx = (curr_page - 1) * page_size
+    end_idx = min(start_idx + page_size, total_rows)
+    page_df = df.iloc[start_idx:end_idx]
+
+    if total_pages > 1:
+        p_c1, p_c2, p_c3, p_c4 = st.columns([1.2, 2.6, 1.2, 1.2], gap="small")
+        with p_c1:
+            if st.button(
+                "⬅️ Previous",
+                key=f"prev_{table_key}",
+                disabled=(curr_page <= 1),
+                use_container_width=True,
+            ):
+                st.session_state[page_state_key] = curr_page - 1
+                st.rerun()
+        with p_c2:
+            st.markdown(
+                f"<div style='text-align:center; padding-top:10px; font-weight:700; color:#1e293b; font-size:13.5px;'>"
+                f"Page {curr_page} of {total_pages} &nbsp;|&nbsp; Showing {start_idx + 1}–{end_idx} of {total_rows} cases</div>",
+                unsafe_allow_html=True,
+            )
+        with p_c3:
+            if st.button(
+                "Next ➡️",
+                key=f"next_{table_key}",
+                disabled=(curr_page >= total_pages),
+                use_container_width=True,
+            ):
+                st.session_state[page_state_key] = curr_page + 1
+                st.rerun()
+        with p_c4:
+            jump_page = st.number_input(
+                "Page",
+                min_value=1,
+                max_value=total_pages,
+                value=curr_page,
+                label_visibility="collapsed",
+                key=f"jump_{table_key}",
+            )
+            if jump_page != curr_page:
+                st.session_state[page_state_key] = int(jump_page)
+                st.rerun()
+
     cols_to_hide = (
         ["Appointment_PDF"] if allow_edit else [p_col, "Appointment_PDF"]
     )
-    show_df = df.drop(columns=cols_to_hide, errors="ignore").copy()
-    show_df.index = range(1, len(show_df) + 1)
+    display_cols = [c for c in page_df.columns if c not in cols_to_hide]
 
-    if not allow_edit:
-        st.dataframe(show_df, use_container_width=True, height=460)
-        return
-
-    last_sel_key = f"_last_handled_row_{table_key}"
-    event = st.dataframe(
-        show_df,
-        use_container_width=True,
-        height=460,
-        on_select="rerun",
-        selection_mode="single-row",
-        key=f"df_select_{table_key}",
+    curr_logged = qp.get(
+        "logged_in", "true" if st.session_state.get("logged_in") else "false"
+    )
+    curr_user = qp.get("username", st.session_state.get("username", ""))
+    curr_role = qp.get("role", st.session_state.get("role", ""))
+    curr_sheet = (
+        sheet_for_link
+        or qp.get("active_sheet", st.session_state.get("active_sheet", ""))
     )
 
-    selected_rows = event.selection.rows if hasattr(event, "selection") else []
-    if selected_rows:
-        pos = selected_rows[0]
-        if pos < len(df.index):
-            actual_idx = df.index[pos]
-            token = f"{pos}:{actual_idx}"
-            if st.session_state.get(last_sel_key) != token:
-                st.session_state[last_sel_key] = token
-                if sheet_for_link:
-                    st.session_state["active_sheet"] = sheet_for_link
-                st.session_state["selected_row_idx"] = actual_idx
-                st.session_state["is_editing_popup"] = False
-                st.session_state["is_delete_request_mode"] = False
-                st.session_state["is_reschedule_mode"] = False
-                st.session_state["open_dialog"] = "edit_case_popup"
-                st.rerun()
-    else:
-        st.session_state[last_sel_key] = None
+    html_parts = [
+        '<div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 14px;">',
+        '<table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">',
+        '<thead><tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">',
+        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: center;">#</th>',
+    ]
+    for col in display_cols:
+        html_parts.append(
+            f'<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
+        )
+    html_parts.append(
+        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
+    )
+    html_parts.append("</tr></thead><tbody>")
+
+    base_link = f"?logged_in={curr_logged}&username={curr_user}&role={curr_role}&active_sheet={curr_sheet}&edit_row="
+    indices = page_df.index.tolist()
+    act_col_vals = (
+        page_df["Action_Type"].astype(str).str.strip().str.lower().tolist()
+        if "Action_Type" in page_df.columns
+        else [""] * len(page_df)
+    )
+    booking_status_vals = (
+        page_df["Booking_Status"].astype(str).str.strip().tolist()
+        if "Booking_Status" in page_df.columns
+        else ["Active"] * len(page_df)
+    )
+    col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
+
+    for i, idx in enumerate(indices):
+        serial_no = start_idx + i + 1
+        act_t = act_col_vals[i]
+        b_status = booking_status_vals[i]
+        row_bg = (
+            "#fee2e2"
+            if act_t == "delete rejected"
+            else ("#f8fafc" if i % 2 == 0 else "#ffffff")
+        )
+        html_parts.append(f'<tr style="background-color: {row_bg};">')
+        html_parts.append(
+            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 700;">{serial_no}</td>'
+        )
+
+        for col in display_cols:
+            val = col_data[col][i]
+            if col == "Case_ID":
+                cell_content = f'<span style="font-weight:800; color:#1e3a8a; background:#eff6ff; padding:2px 8px; border-radius:6px; border:1px solid #bfdbfe;">{val if val != "" else "-"}</span>'
+            elif col == display_c:
+                display_val = (
+                    val.strip() if val.strip() != "" else "Not Assigned"
+                )
+                if allow_edit:
+                    cell_content = f'<a href="{base_link}{idx}" target="_self" class="username-hyperlink">{display_val}</a>'
+                else:
+                    cell_content = f'<span style="font-weight:700; color:#1e293b;">{display_val}</span>'
+            else:
+                cell_content = val if val != "" else "-"
+            html_parts.append(
+                f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
+            )
+
+        if act_t == "delete rejected":
+            status_display = "Rejected"
+            status_color = "#b91c1c"
+        elif b_status.lower() == "rescheduled":
+            status_display = "Rescheduled"
+            status_color = "#d97706"
+        elif b_status.lower() == "booked":
+            status_display = "Booked"
+            status_color = "#059669"
+        else:
+            status_display = "Active"
+            status_color = "#1e293b"
+
+        html_parts.append(
+            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: {status_color}; font-weight: 700; white-space: nowrap;">{status_display}</td>'
+        )
+        html_parts.append("</tr>")
+
+    html_parts.append("</tbody></table></div>")
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
@@ -1535,22 +1649,15 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 else:
                     try:
                         ts_now = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        # Take a clean snapshot BEFORE touching anything
                         booked_snapshot_row = df_full.loc[row_idx].copy()
+                        original_booked_worker = str(booked_snapshot_row.get(login_c, "")).strip()
 
                         if is_booked_sheet:
+                            # Keep Kalyan's Booked row 100% intact with Old ID, original worker & Status = Booked
                             df_full.at[row_idx, "Case_ID"] = case_id_val
+                            df_full.at[row_idx, login_c] = original_booked_worker
                             df_full.at[row_idx, "Booking_Status"] = "Booked"
-                            df_full.at[row_idx, "Preferred_Location"] = (
-                                pref_loc_input.strip()
-                            )
-                            df_full.at[row_idx, "Preferred_Dates"] = (
-                                pref_dates_input.strip()
-                            )
-                            df_full.at[row_idx, "Prior_Notice"] = (
-                                prior_notice_input.strip()
-                            )
-                            df_full.at[row_idx, "Updated_By"] = current_user
-                            df_full.at[row_idx, "Updated_At"] = ts_now
                             df_full.at[row_idx, "Action_Type"] = "Booked"
                         else:
                             df_full.at[row_idx, "Case_ID"] = case_id_val
@@ -1590,7 +1697,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["open_dialog"] = None
                         if new_rescheduled_id:
                             st.success(
-                                f"✅ Old ID ({case_id_val}) Booked sheet lo Kalyan daggarane undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki vellindi!"
+                                f"✅ Old ID ({case_id_val}) Booked sheet lo {original_booked_worker} daggarane 'Booked' status tho undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki vellindi!"
                             )
                         else:
                             st.success("✅ Case successfully rescheduled!")
@@ -1929,12 +2036,23 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             booking_status_choice == "Rescheduled"
                             and is_booked_sheet
                         ):
+                            new_resched_id = None
+                        target_act_sheet_p = None
+                        if (
+                            booking_status_choice == "Rescheduled"
+                            and is_booked_sheet
+                        ):
                             active_worker_pick = str(
-                                df_full.at[row_idx, login_c]
+                                updated_values.get(login_c, df_full.at[row_idx, login_c])
                             ).strip()
+                            # Restore original worker (Kalyan), Old ID & Booked status on Booked sheet
+                            orig_worker_booked = str(row_data.get(login_c, "")).strip()
                             df_full.at[row_idx, "Case_ID"] = case_id_val
+                            df_full.at[row_idx, login_c] = orig_worker_booked
                             df_full.at[row_idx, "Booking_Status"] = "Booked"
+                            df_full.at[row_idx, "Action_Type"] = "Booked"
                             save_data(df_full, sheet_name=sheet_name)
+
                             new_resched_id, target_act_sheet_p = (
                                 append_rescheduled_to_active_sheet(
                                     source_row=df_full.loc[row_idx],
@@ -1946,16 +2064,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     assigned_worker=active_worker_pick,
                                 )
                             )
-
-                        st.session_state["is_editing_popup"] = False
-                        st.session_state["is_reschedule_mode"] = False
-                        st.session_state["is_delete_request_mode"] = False
-                        st.session_state["selected_row_idx"] = None
-                        st.session_state["open_dialog"] = None
-                        for _qp_key in ["edit_row", "active_sheet", "username", "role", "logged_in"]:
-                            if _qp_key in st.query_params:
-                                del st.query_params[_qp_key]
-                        if new_resched_id:
                             st.success(
                                 f"✅ Kept in Booked sheet ({case_id_val}, Status: Booked) & added to {target_act_sheet_p} with new ID: {new_resched_id} (Worker: {active_worker_pick or 'Not Assigned'})"
                             )
@@ -1971,9 +2079,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["is_delete_request_mode"] = False
                 st.session_state["selected_row_idx"] = None
                 st.session_state["open_dialog"] = None
-                for _qp_key in ["edit_row", "active_sheet", "username", "role", "logged_in"]:
-                    if _qp_key in st.query_params:
-                        del st.query_params[_qp_key]
                 st.rerun()
 
 
@@ -3115,7 +3220,7 @@ elif st.session_state["open_dialog"] == "admin_kpi_popup":
         lead_filter=kpi_meta.get("lead", "All"),
     )
     st.session_state["open_dialog"] = None
-elif st.session_state.get("open_dialog") == "edit_case_popup":
+elif st.session_state["open_dialog"] == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
     if r_idx is not None:
         curr_role = st.session_state.get("role", "worker")
@@ -3129,7 +3234,6 @@ elif st.session_state.get("open_dialog") == "edit_case_popup":
         view_and_edit_case_dialog(
             st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd
         )
-        st.session_state["open_dialog"] = None
 
 if not st.session_state["logged_in"]:
     default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
