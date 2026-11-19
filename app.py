@@ -334,7 +334,7 @@ def get_default_active_sheet(sheets_list=None):
     )
 
 
-def generate_next_case_id():
+def generate_next_case_id(extra_reserved_ids=None):
     all_sheets_dict = load_all_sheets_cached(_get_file_mtime())
     max_num = 1000
     for s_name, df_s in all_sheets_dict.items():
@@ -345,7 +345,47 @@ def generate_next_case_id():
                     num = int(m.group(1))
                     if num > max_num:
                         max_num = num
+    if extra_reserved_ids:
+        for cid in extra_reserved_ids:
+            m = re.search(r"(\d+)", str(cid).strip())
+            if m:
+                num = int(m.group(1))
+                if num > max_num:
+                    max_num = num
     return f"HV-{max_num + 1}"
+
+
+def append_rescheduled_to_active_sheet(
+    source_row, pref_loc, pref_dates, prior_notice, updated_by, updated_at
+):
+    sheets_all = get_sheet_names()
+    active_sheet_name = get_default_active_sheet(sheets_all)
+    if not active_sheet_name:
+        return None
+    df_active = load_data(sheet_name=active_sheet_name)
+    if df_active is None:
+        return None
+
+    new_rescheduled_id = generate_next_case_id()
+    row_to_active = source_row.copy()
+    row_to_active["Case_ID"] = new_rescheduled_id
+    row_to_active["Booking_Status"] = "Rescheduled"
+    row_to_active["Preferred_Location"] = pref_loc.strip()
+    row_to_active["Preferred_Dates"] = pref_dates.strip()
+    row_to_active["Prior_Notice"] = prior_notice.strip()
+    row_to_active["Updated_By"] = updated_by
+    row_to_active["Updated_At"] = updated_at
+    row_to_active["Action_Type"] = "Rescheduled Case"
+
+    for col in df_active.columns:
+        if col not in row_to_active:
+            row_to_active[col] = ""
+
+    df_active_ordered = pd.concat(
+        [df_active, pd.DataFrame([row_to_active])], ignore_index=True
+    )
+    save_data(df_active_ordered, sheet_name=active_sheet_name)
+    return new_rescheduled_id
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -640,6 +680,19 @@ def toggle_all_workers_block(block_status: bool):
     save_permissions(current_perms)
 
 
+def is_not_assigned_value(val):
+    s = str(val).strip().lower()
+    return s in ["", "nan", "none", "not assigned", "unassigned", "-"]
+
+
+def is_today_updated_row(row, today_str):
+    upd_at = str(row.get("Updated_At", "")).strip()
+    upd_by = str(row.get("Updated_By", "")).strip()
+    if today_str in upd_at and upd_by != "":
+        return True
+    return False
+
+
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -911,13 +964,13 @@ st.markdown("""
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
-        padding: 20px 14px;
+        padding: 18px 14px;
         border-radius: 13px;
         box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
         text-align: center;
         border-bottom: 4px solid #64748b;
-        margin-bottom: 10px;
-        height: 110px;
+        margin-bottom: 6px;
+        height: 104px;
         width: 100%;
         display: flex;
         flex-direction: column;
@@ -936,17 +989,25 @@ st.markdown("""
         background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
         border-bottom: 4px solid #6366f1;
     }
+    .kpi-card.teal {
+        background: linear-gradient(135deg, #115e59 0%, #0f766e 100%);
+        border-bottom: 4px solid #14b8a6;
+    }
+    .kpi-card.rose {
+        background: linear-gradient(135deg, #881337 0%, #be123c 100%);
+        border-bottom: 4px solid #fb7185;
+    }
     .kpi-title {
         font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 1.2px;
+        letter-spacing: 1.1px;
         opacity: 0.92;
         margin-bottom: 6px;
         font-weight: 700;
         color: #f1f5f9;
     }
     .kpi-value {
-        font-size: 28px;
+        font-size: 27px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
@@ -1488,8 +1549,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                     )
                 else:
                     try:
-                        new_rescheduled_id = generate_next_case_id()
-
+                        ts_now = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
                         df_full.at[row_idx, "Preferred_Location"] = (
                             pref_loc_input.strip()
                         )
@@ -1501,45 +1561,33 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         )
                         df_full.at[row_idx, "Booking_Status"] = "Rescheduled"
                         df_full.at[row_idx, "Updated_By"] = current_user
-                        df_full.at[row_idx, "Updated_At"] = (
-                            get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
-                        )
+                        df_full.at[row_idx, "Updated_At"] = ts_now
                         df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
 
                         save_data(df_full, sheet_name=sheet_name)
 
-                        sheets_all = get_sheet_names()
-                        active_sheet_name = get_default_active_sheet(sheets_all)
-                        if active_sheet_name and active_sheet_name != sheet_name:
-                            df_active = load_data(sheet_name=active_sheet_name)
-                            if df_active is not None:
-                                row_to_active = df_full.loc[row_idx].copy()
-                                row_to_active["Case_ID"] = new_rescheduled_id
-                                row_to_active["Booking_Status"] = "Rescheduled"
-                                row_to_active["Preferred_Location"] = (
-                                    pref_loc_input.strip()
+                        new_rescheduled_id = None
+                        if is_booked_sheet:
+                            new_rescheduled_id = (
+                                append_rescheduled_to_active_sheet(
+                                    source_row=df_full.loc[row_idx],
+                                    pref_loc=pref_loc_input,
+                                    pref_dates=pref_dates_input,
+                                    prior_notice=prior_notice_input,
+                                    updated_by=current_user,
+                                    updated_at=ts_now,
                                 )
-                                row_to_active["Preferred_Dates"] = (
-                                    pref_dates_input.strip()
-                                )
-                                row_to_active["Prior_Notice"] = (
-                                    prior_notice_input.strip()
-                                )
-                                for col in df_active.columns:
-                                    if col not in row_to_active:
-                                        row_to_active[col] = ""
-                                df_active = pd.concat(
-                                    [df_active, pd.DataFrame([row_to_active])],
-                                    ignore_index=True,
-                                )
-                                save_data(df_active, sheet_name=active_sheet_name)
+                            )
 
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success(
-                            f"✅ Case successfully rescheduled! New Unique Case ID created: {new_rescheduled_id}"
-                        )
+                        if new_rescheduled_id:
+                            st.success(
+                                f"✅ Rescheduled! Kept in Booked sheet ({case_id_val}) & added to Active sheet with new ID: {new_rescheduled_id}"
+                            )
+                        else:
+                            st.success("✅ Case successfully rescheduled!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error saving reschedule: {e}")
@@ -1833,7 +1881,11 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         if changed:
                             df_full.at[row_idx, "Updated_By"] = current_user
                             df_full.at[row_idx, "Updated_At"] = current_time_str
-                            df_full.at[row_idx, "Action_Type"] = "Updated Case"
+                            df_full.at[row_idx, "Action_Type"] = (
+                                "Rescheduled Case"
+                                if booking_status_choice == "Rescheduled"
+                                else "Updated Case"
+                            )
 
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
@@ -1863,54 +1915,35 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 )
                                 df_full = df_full.drop(row_idx)
 
-                        elif (
+                        save_data(df_full, sheet_name=sheet_name)
+
+                        new_resched_id = None
+                        if (
                             booking_status_choice == "Rescheduled"
                             and is_booked_sheet
                         ):
-                            sheets_all = get_sheet_names()
-                            active_sheet_name = get_default_active_sheet(
-                                sheets_all
+                            new_resched_id = (
+                                append_rescheduled_to_active_sheet(
+                                    source_row=df_full.loc[row_idx],
+                                    pref_loc=popup_pref_loc,
+                                    pref_dates=popup_pref_dates,
+                                    prior_notice=popup_prior_notice,
+                                    updated_by=current_user,
+                                    updated_at=current_time_str,
+                                )
                             )
-                            if active_sheet_name:
-                                new_rescheduled_id = generate_next_case_id()
-                                df_target_active = load_data(
-                                    sheet_name=active_sheet_name
-                                )
-                                row_to_transfer = df_full.loc[row_idx].copy()
-                                row_to_transfer["Case_ID"] = new_rescheduled_id
-                                row_to_transfer["Booking_Status"] = "Rescheduled"
-                                row_to_transfer["Preferred_Location"] = (
-                                    popup_pref_loc.strip()
-                                )
-                                row_to_transfer["Preferred_Dates"] = (
-                                    popup_pref_dates.strip()
-                                )
-                                row_to_transfer["Prior_Notice"] = (
-                                    popup_prior_notice.strip()
-                                )
 
-                                for col in df_target_active.columns:
-                                    if col not in row_to_transfer:
-                                        row_to_transfer[col] = ""
-
-                                df_target_active = pd.concat(
-                                    [
-                                        df_target_active,
-                                        pd.DataFrame([row_to_transfer]),
-                                    ],
-                                    ignore_index=True,
-                                )
-                                save_data(
-                                    df_target_active, sheet_name=active_sheet_name
-                                )
-
-                        save_data(df_full, sheet_name=sheet_name)
                         st.session_state["is_editing_popup"] = False
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["is_delete_request_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully updated and saved!")
+                        if new_resched_id:
+                            st.success(
+                                f"✅ Rescheduled! Kept in Booked sheet ({case_id_val}) & added to Active sheet with new ID: {new_resched_id}"
+                            )
+                        else:
+                            st.success("✅ Case successfully updated and saved!")
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
@@ -1922,6 +1955,60 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 st.session_state["selected_row_idx"] = None
                 st.session_state["open_dialog"] = None
                 st.rerun()
+
+
+@st.dialog("📌 KPI Case Details", width="large")
+def admin_kpi_cases_dialog(sheet_name, filter_mode, lead_filter="All"):
+    today_str = get_ist_now().strftime("%Y-%m-%d")
+    df_s = load_data(sheet_name=sheet_name)
+    if df_s is None or df_s.empty:
+        st.info("No cases found.")
+        return
+
+    df_s = reorder_dataframe_columns(df_s)
+    login_c = find_login_user_column(df_s)
+    display_c = find_display_username_column(df_s)
+    p_col = find_password_column(df_s)
+    lead_col = next(
+        (c for c in df_s.columns if "lead" in c.strip().lower()), login_c
+    )
+
+    if lead_filter and lead_filter != "All" and lead_col in df_s.columns:
+        df_s = df_s[
+            df_s[lead_col]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .str.contains(lead_filter.lower(), na=False)
+        ]
+
+    if filter_mode == "today_updated":
+        st.info(
+            f"🕒 Today Updated Cases ({today_str}) in **{sheet_name}** | Lead: **{lead_filter}**"
+        )
+        matched = df_s[
+            df_s.apply(lambda r: is_today_updated_row(r, today_str), axis=1)
+        ]
+    elif filter_mode == "not_assigned":
+        st.info(
+            f"👤 Not Assigned Cases in **{sheet_name}** | Lead: **{lead_filter}**"
+        )
+        matched = df_s[df_s[login_c].apply(is_not_assigned_value)]
+    else:
+        matched = df_s
+
+    if matched.empty:
+        st.warning("No matching cases found for this KPI.")
+    else:
+        st.success(f"Total Matching Cases: {len(matched)}")
+        render_clickable_table(
+            matched,
+            display_c,
+            p_col,
+            table_key=f"kpi_dlg_{filter_mode}_{sheet_name}",
+            sheet_for_link=sheet_name,
+            allow_edit=True,
+        )
 
 
 @st.dialog(
@@ -3000,6 +3087,14 @@ dialog_map = {
 if st.session_state["open_dialog"] in dialog_map:
     dialog_map[st.session_state["open_dialog"]]()
     st.session_state["open_dialog"] = None
+elif st.session_state["open_dialog"] == "admin_kpi_popup":
+    kpi_meta = st.session_state.get("admin_kpi_popup_meta", {})
+    admin_kpi_cases_dialog(
+        sheet_name=kpi_meta.get("sheet", default_s_init),
+        filter_mode=kpi_meta.get("mode", "today_updated"),
+        lead_filter=kpi_meta.get("lead", "All"),
+    )
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
     if r_idx is not None:
@@ -3411,6 +3506,9 @@ elif st.session_state["role"] == "admin":
         total_cases_d = len(df_dash) if df_dash is not None else 0
         today_str_d = get_ist_now().strftime("%Y-%m-%d")
         today_count_d = 0
+        today_updated_count_d = 0
+        not_assigned_count_d = 0
+
         if df_dash is not None and not df_dash.empty:
             date_cols_d = [
                 c
@@ -3423,6 +3521,10 @@ elif st.session_state["role"] == "admin":
                     for dc in date_cols_d
                 ) or today_str_d in str(r.get("Updated_At", "")):
                     today_count_d += 1
+                if is_today_updated_row(r, today_str_d):
+                    today_updated_count_d += 1
+                if is_not_assigned_value(r.get(login_c_d, "")):
+                    not_assigned_count_d += 1
 
         del_reqs_count_d = 0
         for _, df_s in all_sheets_map.items():
@@ -3469,6 +3571,50 @@ elif st.session_state["role"] == "admin":
                 f"<div class='kpi-card gold'><div class='kpi-title'>Delete Requests</div><div class='kpi-value'>{del_reqs_count_d}</div></div>",
                 unsafe_allow_html=True,
             )
+
+        k5, k6, _, _ = st.columns(4, gap="medium")
+        with k5:
+            st.markdown(
+                f"<div class='kpi-card teal'><div class='kpi-title'>Today Updated</div><div class='kpi-value'>{today_updated_count_d}</div></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<span class="admin-btn-5" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                f"🕒 View Today Updated ({today_updated_count_d})",
+                key="kpi_btn_today_updated",
+                use_container_width=True,
+            ):
+                st.session_state["admin_kpi_popup_meta"] = {
+                    "sheet": dash_s_name,
+                    "mode": "today_updated",
+                    "lead": st.session_state["admin_selected_lead"],
+                }
+                st.session_state["open_dialog"] = "admin_kpi_popup"
+                st.rerun()
+        with k6:
+            st.markdown(
+                f"<div class='kpi-card rose'><div class='kpi-title'>Not Assigned</div><div class='kpi-value'>{not_assigned_count_d}</div></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<span class="admin-btn-7" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                f"👤 View Not Assigned ({not_assigned_count_d})",
+                key="kpi_btn_not_assigned",
+                use_container_width=True,
+            ):
+                st.session_state["admin_kpi_popup_meta"] = {
+                    "sheet": dash_s_name,
+                    "mode": "not_assigned",
+                    "lead": st.session_state["admin_selected_lead"],
+                }
+                st.session_state["open_dialog"] = "admin_kpi_popup"
+                st.rerun()
 
         st.markdown(
             "<div class='action-group-title'>⚡ QUICK ACTIONS & REPORTS:</div>",
