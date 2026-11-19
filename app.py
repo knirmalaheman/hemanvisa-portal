@@ -2685,11 +2685,11 @@ else:
 my_total = len(filtered_user_rows)
 my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
 
-    k1, k2 = st.columns(2, gap="medium")
-    with k1:
-        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
-    with k2:
-        st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
+k1, k2 = st.columns(2, gap="medium")
+with k1:
+    st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
+with k2:
+    st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
