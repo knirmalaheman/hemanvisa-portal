@@ -2664,9 +2664,11 @@ else:
             v_series = user_rows[visa_col].astype(str).str.strip().str.upper()
             v_series = v_series[v_series != ""]
             visa_counts = v_series.value_counts().to_dict()
+
+worker_dash_tab = st.session_state.get("worker_dash_tab_radio", "📊 My Workspace")
+
 if worker_dash_tab == "📊 My Workspace":
-        admin_notice = get_admin_notice()
-        
+    admin_notice = get_admin_notice()        
         # --- ఇక్కడ నుండి Lead Filter Logic యాడ్ చేయండి ---
         if "worker_selected_lead" not in st.session_state:
             st.session_state["worker_selected_lead"] = "All"
