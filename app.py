@@ -19,8 +19,6 @@ LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
 
-st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
-
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
@@ -141,6 +139,69 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
+def get_next_case_id(all_sheets_dict=None):
+    max_num = 1000
+    if all_sheets_dict is None and os.path.exists(EXCEL_FILE):
+        try:
+            all_sheets_dict = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+        except Exception:
+            all_sheets_dict = {}
+    if all_sheets_dict:
+        for _, df_s in all_sheets_dict.items():
+            if df_s is not None and not df_s.empty:
+                for col in df_s.columns:
+                    if col.strip().lower().replace("_", " ") in ["case id", "caseid"]:
+                        for val in df_s[col].astype(str):
+                            digits = "".join(ch for ch in val if ch.isdigit())
+                            if digits:
+                                num = int(digits)
+                                if num > max_num:
+                                    max_num = num
+    return f"HV-{max_num + 1}"
+
+def ensure_case_ids_on_disk():
+    if not os.path.exists(EXCEL_FILE):
+        return
+    try:
+        sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+        updated_any = False
+        max_num = 1000
+
+        for _, df_s in sheets_data.items():
+            if df_s is not None and not df_s.empty:
+                for col in df_s.columns:
+                    if col.strip().lower().replace("_", " ") in ["case id", "caseid"]:
+                        for val in df_s[col].astype(str):
+                            digits = "".join(ch for ch in val if ch.isdigit())
+                            if digits:
+                                num = int(digits)
+                                if num > max_num:
+                                    max_num = num
+
+        for s_name, df_s in sheets_data.items():
+            if df_s is not None:
+                df_s.columns = df_s.columns.str.strip()
+                if "Case_ID" not in df_s.columns:
+                    df_s.insert(0, "Case_ID", "")
+                    updated_any = True
+                for idx in df_s.index:
+                    curr_id = str(df_s.at[idx, "Case_ID"]).strip()
+                    if curr_id == "" or curr_id.lower() == "nan":
+                        max_num += 1
+                        df_s.at[idx, "Case_ID"] = f"HV-{max_num}"
+                        updated_any = True
+                sheets_data[s_name] = df_s
+
+        if updated_any:
+            with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
+                for s, df_val in sheets_data.items():
+                    df_val.to_excel(writer, sheet_name=str(s), index=False)
+    except Exception:
+        pass
+
+st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
+ensure_case_ids_on_disk()
+
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
         return df
@@ -149,7 +210,7 @@ def reorder_dataframe_columns(df):
         df = df.drop(columns=cols_to_drop, errors="ignore")
 
     cols = list(df.columns)
-    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
+    desired_order_prefixes = ["case id", "case_id", "case", "username", "password", "no of app", "lead"]
     found_priority = []
     
     for prefix in desired_order_prefixes:
@@ -170,6 +231,8 @@ def load_all_sheets_cached(file_mtime):
             for s_name, df in all_sheets.items():
                 df.columns = df.columns.str.strip()
                 df = df.fillna("")
+                if "Case_ID" not in df.columns:
+                    df.insert(0, "Case_ID", "")
                 if "Unnamed: 5" in df.columns:
                     df = df.rename(columns={"Unnamed: 5": "Category"})
                 if "Updated_By" not in df.columns:
@@ -293,37 +356,6 @@ def find_display_username_column(df):
             return col
     return df.columns[0]
 
-def find_ds160_columns(df):
-    ds_cols = []
-    for col in df.columns:
-        c_norm = col.strip().lower().replace("-", "").replace("_", "").replace(" ", "")
-        if "ds160" in c_norm or "ds 160" in col.strip().lower():
-            ds_cols.append(col)
-    return ds_cols
-
-def search_username_and_ds160(df, query_text):
-    if df is None or df.empty or not query_text:
-        return pd.Series([True] * len(df), index=df.index) if df is not None else pd.Series([], dtype=bool)
-    
-    q = query_text.strip().lower()
-    target_cols = set()
-    for c in df.columns:
-        c_low = c.strip().lower()
-        if c_low == "username" or "username" in c_low:
-            target_cols.add(c)
-    for ds_c in find_ds160_columns(df):
-        target_cols.add(ds_c)
-
-    if not target_cols:
-        disp_c = find_display_username_column(df)
-        target_cols.add(disp_c)
-
-    mask = pd.Series([False] * len(df), index=df.index)
-    for col in target_cols:
-        col_mask = df[col].astype(str).str.lower().str.contains(q, case=False, na=False, regex=False)
-        mask = mask | col_mask
-    return mask
-
 def find_password_column(df):
     for col in df.columns:
         if col.strip().lower() in ["password", "pass"]:
@@ -446,18 +478,13 @@ if st.session_state["logged_in"] and "edit_row" in qp:
 elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
 
-sheets_init = get_sheet_names()
-default_s_init = sheets_init[0] if sheets_init else "Sheet1"
-
 if "active_sheet" not in st.session_state:
+    sheets_init = get_sheet_names()
     saved_sheet = qp.get("active_sheet")
-    st.session_state["active_sheet"] = saved_sheet if saved_sheet in sheets_init else default_s_init
-
-if "dash_sheet" not in st.session_state:
-    st.session_state["dash_sheet"] = st.session_state["active_sheet"]
-
-if "records_sheet" not in st.session_state:
-    st.session_state["records_sheet"] = st.session_state["active_sheet"]
+    if saved_sheet in sheets_init:
+        st.session_state["active_sheet"] = saved_sheet
+    else:
+        st.session_state["active_sheet"] = sheets_init[0] if sheets_init else "Sheet1"
 
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
     if not st.session_state.get("attendance_recorded", False):
@@ -644,29 +671,6 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
-    .workspace-header-bar {
-        background: linear-gradient(135deg, #0f1c3f 0%, #1e293b 100%);
-        color: #ffffff;
-        padding: 13px 20px;
-        border-radius: 12px;
-        border-left: 5px solid #d4af37;
-        font-size: 16px;
-        font-weight: 800;
-        letter-spacing: 0.4px;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .workspace-sheet-pill {
-        background: rgba(212, 175, 55, 0.18);
-        border: 1px solid #d4af37;
-        color: #fde047;
-        padding: 3px 12px;
-        border-radius: 20px;
-        font-size: 12.5px;
-        font-weight: 700;
-    }
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -788,7 +792,7 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.9px;
         color: #334155;
-        margin: 10px 0 6px 2px;
+        margin: 12px 0 8px 2px;
     }
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
@@ -820,67 +824,14 @@ st.markdown("""
     .username-hyperlink:hover {
         color: #2563eb !important;
     }
-    /* Modern Segmented Pill Radio Controls (Hide default radio dots completely) */
-    div[data-testid="stRadio"] > div[role="radiogroup"] {
-        display: flex !important;
+    div[data-testid="stRadio"] > div {
         flex-direction: row !important;
         flex-wrap: wrap !important;
-        gap: 8px !important;
-        background: #f1f5f9 !important;
-        padding: 6px !important;
-        border-radius: 12px !important;
-        border: 1px solid #cbd5e1 !important;
-        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06) !important;
-        width: fit-content !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label {
-        background: transparent !important;
-        padding: 8px 18px !important;
-        border-radius: 9px !important;
-        border: 1px solid transparent !important;
-        cursor: pointer !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        margin: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label > div:first-child,
-    div[data-testid="stRadio"] > div[role="radiogroup"] label > span:first-child,
-    div[data-testid="stRadio"] > div[role="radiogroup"] label input[type="radio"] {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-        opacity: 0 !important;
-        position: absolute !important;
-        pointer-events: none !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label p {
-        font-size: 13.5px !important;
-        font-weight: 700 !important;
-        color: #475569 !important;
-        margin: 0 !important;
-        letter-spacing: 0.2px !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label:hover {
-        background: rgba(255, 255, 255, 0.75) !important;
-        color: #0f172a !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
-        background: linear-gradient(135deg, #0f1c3f 0%, #1e3a8a 100%) !important;
-        border-bottom: 2.5px solid #d4af37 !important;
-        box-shadow: 0 4px 12px rgba(15, 28, 63, 0.25) !important;
-        transform: translateY(-1px) !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) p {
-        color: #ffffff !important;
-    }
-    .overall-search-box {
+        gap: 12px !important;
         background: #f8fafc;
-        border: 1.5px solid #cbd5e1;
-        border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
     }
     div[data-testid="stExpander"] {
         width: 100% !important;
@@ -1043,7 +994,21 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     elif st.session_state["is_reschedule_mode"]:
         st.markdown("### 🔄 Reschedule Appointment Case")
+        
+        all_workers_list_res = get_all_workers_list()
+        if not all_workers_list_res:
+            all_workers_list_res = ["Not Assigned"]
+        else:
+            if "Not Assigned" not in all_workers_list_res:
+                all_workers_list_res.insert(0, "Not Assigned")
+        
+        curr_worker_res = str(row_data.get(login_c, "")).strip()
+        if curr_worker_res and curr_worker_res not in all_workers_list_res:
+            all_workers_list_res.append(curr_worker_res)
+        w_idx_res = all_workers_list_res.index(curr_worker_res) if curr_worker_res in all_workers_list_res else 0
+
         with st.form(f"reschedule_form_{row_idx}"):
+            selected_res_worker = st.selectbox(f"👤 Assign Case Worker for Rescheduled Case ({login_c})", options=all_workers_list_res, index=w_idx_res, key=f"res_worker_select_{row_idx}")
             pref_loc_input = st.text_input("Preferred Location", value="", placeholder="Enter preferred location...")
             pref_dates_input = st.text_input("Preferred Dates", value="", placeholder="Enter preferred dates...")
             prior_notice_input = st.text_input("Prior Notice", value="", placeholder="Enter prior notice details...")
@@ -1071,10 +1036,21 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         sheets_all = get_sheet_names()
                         active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0] if sheets_all else None)
+                        new_reschedule_id = get_next_case_id()
                         if active_sheet_name and active_sheet_name != sheet_name:
                             df_active = load_data(sheet_name=active_sheet_name)
                             if df_active is not None:
+                                active_login_c = find_login_user_column(df_active)
+                                active_p_col = find_password_column(df_active)
+                                final_assigned_worker = "" if selected_res_worker == "Not Assigned" else selected_res_worker.strip()
+
                                 row_to_active = df_full.loc[row_idx].copy()
+                                row_to_active["Case_ID"] = new_reschedule_id
+                                row_to_active[active_login_c] = final_assigned_worker
+                                if active_p_col in df_active.columns and final_assigned_worker != "":
+                                    matched_w = df_active[df_active[active_login_c].astype(str).str.strip().str.lower() == final_assigned_worker.lower()]
+                                    if not matched_w.empty:
+                                        row_to_active[active_p_col] = str(matched_w.iloc[0][active_p_col]).strip()
                                 row_to_active["Booking_Status"] = "Rescheduled"
                                 row_to_active["Preferred_Location"] = pref_loc_input.strip()
                                 row_to_active["Preferred_Dates"] = pref_dates_input.strip()
@@ -1088,7 +1064,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully rescheduled and saved in both sheets!")
+                        st.success(f"✅ Case rescheduled with New ID ({new_reschedule_id}) and assigned to {selected_res_worker}!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error saving reschedule: {e}")
@@ -1245,10 +1221,13 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Updated_At"] = current_time_str
                             df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
+                        target_save_sheet = sheet_name
+                        
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
                             booked_sheet_name = next((s for s in sheets_all if "booked" in s.lower()), None)
                             if booked_sheet_name and booked_sheet_name != sheet_name:
+                                target_save_sheet = booked_sheet_name
                                 df_target_booked = load_data(sheet_name=booked_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
                                 
@@ -1261,11 +1240,21 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
 
                         elif booking_status_choice == "Rescheduled" and is_booked_sheet:
+                            orig_booked_worker = str(row_data.get(login_c, "")).strip()
+                            selected_edit_worker = str(updated_values.get(login_c, orig_booked_worker)).strip()
+                            final_assigned_worker = "" if selected_edit_worker == "Not Assigned" else selected_edit_worker
+                            df_full.at[row_idx, login_c] = orig_booked_worker
+
                             sheets_all = get_sheet_names()
                             active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
                             if active_sheet_name:
                                 df_target_active = load_data(sheet_name=active_sheet_name)
+                                active_login_c = find_login_user_column(df_target_active)
+                                new_res_id = get_next_case_id()
+
                                 row_to_transfer = df_full.loc[row_idx].copy()
+                                row_to_transfer["Case_ID"] = new_res_id
+                                row_to_transfer[active_login_c] = final_assigned_worker
                                 row_to_transfer["Booking_Status"] = "Rescheduled"
                                 row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
                                 row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
@@ -1382,7 +1371,7 @@ def admin_pdf_download_dialog():
         if search_query != "" and not found_any:
             st.warning(f"No PDFs found matching username or filename: '{search_query}'")
 
-def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_link="", page_size=100):
+def render_clickable_table(df, display_c, p_col, table_key="main", page_size=100):
     if df.empty:
         st.info("No cases found.")
         return
@@ -1431,7 +1420,7 @@ def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_lin
     curr_logged = qp.get("logged_in", "true" if st.session_state.get("logged_in") else "false")
     curr_user = qp.get("username", st.session_state.get("username", ""))
     curr_role = qp.get("role", st.session_state.get("role", ""))
-    curr_sheet = sheet_for_link or qp.get("active_sheet", st.session_state.get("active_sheet", ""))
+    curr_sheet = qp.get("active_sheet", st.session_state.get("active_sheet", ""))
 
     html_parts = [
         '<div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);">',
@@ -1770,7 +1759,7 @@ def admin_updated_cases_dialog():
                 else:
                     pc = find_password_column(matched_df)
                     display_c = find_display_username_column(matched_df)
-                    render_clickable_table(matched_df, display_c, pc, table_key="dlg_cal_cases", sheet_for_link=selected_cal_sheet)
+                    render_clickable_table(matched_df, display_c, pc, table_key="dlg_cal_cases")
             else:
                 st.warning("No date column found in this sheet.")
 
@@ -2061,7 +2050,7 @@ def add_case_dialog(worker_name):
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
+        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Case_ID", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
         for col_name in cols:
             c_lower = col_name.lower()
             if 'date' in c_lower and 'prefer' not in c_lower:
@@ -2073,6 +2062,8 @@ def add_case_dialog(worker_name):
         if st.form_submit_button("🚀 Submit New Case", type="primary", use_container_width=True):
             try:
                 new_row = {col: "" for col in target_df.columns}
+                new_case_id = get_next_case_id()
+                new_row["Case_ID"] = new_case_id
                 final_assigned_user = "" if assigned_username == "Not Assigned" else assigned_username.strip()
                 new_row[t_login_col] = final_assigned_user
                 
@@ -2105,7 +2096,7 @@ def add_case_dialog(worker_name):
             except Exception as e:
                 st.error(f"❌ Error: {e}")
 
-@st.dialog("🔍 Search Main Data (Username & DS160 Only)", width="large")
+@st.dialog("🔍 Search Main Data", width="large")
 def search_data_dialog():
     sheets = get_sheet_names()
     selected_search_sheet = st.selectbox("Select Sheet to Search:", options=sheets, key="dlg_search_sheet")
@@ -2114,16 +2105,16 @@ def search_data_dialog():
         display_c = find_display_username_column(df_search)
         p_col = find_password_column(df_search)
         
-        search_query = st.text_input("Search by Username or DS160 Number only:", placeholder="Type Username or DS160 number...", key="dlg_search_input").strip()
+        search_query = st.text_input("Type any branch name or person name:", placeholder="e.g., ALLAGADDA, Adoni...", key="dlg_search_input").strip()
         
         if search_query != "":
-            main_search_mask = search_username_and_ds160(df_search, search_query)
+            main_search_mask = df_search.apply(lambda row: row.astype(str).str.contains(search_query, case=False, na=False).any(), axis=1)
             found_data = df_search[main_search_mask]
             
             if found_data.empty:
-                st.warning(f"No matching Username or DS160 Number found for '{search_query}'.")
+                st.warning(f"No details found for '{search_query}'.")
             else:
-                st.success(f"Matching Username / DS160 results for '{search_query}' ({len(found_data)} rows):")
+                st.success(f"Results for '{search_query}' ({len(found_data)} rows):")
                 view_only_df = found_data.drop(columns=[display_c, p_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Appointment_PDF", "Appointment_Entry", "Preferred_Location", "Preferred_Dates", "Prior_Notice"], errors="ignore")
                 view_only_df = reorder_dataframe_columns(view_only_df)
                 view_only_df.index = range(1, len(view_only_df) + 1)
@@ -2333,7 +2324,6 @@ if not st.session_state["logged_in"]:
                                 st.session_state["logged_in"] = True
                                 st.session_state["username"] = admin_u
                                 st.session_state["role"] = "admin"
-                                st.session_state["admin_active_view"] = None
                                 st.session_state["open_dialog"] = None
                                 st.session_state["selected_row_idx"] = None
                                 st.query_params.clear()
@@ -2370,8 +2360,6 @@ if not st.session_state["logged_in"]:
                                         st.session_state["username"] = actual_matched_username
                                         st.session_state["role"] = "worker"
                                         st.session_state["active_sheet"] = matched_sheet
-                                        st.session_state["dash_sheet"] = matched_sheet
-                                        st.session_state["records_sheet"] = matched_sheet
                                         st.session_state["attendance_recorded"] = True
                                         st.session_state["open_dialog"] = None
                                         st.session_state["selected_row_idx"] = None
@@ -2386,21 +2374,22 @@ if not st.session_state["logged_in"]:
 
 elif st.session_state["role"] == "admin":
     sheets = get_sheet_names()
-    current_sheet = st.session_state.get("active_sheet", sheets[0] if sheets else "Sheet1")
+    current_sheet = st.session_state["active_sheet"]
+    
     if current_sheet not in sheets:
         current_sheet = sheets[0]
         st.session_state["active_sheet"] = current_sheet
 
-    if "admin_active_view" not in st.session_state:
-        st.session_state["admin_active_view"] = None
-
-    active_admin_view = st.session_state.get("admin_active_view")
-    header_sheet_label = st.session_state.get("dash_sheet", current_sheet) if active_admin_view == "dashboard" else (st.session_state.get("records_sheet", current_sheet) if active_admin_view == "records" else current_sheet)
+    df = load_data(sheet_name=current_sheet)
+    df = reorder_dataframe_columns(df)
+    login_c = find_login_user_column(df)
+    display_c = find_display_username_column(df)
+    p_col = find_password_column(df)
     
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='workspace-header-bar'><span>👑 Admin Control Panel</span><span class='workspace-sheet-pill'>📂 {header_sheet_label}</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
             st.cache_data.clear()
@@ -2413,89 +2402,47 @@ elif st.session_state["role"] == "admin":
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
-            st.session_state["admin_active_view"] = None
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    t_c1, t_c2, t_c3 = st.columns([1.4, 1.4, 1.4], gap="small")
-    with t_c1:
-        is_d_act = (active_admin_view == "dashboard")
-        st.markdown(f'<span class="{"admin-btn-0" if is_d_act else "admin-btn-6"}" style="display:none;"></span>', unsafe_allow_html=True)
-        if st.button("📊 Dashboard & Quick Actions", key="admin_tab_dash_btn", use_container_width=True):
-            st.session_state["admin_active_view"] = "dashboard"
-            st.rerun()
-    with t_c2:
-        is_r_act = (active_admin_view == "records")
-        st.markdown(f'<span class="{"admin-btn-0" if is_r_act else "admin-btn-6"}" style="display:none;"></span>', unsafe_allow_html=True)
-        if st.button("📂 Case Records & Search", key="admin_tab_rec_btn", use_container_width=True):
-            st.session_state["admin_active_view"] = "records"
-            st.rerun()
-    with t_c3:
-        is_g_act = (active_admin_view == "guidelines")
-        st.markdown(f'<span class="{"admin-btn-0" if is_g_act else "admin-btn-6"}" style="display:none;"></span>', unsafe_allow_html=True)
-        if st.button("ℹ️ System Guidelines", key="admin_tab_guide_btn", use_container_width=True):
-            st.session_state["admin_active_view"] = "guidelines"
-            st.rerun()
-
+    admin_dash_tab = st.radio(
+        "Admin Navigation",
+        ["📊 Dashboard & Quick Actions", "📂 Case Records & Search", "ℹ️ System Guidelines"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="admin_dash_tab_radio"
+    )
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-    if "admin_selected_lead" not in st.session_state:
-        st.session_state["admin_selected_lead"] = "All"
+    total_cases = len(df)
+    updated_cases = len(df[df["Updated_By"].astype(str).str.strip() != ""])
+    unassigned_cases = len(df[df[login_c].astype(str).str.strip() == ""])
+    active_workers = df[login_c].astype(str).str.strip().replace("", pd.NA).dropna().nunique()
 
-    if active_admin_view == "dashboard":
-        dash_s_name = st.session_state.get("dash_sheet", current_sheet)
-        if dash_s_name not in sheets:
-            dash_s_name = current_sheet
-        df_d_base = load_data(sheet_name=dash_s_name)
-        df_d_base = reorder_dataframe_columns(df_d_base)
-        login_c_d = find_login_user_column(df_d_base)
-        lead_col_d = next((c for c in df_d_base.columns if "lead" in c.strip().lower()), login_c_d)
+    visa_col = find_visa_type_column(df)
+    visa_counts = {}
+    if visa_col and not df.empty:
+        v_series = df[visa_col].astype(str).str.strip().str.upper()
+        v_series = v_series[v_series != ""]
+        visa_counts = v_series.value_counts().to_dict()
 
-        # 1st: FILTER BY LEAD NAME (Top)
-        st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
-        lead_options = ["All", "Kiran", "Shanthi"]
-        curr_idx = lead_options.index(st.session_state["admin_selected_lead"]) if st.session_state["admin_selected_lead"] in lead_options else 0
-        selected_lead = st.radio(
-            "Filter by Lead Name",
-            options=lead_options,
-            index=curr_idx,
-            horizontal=True,
-            key="admin_lead_radio_filter",
-            label_visibility="collapsed"
-        )
-        if selected_lead != st.session_state["admin_selected_lead"]:
-            st.session_state["admin_selected_lead"] = selected_lead
-            st.rerun()
-
-        # 2nd: SWITCH SHEET (Below Lead Filter - filters ONLY Dashboard view)
+    if admin_dash_tab == "📊 Dashboard & Quick Actions":
         if sheets:
-            st.markdown("<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>", unsafe_allow_html=True)
+            st.markdown("<div class='action-group-title'>📑 Switch Sheet:</div>", unsafe_allow_html=True)
             sw_cols = st.columns(len(sheets), gap="small")
             for idx, s_name in enumerate(sheets):
                 with sw_cols[idx]:
-                    is_active = (s_name == dash_s_name)
+                    is_active = (s_name == current_sheet)
                     color_cls = "admin-btn-1" if is_active else "admin-btn-6"
                     btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
                     st.markdown(f'<span class="{color_cls}" style="display:none;"></span>', unsafe_allow_html=True)
-                    if st.button(btn_txt, key=f"dash_only_switch_sheet_{s_name}_{idx}", use_container_width=True):
-                        st.session_state["dash_sheet"] = s_name
+                    if st.button(btn_txt, key=f"dash_switch_sheet_{s_name}_{idx}", use_container_width=True):
+                        st.session_state["active_sheet"] = s_name
+                        st.query_params["active_sheet"] = s_name
                         st.rerun()
-            st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-
-        if st.session_state["admin_selected_lead"] != "All" and not df_d_base.empty and lead_col_d in df_d_base.columns:
-            sel_l = st.session_state["admin_selected_lead"].lower()
-            df_dash = df_d_base[df_d_base[lead_col_d].astype(str).str.strip().str.lower().str.contains(sel_l, na=False)]
-        else:
-            df_dash = df_d_base
-
-        total_cases = len(df_dash)
-        updated_cases = len(df_dash[df_dash["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in df_dash.columns else 0
-        unassigned_cases = len(df_dash[df_dash[login_c_d].astype(str).str.strip() == ""]) if login_c_d in df_dash.columns else 0
-        active_workers = df_dash[login_c_d].astype(str).str.strip().replace("", pd.NA).dropna().nunique() if login_c_d in df_dash.columns else 0
-
-        st.markdown(f"<div class='section-banner'>📊 Dashboard Summary — Sheet: <b>{dash_s_name}</b> | Lead: <b>{st.session_state['admin_selected_lead']}</b></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
         k1, k2, k3, k4 = st.columns(4, gap="medium")
         with k1:
@@ -2579,51 +2526,12 @@ elif st.session_state["role"] == "admin":
 
         st.divider()
 
-    elif active_admin_view == "records":
-        rec_s_name = st.session_state.get("records_sheet", current_sheet)
-        if rec_s_name not in sheets:
-            rec_s_name = current_sheet
-        df_r = load_data(sheet_name=rec_s_name)
-        df_r = reorder_dataframe_columns(df_r)
-        display_c_r = find_display_username_column(df_r)
-        p_col_r = find_password_column(df_r)
-        visa_col_r = find_visa_type_column(df_r)
-
-        visa_counts_r = {}
-        if visa_col_r and not df_r.empty:
-            v_series = df_r[visa_col_r].astype(str).str.strip().str.upper()
-            v_series = v_series[v_series != ""]
-            visa_counts_r = v_series.value_counts().to_dict()
-
-        st.markdown(f"<div class='section-banner'>📂 Case Records & Search — Sheet: <b>{rec_s_name}</b></div>", unsafe_allow_html=True)
-
-        # Overall Search Bar (Username & DS160 Number Only)
-        st.markdown("<div class='overall-search-box'>", unsafe_allow_html=True)
-        admin_search = st.text_input(
-            "🔎 Overall Search (Username & DS160 Number Only):",
-            placeholder="Type Username or DS160 number to search...",
-            key="admin_overall_search_input"
-        ).strip()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Switch Sheet buttons (Filters ONLY Case Records view)
-        if sheets:
-            st.markdown("<div class='action-group-title'>📑 SWITCH SHEET (CASE RECORDS FILTER):</div>", unsafe_allow_html=True)
-            sw_cols_r = st.columns(len(sheets), gap="small")
-            for s_idx, s_name in enumerate(sheets):
-                with sw_cols_r[s_idx]:
-                    is_act = (s_name == rec_s_name)
-                    color_c = "admin-btn-1" if is_act else "admin-btn-6"
-                    b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
-                    st.markdown(f'<span class="{color_c}" style="display:none;"></span>', unsafe_allow_html=True)
-                    if st.button(b_txt, key=f"records_only_sheet_btn_{s_idx}", use_container_width=True):
-                        st.session_state["records_sheet"] = s_name
-                        st.session_state["selected_visa_filter"] = "All"
-                        st.rerun()
-
-        if visa_counts_r:
+    elif admin_dash_tab == "📂 Case Records & Search":
+        st.markdown("<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>", unsafe_allow_html=True)
+        
+        if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ Visa Category Distribution (Click any card to filter):</div>", unsafe_allow_html=True)
-            visa_items = list(visa_counts_r.items())
+            visa_items = list(visa_counts.items())
             mid = (len(visa_items) + 1) // 2
             rows = [visa_items[:mid], visa_items[mid:]]
             
@@ -2636,7 +2544,7 @@ elif st.session_state["role"] == "admin":
                             btn_label = f"✈️ {v_name}: {v_count}"
                             color_idx = btn_counter % 8
                             st.markdown(f'<span class="visa-color-{color_idx}" style="display:none;"></span>', unsafe_allow_html=True)
-                            if st.button(btn_label, key=f"admin_visa_card_btn_{rec_s_name}_{v_name}_{idx}", use_container_width=True):
+                            if st.button(btn_label, key=f"admin_visa_card_btn_{v_name}_{idx}", use_container_width=True):
                                 if st.session_state["selected_visa_filter"] == v_name:
                                     st.session_state["selected_visa_filter"] = "All"
                                 else:
@@ -2650,17 +2558,37 @@ elif st.session_state["role"] == "admin":
                     st.rerun()
             st.divider()
 
-        display_df = df_r
+        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
+        with col_search:
+            admin_search = st.text_input("Search for any username, case, or info:", placeholder="e.g., Anil, Kiran...", key="admin_search_input").strip()
+        with col_sheets:
+            if sheets:
+                st.markdown("📑 **Switch Sheet:**")
+                sw_cols = st.columns(len(sheets), gap="small")
+                for s_idx, s_name in enumerate(sheets):
+                    with sw_cols[s_idx]:
+                        is_act = (s_name == current_sheet)
+                        color_c = "admin-btn-1" if is_act else "admin-btn-6"
+                        b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
+                        st.markdown(f'<span class="{color_c}" style="display:none;"></span>', unsafe_allow_html=True)
+                        if st.button(b_txt, key=f"admin_sheet_btn_{s_idx}", use_container_width=True):
+                            st.session_state["active_sheet"] = s_name
+                            st.query_params["active_sheet"] = s_name
+                            st.rerun()
+        
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+        display_df = df
         if admin_search != "":
-            admin_search_mask = search_username_and_ds160(display_df, admin_search)
+            admin_search_mask = display_df.apply(lambda row: row.astype(str).str.contains(admin_search, case=False, na=False).any(), axis=1)
             display_df = display_df[admin_search_mask]
 
-        if st.session_state["selected_visa_filter"] != "All" and visa_col_r:
+        if st.session_state["selected_visa_filter"] != "All" and visa_col:
             target_visa = st.session_state["selected_visa_filter"]
-            display_df = display_df[display_df[visa_col_r].astype(str).str.strip().str.upper() == target_visa]
+            display_df = display_df[display_df[visa_col].astype(str).str.strip().str.upper() == target_visa]
 
-        st.caption(f"💡 Showing {len(display_df)} cases in '{rec_s_name}' (Overall Search: Username & DS160 only). Click USERNAME inside the table to view, edit, or delete details.")
-        render_clickable_table(display_df, display_c_r, p_col_r, table_key=f"admin_{rec_s_name}", sheet_for_link=rec_s_name)
+        st.caption(f"💡 Showing {len(display_df)} cases. Click USERNAME inside the table to view, edit, or delete details.")
+        render_clickable_table(display_df, display_c, p_col, table_key=f"admin_{current_sheet}")
                     
         if os.path.exists(EXCEL_FILE):
             with open(EXCEL_FILE, "rb") as f:
@@ -2674,7 +2602,7 @@ elif st.session_state["role"] == "admin":
                 key="admin_dl_all_btn"
             )
 
-    elif active_admin_view == "guidelines":
+    elif admin_dash_tab == "ℹ️ System Guidelines":
         st.markdown("<div class='section-banner'>ℹ️ HemanVisa Admin Operations & Workflow Guide</div>", unsafe_allow_html=True)
         g1, g2 = st.columns(2, gap="medium")
         with g1:
@@ -2726,7 +2654,7 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='workspace-header-bar'><span>👋 Welcome, {current_user}</span><span class='workspace-sheet-pill'>💼 Case Worker Workspace</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.cache_data.clear()
@@ -2764,42 +2692,8 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>", unsafe_allow_html=True)
-        if "worker_selected_lead" not in st.session_state:
-            st.session_state["worker_selected_lead"] = "All"
-
-        lead_options_w = ["All", "Kiran", "Shanthi"]
-        curr_idx_w = lead_options_w.index(st.session_state["worker_selected_lead"]) if st.session_state["worker_selected_lead"] in lead_options_w else 0
-        selected_lead_w = st.radio(
-            "Filter by Lead Name",
-            options=lead_options_w,
-            index=curr_idx_w,
-            horizontal=True,
-            key="worker_lead_radio_filter",
-            label_visibility="collapsed"
-        )
-        if selected_lead_w != st.session_state["worker_selected_lead"]:
-            st.session_state["worker_selected_lead"] = selected_lead_w
-            st.rerun()
-        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-
-        login_c_val = globals().get("login_c", login_c)
-        lead_col_w = next((c for c in user_rows.columns if "lead" in c.strip().lower()), login_c_val)
-
-        if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and lead_col_w in user_rows.columns:
-            sel_l_w = st.session_state["worker_selected_lead"].lower()
-            filtered_user_rows = user_rows[user_rows[lead_col_w].astype(str).str.strip().str.lower().str.contains(sel_l_w, na=False)]
-        else:
-            filtered_user_rows = user_rows
-
-        my_total = len(filtered_user_rows)
-        my_updated = len(filtered_user_rows[filtered_user_rows["Updated_By"].astype(str).str.strip() != ""]) if "Updated_By" in filtered_user_rows.columns else 0
-
-        k1, k2 = st.columns(2, gap="medium")
-        with k1:
-            st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
-        with k2:
-            st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
+        my_total = len(user_rows)
+        my_updated = len(user_rows[user_rows["Updated_By"].astype(str).str.strip() != ""])
 
         visa_col = find_visa_type_column(user_rows)
         visa_counts = {}
@@ -2807,6 +2701,12 @@ else:
             v_series = user_rows[visa_col].astype(str).str.strip().str.upper()
             v_series = v_series[v_series != ""]
             visa_counts = v_series.value_counts().to_dict()
+
+        k1, k2 = st.columns(2, gap="medium")
+        with k1:
+            st.markdown(f"<div class='kpi-card'><div class='kpi-title'>📁 My Cases</div><div class='kpi-value'>{my_total}</div></div>", unsafe_allow_html=True)
+        with k2:
+            st.markdown(f"<div class='kpi-card green'><div class='kpi-title'>✅ Updated By Me</div><div class='kpi-value'>{my_updated}</div></div>", unsafe_allow_html=True)
 
         if visa_counts:
             st.markdown("<div class='action-group-title'>✈️ My Visa Category Distribution (Click any button to filter):</div>", unsafe_allow_html=True)
@@ -2899,7 +2799,7 @@ else:
                 
         st.divider()
         
-        display_user_rows = filtered_user_rows
+        display_user_rows = user_rows
         if st.session_state["selected_visa_filter"] != "All" and visa_col:
             target_visa = st.session_state["selected_visa_filter"]
             display_user_rows = display_user_rows[display_user_rows[visa_col].astype(str).str.strip().str.upper() == target_visa]
@@ -2910,7 +2810,7 @@ else:
             st.info("No cases found matching your criteria in this sheet.")
         else:
             st.caption("💡 Click USERNAME inside the table to view, edit, or request deletion.")
-            render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}", sheet_for_link=current_sheet)
+            render_clickable_table(display_user_rows, display_c, p_col, table_key=f"worker_{current_user}_{current_sheet}")
 
     elif worker_dash_tab == "ℹ️ Case Worker Guide":
         st.markdown("<div class='section-banner'>ℹ️ Case Worker Quick Guide & Instructions</div>", unsafe_allow_html=True)
