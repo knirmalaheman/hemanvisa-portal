@@ -361,7 +361,7 @@ def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
         res_s = df_curr[m]
         if not res_s.empty:
             res_s = res_s.copy()
-            res_s.insert(0, "Sheet_Name", s_name)
+            res_s["Sheet_Name"] = s_name
             matched_dfs.append(res_s)
     if not matched_dfs:
         return pd.DataFrame()
@@ -2551,10 +2551,11 @@ elif st.session_state["role"] == "admin":
             if df_all_sheets_res.empty:
                 st.info(f"No matching records found across any sheet for '{dash_search_query}'.")
             else:
-                res_disp = df_all_sheets_res.drop(columns=["Appointment_PDF", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason"], errors="ignore")
+                sheet_series = df_all_sheets_res["Sheet_Name"].copy() if "Sheet_Name" in df_all_sheets_res.columns else None
+                res_disp = df_all_sheets_res.drop(columns=["Appointment_PDF", "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Sheet_Name"], errors="ignore")
                 res_disp = reorder_dataframe_columns(res_disp)
-                if "Sheet_Name" in df_all_sheets_res.columns:
-                    res_disp.insert(0, "Sheet_Name", df_all_sheets_res["Sheet_Name"].values)
+                if sheet_series is not None:
+                    res_disp.insert(0, "Sheet_Name", sheet_series.values)
                 res_disp.index = range(1, len(res_disp) + 1)
                 st.dataframe(res_disp, use_container_width=True)
             st.divider()
@@ -2829,7 +2830,6 @@ else:
                 </div>
             """, unsafe_allow_html=True)
 
-        # Case Worker Search Bar: searches ONLY Case Username, DS160, Case Password, or Case Worker (Read-Only results)
         worker_search_query = st.text_input(
             "🔍 Search (Case Username, DS160, Password & Case Worker — Read-Only):",
             placeholder="Type Username, DS160, Case Password, or Case Worker...",
