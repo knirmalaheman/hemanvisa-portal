@@ -2672,7 +2672,7 @@ if worker_dash_tab == "📊 My Workspace":
     # --- ఇక్కడ నుండి Lead Filter Logic యాడ్ చేయండి ---
     if "worker_selected_lead" not in st.session_state:
         st.session_state["worker_selected_lead"] = "All"
-
+login_c = globals().get("login_c", "Login_ID")
     lead_col_w = next((c for c in user_rows.columns if "lead" in c.strip().lower()), login_c)
 
     if st.session_state["worker_selected_lead"] != "All" and not user_rows.empty and lead_col_w in user_rows.columns:
