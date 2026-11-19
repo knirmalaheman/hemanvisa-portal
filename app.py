@@ -6,6 +6,7 @@ import datetime
 import base64
 import json
 import math
+import re
 
 EXCEL_FILE = "Heman_Report.xlsx"
 ADMIN_FILE = "admin_config.txt"
@@ -141,6 +142,72 @@ def record_worker_logout(worker_name):
             break
     save_attendance(attendance)
 
+def get_default_active_sheet(sheets_list=None):
+    if sheets_list is None:
+        sheets_list = get_sheet_names()
+    if not sheets_list:
+        return "Sheet1"
+    return next((s for s in sheets_list if "booked" not in s.lower()), sheets_list[0])
+
+def generate_next_case_id(all_sheets_dict=None):
+    if all_sheets_dict is None:
+        all_sheets_dict = load_all_sheets_cached(_get_file_mtime())
+    max_num = 1000
+    for s_name, df_s in all_sheets_dict.items():
+        if df_s is not None and not df_s.empty and "Case_ID" in df_s.columns:
+            for val in df_s["Case_ID"].astype(str):
+                m = re.search(r'(\d+)', val.strip())
+                if m:
+                    num = int(m.group(1))
+                    if num > max_num:
+                        max_num = num
+    return f"HV-{max_num + 1}"
+
+def ensure_all_cases_have_unique_ids():
+    if not os.path.exists(EXCEL_FILE):
+        return
+    try:
+        all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+        modified = False
+        max_num = 1000
+        seen_ids = set()
+
+        for s_name, df in all_sheets.items():
+            df.columns = df.columns.str.strip()
+            if "Case_ID" in df.columns:
+                for val in df["Case_ID"].fillna("").astype(str):
+                    m = re.search(r'(\d+)', val.strip())
+                    if m:
+                        num = int(m.group(1))
+                        if num > max_num:
+                            max_num = num
+
+        for s_name, df in all_sheets.items():
+            df.columns = df.columns.str.strip()
+            df = df.fillna("")
+            if "Case_ID" not in df.columns:
+                df.insert(0, "Case_ID", "")
+                modified = True
+            for idx in df.index:
+                cid = str(df.at[idx, "Case_ID"]).strip()
+                if cid == "" or cid.lower() == "nan" or cid in seen_ids:
+                    max_num += 1
+                    new_cid = f"HV-{max_num}"
+                    df.at[idx, "Case_ID"] = new_cid
+                    seen_ids.add(new_cid)
+                    modified = True
+                else:
+                    seen_ids.add(cid)
+            all_sheets[s_name] = reorder_dataframe_columns(df)
+
+        if modified:
+            with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
+                for s, df_val in all_sheets.items():
+                    df_val.to_excel(writer, sheet_name=str(s), index=False)
+            st.cache_data.clear()
+    except Exception:
+        pass
+
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
         return df
@@ -149,9 +216,11 @@ def reorder_dataframe_columns(df):
         df = df.drop(columns=cols_to_drop, errors="ignore")
 
     cols = list(df.columns)
-    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
     found_priority = []
-    
+    if "Case_ID" in cols:
+        found_priority.append("Case_ID")
+
+    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
     for prefix in desired_order_prefixes:
         for c in cols:
             c_low = c.strip().lower().replace("_", " ")
@@ -170,6 +239,8 @@ def load_all_sheets_cached(file_mtime):
             for s_name, df in all_sheets.items():
                 df.columns = df.columns.str.strip()
                 df = df.fillna("")
+                if "Case_ID" not in df.columns:
+                    df.insert(0, "Case_ID", "")
                 if "Unnamed: 5" in df.columns:
                     df = df.rename(columns={"Unnamed: 5": "Category"})
                 if "Updated_By" not in df.columns:
@@ -314,7 +385,8 @@ def get_target_search_columns(df):
     for c in df.columns:
         c_low = c.strip().lower().replace("_", " ")
         if (
-            "username" in c_low
+            "case id" in c_low
+            or "username" in c_low
             or "user" in c_low
             or "case worker" in c_low
             or "worker" in c_low
@@ -436,6 +508,8 @@ def toggle_all_workers_block(block_status: bool):
             record_worker_logout(w)
     save_permissions(current_perms)
 
+ensure_all_cases_have_unique_ids()
+
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -490,6 +564,8 @@ if "selected_row_idx" not in st.session_state:
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
+        if "active_sheet" in qp and qp["active_sheet"] in get_sheet_names():
+            st.session_state["active_sheet"] = qp["active_sheet"]
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
         st.session_state["is_editing_popup"] = False
@@ -504,17 +580,18 @@ elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
 
 sheets_init = get_sheet_names()
-default_s_init = sheets_init[0] if sheets_init else "Sheet1"
+default_s_init = get_default_active_sheet(sheets_init)
 
 if "active_sheet" not in st.session_state:
-    saved_sheet = qp.get("active_sheet")
-    st.session_state["active_sheet"] = saved_sheet if saved_sheet in sheets_init else default_s_init
+    st.session_state["active_sheet"] = default_s_init
+    if st.session_state.get("logged_in"):
+        st.query_params["active_sheet"] = default_s_init
 
 if "dash_sheet" not in st.session_state:
-    st.session_state["dash_sheet"] = st.session_state["active_sheet"]
+    st.session_state["dash_sheet"] = default_s_init
 
 if "records_sheet" not in st.session_state:
-    st.session_state["records_sheet"] = st.session_state["active_sheet"]
+    st.session_state["records_sheet"] = default_s_init
 
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
     if not st.session_state.get("attendance_recorded", False):
@@ -985,8 +1062,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     display_c = find_display_username_column(df_full)
     login_c = find_login_user_column(df_full)
     p_col = find_password_column(df_full)
+    case_id_val = str(row_data.get("Case_ID", "N/A")).strip()
 
-    st.info(f"📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Case Username: **{row_data[display_c]}**")
+    st.info(f"🆔 Case ID: **{case_id_val}** | 📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Case Username: **{row_data[display_c]}**")
 
     action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
     if role == "worker" and action_type_val == "delete rejected":
@@ -1090,7 +1168,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             st.rerun()
 
     elif st.session_state["is_reschedule_mode"]:
-        st.markdown("### 🔄 Reschedule Appointment Case")
+        st.markdown(f"### 🔄 Reschedule Appointment Case (Original ID: `{case_id_val}`)")
         with st.form(f"reschedule_form_{row_idx}"):
             pref_loc_input = st.text_input("Preferred Location", value="", placeholder="Enter preferred location...")
             pref_dates_input = st.text_input("Preferred Dates", value="", placeholder="Enter preferred dates...")
@@ -1107,6 +1185,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                     st.warning("⚠️ All 3 fields (Preferred Location, Preferred Dates, and Prior Notice) must be entered to save Reschedule!")
                 else:
                     try:
+                        new_rescheduled_id = generate_next_case_id()
+
                         df_full.at[row_idx, "Preferred_Location"] = pref_loc_input.strip()
                         df_full.at[row_idx, "Preferred_Dates"] = pref_dates_input.strip()
                         df_full.at[row_idx, "Prior_Notice"] = prior_notice_input.strip()
@@ -1118,11 +1198,12 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         save_data(df_full, sheet_name=sheet_name)
 
                         sheets_all = get_sheet_names()
-                        active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0] if sheets_all else None)
+                        active_sheet_name = get_default_active_sheet(sheets_all)
                         if active_sheet_name and active_sheet_name != sheet_name:
                             df_active = load_data(sheet_name=active_sheet_name)
                             if df_active is not None:
                                 row_to_active = df_full.loc[row_idx].copy()
+                                row_to_active["Case_ID"] = new_rescheduled_id
                                 row_to_active["Booking_Status"] = "Rescheduled"
                                 row_to_active["Preferred_Location"] = pref_loc_input.strip()
                                 row_to_active["Preferred_Dates"] = pref_dates_input.strip()
@@ -1136,7 +1217,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.success("✅ Case successfully rescheduled and saved in both sheets!")
+                        st.success(f"✅ Case successfully rescheduled! New Unique Case ID created: {new_rescheduled_id}")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error saving reschedule: {e}")
@@ -1196,7 +1277,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             for i, col_name in enumerate(cols_to_show):
                 target_col = f_col1 if i % 2 == 0 else f_col2
                 with target_col:
-                    if col_name == display_c:
+                    if col_name == "Case_ID":
+                        st.text_input("Case_ID (Locked / Non-Editable)", value=case_id_val, disabled=True, key=f"popup_locked_cid_{row_idx}")
+                    elif col_name == display_c:
                         updated_values[display_c] = st.text_input(f"{col_name} (Case Username)", value=str(row_data[col_name]), key=f"popup_field_{row_idx}_{col_name}")
                     elif col_name == login_c:
                         curr_worker_val = str(row_data.get(login_c, "")).strip()
@@ -1257,10 +1340,14 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         changed = False
                         
                         for col_name, new_val in updated_values.items():
+                            if col_name == "Case_ID":
+                                continue
                             old_val = str(df_full.at[row_idx, col_name]).strip()
                             if old_val != str(new_val).strip():
                                 changed = True
                             df_full.at[row_idx, col_name] = str(new_val).strip()
+
+                        df_full.at[row_idx, "Case_ID"] = case_id_val
 
                         if str(df_full.at[row_idx, "Booking_Status"]) != booking_status_choice:
                             df_full.at[row_idx, "Booking_Status"] = booking_status_choice
@@ -1276,7 +1363,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     os.makedirs(date_folder)
 
                                 safe_uname = str(df_full.at[row_idx, display_c] if display_c in df_full.columns else "case").strip().replace(" ", "_")
-                                pdf_filename = f"Appointment_{safe_uname}_{row_idx}_{int(datetime.datetime.now().timestamp())}.pdf"
+                                pdf_filename = f"Appointment_{case_id_val}_{safe_uname}_{int(datetime.datetime.now().timestamp())}.pdf"
                                 full_pdf_path = os.path.join(date_folder, pdf_filename)
                                 with open(full_pdf_path, "wb") as pf:
                                     pf.write(uploaded_pdf_file.getbuffer())
@@ -1310,10 +1397,12 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         elif booking_status_choice == "Rescheduled" and is_booked_sheet:
                             sheets_all = get_sheet_names()
-                            active_sheet_name = next((s for s in sheets_all if "booked" not in s.lower()), sheets_all[0])
+                            active_sheet_name = get_default_active_sheet(sheets_all)
                             if active_sheet_name:
+                                new_rescheduled_id = generate_next_case_id()
                                 df_target_active = load_data(sheet_name=active_sheet_name)
                                 row_to_transfer = df_full.loc[row_idx].copy()
+                                row_to_transfer["Case_ID"] = new_rescheduled_id
                                 row_to_transfer["Booking_Status"] = "Rescheduled"
                                 row_to_transfer["Preferred_Location"] = popup_pref_loc.strip()
                                 row_to_transfer["Preferred_Dates"] = popup_pref_dates.strip()
@@ -1364,12 +1453,13 @@ def admin_pdf_download_dialog():
                 if p_path:
                     abs_p = os.path.abspath(p_path)
                     pdf_info_map[abs_p] = {
+                        "case_id": str(r.get("Case_ID", "N/A")),
                         "case_user": str(r.get(disp_c, "N/A")),
                         "worker": str(r.get(login_c, "N/A")),
                         "sheet": s
                     }
 
-    search_query = st.text_input("🔍 Search PDFs by Case Username or Filename across all folders:", placeholder="Type case username here...", key="pdf_overall_search").strip().lower()
+    search_query = st.text_input("🔍 Search PDFs by Case ID, Case Username or Filename across all folders:", placeholder="Type Case ID or username here...", key="pdf_overall_search").strip().lower()
 
     date_folders = sorted([d for d in os.listdir(PDF_BASE_DIR) if os.path.isdir(os.path.join(PDF_BASE_DIR, d))], reverse=True)
     root_files = [f for f in os.listdir(PDF_BASE_DIR) if f.lower().endswith('.pdf') and os.path.isfile(os.path.join(PDF_BASE_DIR, f))]
@@ -1389,9 +1479,9 @@ def admin_pdf_download_dialog():
                 for f_name in files_in_folder:
                     f_full_path = os.path.join(folder_path, f_name)
                     abs_full_p = os.path.abspath(f_full_path)
-                    meta = pdf_info_map.get(abs_full_p, {"case_user": "N/A", "worker": "N/A", "sheet": "N/A"})
+                    meta = pdf_info_map.get(abs_full_p, {"case_id": "N/A", "case_user": "N/A", "worker": "N/A", "sheet": "N/A"})
                     
-                    if search_query == "" or search_query in meta["case_user"].lower() or search_query in f_name.lower() or search_query in meta["worker"].lower():
+                    if search_query == "" or search_query in meta["case_id"].lower() or search_query in meta["case_user"].lower() or search_query in f_name.lower() or search_query in meta["worker"].lower():
                         filtered_files.append((f_name, f_full_path, meta))
 
                 if filtered_files:
@@ -1403,8 +1493,8 @@ def admin_pdf_download_dialog():
                                 c_info, c_dl, c_del = st.columns([2.6, 1.1, 1.1])
                                 with c_info:
                                     st.write(f"📄 **File:** `{f_name}`")
-                                    st.markdown(f"👤 **Case Username:** `{meta['case_user']}` &nbsp;|&nbsp; 👷 **Uploaded By (Worker):** `{meta['worker']}` &nbsp;|&nbsp; 📂 **Sheet:** `{meta['sheet']}`")
-                                    st.caption(f"Path: {f_full_path}")
+                                    st.markdown(f"🆔 **Case ID:** `{meta['case_id']}` &nbsp;|&nbsp; 👤 **Case Username:** `{meta['case_user']}` &nbsp;|&nbsp; 👷 **Worker:** `{meta['worker']}`")
+                                    st.caption(f"Sheet: {meta['sheet']} | Path: {f_full_path}")
                                 with c_dl:
                                     with open(f_full_path, "rb") as f:
                                         b_data = f.read()
@@ -1428,7 +1518,7 @@ def admin_pdf_download_dialog():
                                             st.error(f"❌ Error deleting file: {e}")
         
         if search_query != "" and not found_any:
-            st.warning(f"No PDFs found matching username or filename: '{search_query}'")
+            st.warning(f"No PDFs found matching Case ID, username, or filename: '{search_query}'")
 
 def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_link="", page_size=100, allow_edit=True):
     if df.empty:
@@ -1508,7 +1598,9 @@ def render_clickable_table(df, display_c, p_col, table_key="main", sheet_for_lin
         
         for col in display_cols:
             val = col_data[col][i]
-            if col == display_c:
+            if col == "Case_ID":
+                cell_content = f'<span style="font-weight:800; color:#1e3a8a; background:#eff6ff; padding:3px 8px; border-radius:6px; border:1px solid #bfdbfe;">{val if val != "" else "-"}</span>'
+            elif col == display_c:
                 display_val = val.strip() if val.strip() != "" else "Not Assigned"
                 if allow_edit:
                     cell_content = f'<a href="{base_link}{idx}" target="_self" class="username-hyperlink">{display_val}</a>'
@@ -1709,7 +1801,6 @@ def admin_worker_wise_report_dialog():
             df_today = pd.DataFrame(today_list)
             df_today.index = range(1, len(df_today) + 1)
             st.success(f"Total Cases Booked Today in '{target_sheet}': {df_today['Today Booked Cases'].sum()}")
-            df_today.index = range(1, len(df_today) + 1)
             st.dataframe(df_today, use_container_width=True)
             
             buf_today = io.BytesIO()
@@ -1733,7 +1824,6 @@ def admin_worker_wise_report_dialog():
             df_total = pd.DataFrame(total_list)
             df_total.index = range(1, len(df_total) + 1)
             st.success(f"Total Booked Cases in '{target_sheet}': {df_total['Total Booked Cases'].sum()}")
-            df_total.index = range(1, len(df_total) + 1)
             st.dataframe(df_total, use_container_width=True)
             
             buf_total = io.BytesIO()
@@ -1750,7 +1840,6 @@ def admin_worker_wise_report_dialog():
             df_visa = df_visa.sort_values(by="Total Booked Cases", ascending=False)
             df_visa.index = range(1, len(df_visa) + 1)
             st.success(f"Total Visa Categories in '{target_sheet}': {len(df_visa)}")
-            df_visa.index = range(1, len(df_visa) + 1)
             st.dataframe(df_visa, use_container_width=True)
             
             buf_visa = io.BytesIO()
@@ -1851,14 +1940,15 @@ def admin_delete_requests_dialog():
             orig_idx = r_dict["Original_Index"]
             worker_name = r_dict.get("Updated_By", "Unknown")
             req_time = r_dict.get("Updated_At", "")
+            case_id_del = r_dict.get("Case_ID", "N/A")
             
             df_temp = load_data(sheet_name=s_name)
             disp_col = find_display_username_column(df_temp) if df_temp is not None else "USERNAME"
             case_username = str(r_dict.get(disp_col, "N/A"))
             delete_reason = str(r_dict.get("Delete_Reason", "Reason not specified"))
 
-            with st.expander(f"📁 Sheet: {s_name} | Case User: {case_username} | Worker: {worker_name}"):
-                st.markdown(f"👤 **Case Username:** `{case_username}`")
+            with st.expander(f"🆔 {case_id_del} | 📁 Sheet: {s_name} | Case User: {case_username} | Worker: {worker_name}"):
+                st.markdown(f"🆔 **Case ID:** `{case_id_del}` &nbsp;|&nbsp; 👤 **Case Username:** `{case_username}`")
                 st.markdown(f"✍️ **Delete Reason:** `{delete_reason}`")
                 st.caption(f"Requested Time: {req_time}")
                 
@@ -2039,6 +2129,7 @@ def sync_excel_dialog():
                 with open(EXCEL_FILE, "wb") as f:
                     f.write(uploaded_excel.getbuffer())
                 st.cache_data.clear()
+                ensure_all_cases_have_unique_ids()
                 st.success("✅ Cloud data updated successfully!")
                 st.rerun()
             except Exception as e:
@@ -2094,12 +2185,19 @@ def worker_password_dialog(worker_name):
 @st.dialog("➕ Add New Case", width="large")
 def add_case_dialog(worker_name):
     sheets = get_sheet_names()
-    st.info("💡 Select the sheet where you want to add a new case:")
+    default_idx = 0
+    for idx_s, s_nm in enumerate(sheets):
+        if "booked" not in s_nm.lower():
+            default_idx = idx_s
+            break
+
+    st.info("💡 Select the sheet where you want to add a new case (Unique Case ID is auto-generated):")
     
-    selected_target_sheet = st.selectbox("Select Target Sheet for New Case", options=sheets, key="dlg_target_sheet")
+    selected_target_sheet = st.selectbox("Select Target Sheet for New Case", options=sheets, index=default_idx, key="dlg_target_sheet")
     target_df = load_data(sheet_name=selected_target_sheet)
     t_login_col = find_login_user_column(target_df)
     t_pass_col = find_password_column(target_df)
+    preview_next_id = generate_next_case_id()
     
     available_usernames = sorted(list(set(target_df[t_login_col].astype(str).str.strip().tolist())))
     available_usernames = [u for u in available_usernames if u != ""]
@@ -2108,12 +2206,13 @@ def add_case_dialog(worker_name):
         available_usernames.insert(1, worker_name)
     
     with st.form("dlg_new_case_form", clear_on_submit=True):
+        st.text_input("🆔 Auto-Generated Case ID (Locked)", value=preview_next_id, disabled=True)
         assigned_username = st.selectbox("Assign Username", options=available_usernames, index=available_usernames.index(worker_name) if worker_name in available_usernames else 0)
         st.divider()
         st.write(f"📂 **{selected_target_sheet}** Sheet Headings:")
         
         form_data = {}
-        cols = [c for c in target_df.columns if c not in [t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
+        cols = [c for c in target_df.columns if c not in ["Case_ID", t_login_col, t_pass_col, "Updated_By", "Updated_At", "Action_Type", "Delete_Reason", "Booking_Status", "Appointment_Entry", "Appointment_PDF", "Preferred_Location", "Preferred_Dates", "Prior_Notice"]]
         for col_name in cols:
             c_lower = col_name.lower()
             if 'date' in c_lower and 'prefer' not in c_lower:
@@ -2124,7 +2223,9 @@ def add_case_dialog(worker_name):
         
         if st.form_submit_button("🚀 Submit New Case", type="primary", use_container_width=True):
             try:
+                final_new_case_id = generate_next_case_id()
                 new_row = {col: "" for col in target_df.columns}
+                new_row["Case_ID"] = final_new_case_id
                 final_assigned_user = "" if assigned_username == "Not Assigned" else assigned_username.strip()
                 new_row[t_login_col] = final_assigned_user
                 
@@ -2152,7 +2253,7 @@ def add_case_dialog(worker_name):
                 save_data(updated_target_df, sheet_name=selected_target_sheet)
                 
                 st.session_state["open_dialog"] = None
-                st.success("✅ New case added successfully!")
+                st.success(f"✅ New case added successfully with Case ID: {final_new_case_id}")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {e}")
@@ -2165,7 +2266,7 @@ def search_data_dialog():
     if df_search is not None and not df_search.empty:
         p_col = find_password_column(df_search)
         
-        search_query = st.text_input("Search by Case Username, DS160, Case Password, or Case Worker:", placeholder="Type Username, DS160, Password, or Case Worker...", key="dlg_search_input").strip()
+        search_query = st.text_input("Search by Case ID, Case Username, DS160, Case Password, or Case Worker:", placeholder="Type Case ID, Username, DS160, Password, or Case Worker...", key="dlg_search_input").strip()
         
         if search_query != "":
             search_mask = search_username_ds160_password_worker(df_search, search_query)
@@ -2379,11 +2480,15 @@ if not st.session_state["logged_in"]:
                             u_in = username_input.strip()
                             p_in = password_input.strip()
                             admin_u, admin_p = get_admin_creds()
+                            default_act_sheet = get_default_active_sheet(sheets)
                             
                             if u_in.lower() == admin_u.lower() and p_in == admin_p:
                                 st.session_state["logged_in"] = True
                                 st.session_state["username"] = admin_u
                                 st.session_state["role"] = "admin"
+                                st.session_state["active_sheet"] = default_act_sheet
+                                st.session_state["dash_sheet"] = default_act_sheet
+                                st.session_state["records_sheet"] = default_act_sheet
                                 st.session_state["admin_active_view"] = None
                                 st.session_state["open_dialog"] = None
                                 st.session_state["selected_row_idx"] = None
@@ -2391,13 +2496,13 @@ if not st.session_state["logged_in"]:
                                 st.query_params["logged_in"] = "true"
                                 st.query_params["username"] = admin_u
                                 st.query_params["role"] = "admin"
+                                st.query_params["active_sheet"] = default_act_sheet
                                 st.rerun()
                             else:
                                 if is_worker_blocked(u_in):
                                     st.error("❌ Your login access has been disabled by Admin. Please contact administrator.")
                                 else:
                                     logged_in_success = False
-                                    matched_sheet = ""
                                     actual_matched_username = ""
                                     for s in sheets:
                                         df_check = load_data(sheet_name=s)
@@ -2409,7 +2514,6 @@ if not st.session_state["logged_in"]:
                                                 db_pass = str(r[p_col]).strip()
                                                 if db_user.lower() == u_in.lower() and db_pass == p_in:
                                                     logged_in_success = True
-                                                    matched_sheet = s
                                                     actual_matched_username = db_user
                                                     break
                                         if logged_in_success:
@@ -2420,9 +2524,9 @@ if not st.session_state["logged_in"]:
                                         st.session_state["logged_in"] = True
                                         st.session_state["username"] = actual_matched_username
                                         st.session_state["role"] = "worker"
-                                        st.session_state["active_sheet"] = matched_sheet
-                                        st.session_state["dash_sheet"] = matched_sheet
-                                        st.session_state["records_sheet"] = matched_sheet
+                                        st.session_state["active_sheet"] = default_act_sheet
+                                        st.session_state["dash_sheet"] = default_act_sheet
+                                        st.session_state["records_sheet"] = default_act_sheet
                                         st.session_state["attendance_recorded"] = True
                                         st.session_state["open_dialog"] = None
                                         st.session_state["selected_row_idx"] = None
@@ -2430,16 +2534,17 @@ if not st.session_state["logged_in"]:
                                         st.query_params["logged_in"] = "true"
                                         st.query_params["username"] = actual_matched_username
                                         st.query_params["role"] = "worker"
-                                        st.query_params["active_sheet"] = matched_sheet
+                                        st.query_params["active_sheet"] = default_act_sheet
                                         st.rerun()
                                     else:
                                         st.error("❌ Incorrect Username or Password!")
 
 elif st.session_state["role"] == "admin":
     sheets = get_sheet_names()
-    current_sheet = st.session_state.get("active_sheet", sheets[0] if sheets else "Sheet1")
+    default_act_s = get_default_active_sheet(sheets)
+    current_sheet = st.session_state.get("active_sheet", default_act_s)
     if current_sheet not in sheets:
-        current_sheet = sheets[0]
+        current_sheet = default_act_s
         st.session_state["active_sheet"] = current_sheet
 
     if "admin_active_view" not in st.session_state:
@@ -2455,8 +2560,15 @@ elif st.session_state["role"] == "admin":
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
             st.cache_data.clear()
+            ensure_all_cases_have_unique_ids()
+            act_s = get_default_active_sheet(get_sheet_names())
+            st.session_state["active_sheet"] = act_s
+            st.session_state["dash_sheet"] = act_s
+            st.session_state["records_sheet"] = act_s
+            st.session_state["selected_visa_filter"] = "All"
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
+            st.query_params["active_sheet"] = act_s
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="admin_logout"):
@@ -2496,9 +2608,9 @@ elif st.session_state["role"] == "admin":
         st.session_state["admin_selected_lead"] = "All"
 
     if active_admin_view == "dashboard":
-        dash_s_name = st.session_state.get("dash_sheet", current_sheet)
+        dash_s_name = st.session_state.get("dash_sheet", default_act_s)
         if dash_s_name not in sheets:
-            dash_s_name = current_sheet
+            dash_s_name = default_act_s
         df_d_base = load_data(sheet_name=dash_s_name)
         df_d_base = reorder_dataframe_columns(df_d_base)
         login_c_d = find_login_user_column(df_d_base)
@@ -2507,8 +2619,8 @@ elif st.session_state["role"] == "admin":
         lead_col_d = next((c for c in df_d_base.columns if "lead" in c.strip().lower()), login_c_d)
 
         dash_search_query = st.text_input(
-            "🔍 Search All Sheets (Username, DS160, Password & Case Worker):",
-            placeholder="Type Username, DS160, Case Password, or Case Worker...",
+            "🔍 Search All Sheets (Case ID, Username, DS160, Password & Case Worker):",
+            placeholder="Type Case ID, Username, DS160, Case Password, or Case Worker...",
             key="dash_overall_search_input"
         ).strip()
 
@@ -2650,9 +2762,9 @@ elif st.session_state["role"] == "admin":
         st.divider()
 
     elif active_admin_view == "records":
-        rec_s_name = st.session_state.get("records_sheet", current_sheet)
+        rec_s_name = st.session_state.get("records_sheet", default_act_s)
         if rec_s_name not in sheets:
-            rec_s_name = current_sheet
+            rec_s_name = default_act_s
         df_r = load_data(sheet_name=rec_s_name)
         df_r = reorder_dataframe_columns(df_r)
         display_c_r = find_display_username_column(df_r)
@@ -2698,7 +2810,7 @@ elif st.session_state["role"] == "admin":
 
         col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
         with col_search:
-            admin_search = st.text_input("Search main data (any field):", placeholder="Type Username, DS160, Visa Type, Lead, etc...", key="admin_search_input").strip()
+            admin_search = st.text_input("Search main data (any field):", placeholder="Type Case ID, Username, DS160, Visa Type, Lead...", key="admin_search_input").strip()
         with col_sheets:
             if sheets:
                 st.markdown("📑 **Switch Sheet:**")
@@ -2711,6 +2823,7 @@ elif st.session_state["role"] == "admin":
                         st.markdown(f'<span class="{color_c}" style="display:none;"></span>', unsafe_allow_html=True)
                         if st.button(b_txt, key=f"records_only_sheet_btn_{s_idx}", use_container_width=True):
                             st.session_state["records_sheet"] = s_name
+                            st.session_state["active_sheet"] = s_name
                             st.session_state["selected_visa_filter"] = "All"
                             st.rerun()
 
@@ -2768,10 +2881,11 @@ elif st.session_state["role"] == "admin":
 
 else:
     sheets = get_sheet_names()
-    current_sheet = st.session_state["active_sheet"]
+    default_act_w = get_default_active_sheet(sheets)
+    current_sheet = st.session_state.get("active_sheet", default_act_w)
     
     if current_sheet not in sheets:
-        current_sheet = sheets[0]
+        current_sheet = default_act_w
         st.session_state["active_sheet"] = current_sheet
 
     df = load_data(sheet_name=current_sheet)
@@ -2792,12 +2906,17 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='workspace-header-bar'><span>👋 Welcome, {current_user}</span><span class='workspace-sheet-pill'>💼 Case Worker Workspace</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='workspace-header-bar'><span>👋 Welcome, {current_user}</span><span class='workspace-sheet-pill'>💼 Active Sheet: {current_sheet}</span></div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.cache_data.clear()
+            ensure_all_cases_have_unique_ids()
+            act_s_w = get_default_active_sheet(get_sheet_names())
+            st.session_state["active_sheet"] = act_s_w
+            st.session_state["selected_visa_filter"] = "All"
             st.session_state["open_dialog"] = None
             st.session_state["selected_row_idx"] = None
+            st.query_params["active_sheet"] = act_s_w
             st.rerun()
     with top_col3:
         if st.button("🚪 Logout", key="worker_logout"):
@@ -2831,8 +2950,8 @@ else:
             """, unsafe_allow_html=True)
 
         worker_search_query = st.text_input(
-            "🔍 Search (Case Username, DS160, Password & Case Worker — Read-Only):",
-            placeholder="Type Username, DS160, Case Password, or Case Worker...",
+            "🔍 Search (Case ID, Case Username, DS160, Password & Case Worker — Read-Only):",
+            placeholder="Type Case ID, Username, DS160, Case Password, or Case Worker...",
             key="worker_workspace_search_input"
         ).strip()
 
@@ -3002,7 +3121,7 @@ else:
                 </div>
                 <div class="corporate-card">
                     <h3>➕ Adding New Cases</h3>
-                    <p>Use the 'Add New Case' button in the toolbar to create new records directly in your designated sheet with automatic timestamping.</p>
+                    <p>Use the 'Add New Case' button in the toolbar to create new records directly in your designated sheet with automatic unique Case ID generation.</p>
                 </div>
             """, unsafe_allow_html=True)
         with w_g2:
