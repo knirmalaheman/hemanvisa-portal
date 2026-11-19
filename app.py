@@ -220,7 +220,7 @@ def load_all_sheets_cached(file_mtime):
                     cid = str(df.at[idx, "Case_ID"]).strip()
                     if cid == "" or cid.lower() == "nan" or cid in seen_ids:
                         max_num += 1
-                        new_cid = f"HV-{max_num}"
+                        new_cid = f"HM{max_num}"
                         df.at[idx, "Case_ID"] = new_cid
                         seen_ids.add(new_cid)
                     else:
@@ -299,7 +299,7 @@ def ensure_all_cases_have_unique_ids(force=False):
                 cid = str(df.at[idx, "Case_ID"]).strip()
                 if cid == "" or cid.lower() == "nan" or cid in seen_ids:
                     max_num += 1
-                    new_cid = f"HV-{max_num}"
+                    new_cid = f"HM{max_num}"
                     df.at[idx, "Case_ID"] = new_cid
                     seen_ids.add(new_cid)
                     modified = True
@@ -345,7 +345,7 @@ def generate_next_case_id():
                     num = int(m.group(1))
                     if num > max_num:
                         max_num = num
-    return f"HV-{max_num + 1}"
+    return f"HM{max_num + 1}"
 
 
 @st.cache_data(ttl=600, show_spinner=False)
