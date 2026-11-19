@@ -1,4 +1,5 @@
 import os
+import zipfile
 from datetime import datetime
 import pandas as pd
 import streamlit as st
@@ -18,6 +19,7 @@ COLUMNS = [
     "Notes",
     "Updated_At",
 ]
+LOG_COLUMNS = COLUMNS + ["Action", "Details"]
 
 
 def now_12hr() -> str:
@@ -41,11 +43,7 @@ def generate_new_hv_id(df_all: pd.DataFrame, prefix: str = "HV") -> str:
     return f"{prefix}-{max_num + 1}"
 
 
-def init_workbook(path: str):
-    """Creates initial Excel workbook with sheets if it does not exist."""
-    if os.path.exists(path):
-        return
-
+def build_default_frames() -> dict[str, pd.DataFrame]:
     sample_rows = [
         {
             "HV_ID": "HV-1001",
@@ -85,53 +83,96 @@ def init_workbook(path: str):
         },
     ]
     df_init = pd.DataFrame(sample_rows, columns=COLUMNS)
-
-    with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        df_init.to_excel(writer, sheet_name="Master_Cases", index=False)
-        df_init[df_init["Case_Worker"] == "Kalyan"].to_excel(
-            writer, sheet_name="Kalyan_Cases", index=False
-        )
-        df_init[(df_init["Case_Worker"] == "Anil") & (df_init["Bucket"] == "Active")].to_excel(
-            writer, sheet_name="Anil_Active", index=False
-        )
-        pd.DataFrame(columns=COLUMNS + ["Action", "Details"]).to_excel(
-            writer, sheet_name="Audit_Log", index=False
-        )
+    return {
+        "Master_Cases": df_init.copy(),
+        "Kalyan_Cases": df_init[df_init["Case_Worker"] == "Kalyan"].copy().reset_index(drop=True),
+        "Anil_Active": df_init[(df_init["Case_Worker"] == "Anil") & (df_init["Bucket"] == "Active")].copy().reset_index(drop=True),
+        "Audit_Log": pd.DataFrame(columns=LOG_COLUMNS),
+    }
 
 
-def load_data(path: str) -> dict[str, pd.DataFrame]:
-    init_workbook(path)
-    xls = pd.ExcelFile(path, engine="openpyxl")
-    data = {}
+def write_workbook_safely(path: str, data: dict[str, pd.DataFrame]):
+    """Writes Excel workbook cleanly and atomically to avoid partial/corrupted files."""
+    parent_dir = os.path.dirname(os.path.abspath(path))
+    if parent_dir and not os.path.exists(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
 
-    for sheet in ["Master_Cases", "Kalyan_Cases", "Anil_Active"]:
-        if sheet in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name=sheet, dtype=str).fillna("")
+    tmp_path = f"{path}.tmp"
+    with pd.ExcelWriter(tmp_path, engine="openpyxl") as writer:
+        for sheet_name in ["Master_Cases", "Kalyan_Cases", "Anil_Active"]:
+            df = data.get(sheet_name, pd.DataFrame(columns=COLUMNS)).copy()
             for col in COLUMNS:
                 if col not in df.columns:
                     df[col] = ""
-            data[sheet] = df[COLUMNS]
+            df[COLUMNS].to_excel(writer, sheet_name=sheet_name, index=False)
+
+        log_df = data.get("Audit_Log", pd.DataFrame(columns=LOG_COLUMNS)).copy()
+        for col in LOG_COLUMNS:
+            if col not in log_df.columns:
+                log_df[col] = ""
+        log_df[LOG_COLUMNS].to_excel(writer, sheet_name="Audit_Log", index=False)
+
+    os.replace(tmp_path, path)
+
+
+def quarantine_corrupted_file(path: str):
+    """Backs up an invalid/corrupted xlsx file instead of crashing with BadZipFile."""
+    if os.path.exists(path):
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{path}.corrupt_{stamp}.bak"
+        try:
+            os.replace(path, backup_path)
+        except OSError:
+            pass
+
+
+def load_data(path: str) -> tuple[dict[str, pd.DataFrame], bool]:
+    """
+    Loads workbook safely. If missing or corrupted (zipfile.BadZipFile / OSError / ValueError),
+    quarantines bad file and recreates a clean workbook so the app never crashes.
+    Returns (data_dict, recovered_flag).
+    """
+    recovered = False
+
+    if not os.path.exists(path):
+        fresh = build_default_frames()
+        write_workbook_safely(path, fresh)
+        return fresh, False
+
+    try:
+        if os.path.getsize(path) == 0:
+            raise zipfile.BadZipFile("File is 0 bytes")
+
+        xls = pd.ExcelFile(path, engine="openpyxl")
+        loaded: dict[str, pd.DataFrame] = {}
+
+        for sheet in ["Master_Cases", "Kalyan_Cases", "Anil_Active"]:
+            if sheet in xls.sheet_names:
+                df = pd.read_excel(xls, sheet_name=sheet, dtype=str).fillna("")
+                for col in COLUMNS:
+                    if col not in df.columns:
+                        df[col] = ""
+                loaded[sheet] = df[COLUMNS].copy()
+            else:
+                loaded[sheet] = pd.DataFrame(columns=COLUMNS)
+
+        if "Audit_Log" in xls.sheet_names:
+            ldf = pd.read_excel(xls, sheet_name="Audit_Log", dtype=str).fillna("")
+            for col in LOG_COLUMNS:
+                if col not in ldf.columns:
+                    ldf[col] = ""
+            loaded["Audit_Log"] = ldf[LOG_COLUMNS].copy()
         else:
-            data[sheet] = pd.DataFrame(columns=COLUMNS)
+            loaded["Audit_Log"] = pd.DataFrame(columns=LOG_COLUMNS)
 
-    log_cols = COLUMNS + ["Action", "Details"]
-    if "Audit_Log" in xls.sheet_names:
-        ldf = pd.read_excel(xls, sheet_name="Audit_Log", dtype=str).fillna("")
-        for col in log_cols:
-            if col not in ldf.columns:
-                ldf[col] = ""
-        data["Audit_Log"] = ldf[log_cols]
-    else:
-        data["Audit_Log"] = pd.DataFrame(columns=log_cols)
+        return loaded, False
 
-    return data
-
-
-def save_data(path: str, data: dict[str, pd.DataFrame]):
-    with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        for sheet_name in ["Master_Cases", "Kalyan_Cases", "Anil_Active", "Audit_Log"]:
-            df = data.get(sheet_name, pd.DataFrame(columns=COLUMNS))
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    except (zipfile.BadZipFile, OSError, ValueError, KeyError):
+        quarantine_corrupted_file(path)
+        fresh = build_default_frames()
+        write_workbook_safely(path, fresh)
+        recovered = True
+        return fresh, recovered
 
 
 def get_all_ids(data: dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -167,21 +208,29 @@ def append_audit_log(
     entry["Action"] = action
     entry["Details"] = details
     data["Audit_Log"] = pd.concat(
-        [data["Audit_Log"], pd.DataFrame([entry])], ignore_index=True
+        [data["Audit_Log"], pd.DataFrame([entry], columns=LOG_COLUMNS)],
+        ignore_index=True,
     )
 
 
 # --- App Initialization ---
-data = load_data(EXCEL_FILE)
+data, was_recovered = load_data(EXCEL_FILE)
 sync_sheets(data)
+write_workbook_safely(EXCEL_FILE, data)
 master_df = data["Master_Cases"].copy()
 
-st.title("Case Workflow Automation — Kalyan & Anil")
+st.title("Case Workflow Manager — Kalyan & Anil")
 st.caption(
     "Rules active: (1) Reschedule Kalyan Booked -> Keep Old HV ID | "
     "(2) Reschedule TO Kalyan -> Generate New HV ID | "
     "(3) Kalyan Assigns to Anil -> Anil Active Sheet + Generate New HV ID"
 )
+
+if was_recovered:
+    st.warning(
+        f"Previous `{EXCEL_FILE}` was empty or corrupted (BadZipFile). "
+        "A backup copy was saved and a clean workbook was initialized automatically."
+    )
 
 # --- KPI Row ---
 k1, k2, k3, k4 = st.columns(4)
@@ -220,7 +269,6 @@ else:
     if st.button("Save Reschedule in Kalyan (Keep Old ID)", key="btn_s1"):
         idx = master_df.index[master_df["HV_ID"] == s1_id][0]
         ts = now_12hr()
-        # Keep HV_ID unchanged (old ID preserved)
         master_df.at[idx, "Case_Worker"] = "Kalyan"
         master_df.at[idx, "Bucket"] = "Booked"
         master_df.at[idx, "Status"] = "Rescheduled (Booked)"
@@ -237,7 +285,7 @@ else:
             "RESCHEDULE_KALYAN_BOOKED_KEEP_ID",
             f"Rescheduled within Kalyan Booked keeping Old ID {s1_id}",
         )
-        save_data(EXCEL_FILE, data)
+        write_workbook_safely(EXCEL_FILE, data)
         st.success(f"Updated {s1_id} under Kalyan Booked with Old HV ID preserved.")
         st.rerun()
 
@@ -301,7 +349,7 @@ else:
             "RESCHEDULE_TO_KALYAN_NEW_ID",
             f"Created New ID {new_hv_id} for Kalyan from source {s2_id}",
         )
-        save_data(EXCEL_FILE, data)
+        write_workbook_safely(EXCEL_FILE, data)
         st.success(f"Rescheduled to Kalyan with New HV ID: {new_hv_id} (Old ID: {s2_id})")
         st.rerun()
 
@@ -362,7 +410,7 @@ else:
             "ASSIGN_KALYAN_TO_ANIL_ACTIVE_NEW_ID",
             f"Assigned to Anil_Active with New ID {new_anil_id} from Kalyan ID {s3_id}",
         )
-        save_data(EXCEL_FILE, data)
+        write_workbook_safely(EXCEL_FILE, data)
         st.success(
             f"Assigned to Anil Active sheet with New HV ID: {new_anil_id} (from Kalyan ID: {s3_id})"
         )
@@ -407,7 +455,7 @@ with st.expander("4. Add New Case"):
             append_audit_log(
                 data, new_rec, "ADD_NEW_CASE", f"Created new case {new_id} for {nc_worker}"
             )
-            save_data(EXCEL_FILE, data)
+            write_workbook_safely(EXCEL_FILE, data)
             st.success(f"Added new case {new_id} for {nc_worker} ({nc_bucket}).")
             st.rerun()
         else:
