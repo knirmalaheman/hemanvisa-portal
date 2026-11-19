@@ -608,6 +608,29 @@ st.markdown("""
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 16px;
     }
+    .workspace-header-bar {
+        background: linear-gradient(135deg, #0f1c3f 0%, #1e293b 100%);
+        color: #ffffff;
+        padding: 13px 20px;
+        border-radius: 12px;
+        border-left: 5px solid #d4af37;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .workspace-sheet-pill {
+        background: rgba(212, 175, 55, 0.18);
+        border: 1px solid #d4af37;
+        color: #fde047;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 12.5px;
+        font-weight: 700;
+    }
     .kpi-card {
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
         color: white;
@@ -761,14 +784,52 @@ st.markdown("""
     .username-hyperlink:hover {
         color: #2563eb !important;
     }
-    div[data-testid="stRadio"] > div {
+    /* Modern Segmented Pill Navigation Tabs */
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        display: flex !important;
         flex-direction: row !important;
         flex-wrap: wrap !important;
-        gap: 12px !important;
-        background: #f8fafc;
-        padding: 10px 16px;
-        border-radius: 10px;
-        border: 1px solid #cbd5e1;
+        gap: 8px !important;
+        background: #f1f5f9 !important;
+        padding: 6px !important;
+        border-radius: 12px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+        width: fit-content !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label {
+        background: transparent !important;
+        padding: 9px 20px !important;
+        border-radius: 9px !important;
+        border: 1px solid transparent !important;
+        cursor: pointer !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label > div:first-child {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label p {
+        font-size: 14px !important;
+        font-weight: 700 !important;
+        color: #475569 !important;
+        margin: 0 !important;
+        letter-spacing: 0.2px !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label:hover {
+        background: rgba(255, 255, 255, 0.75) !important;
+        color: #0f172a !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
+        background: linear-gradient(135deg, #0f1c3f 0%, #1e3a8a 100%) !important;
+        border-bottom: 2.5px solid #d4af37 !important;
+        box-shadow: 0 4px 12px rgba(15, 28, 63, 0.25) !important;
+        transform: translateY(-1px) !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) p {
+        color: #ffffff !important;
     }
     div[data-testid="stExpander"] {
         width: 100% !important;
@@ -2286,7 +2347,7 @@ elif st.session_state["role"] == "admin":
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👑 Admin Control Panel — {current_sheet}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='workspace-header-bar'><span>👑 Admin Control Panel</span><span class='workspace-sheet-pill'>📂 {current_sheet}</span></div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
             st.cache_data.clear()
@@ -2578,7 +2639,7 @@ else:
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
     top_col1, top_col2, top_col3 = st.columns([6.5, 1.2, 1.2], gap="small")
     with top_col1:
-        st.markdown(f"<div class='section-banner' style='margin:0;'>👋 Welcome, {current_user} — Case Worker Workspace</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='workspace-header-bar'><span>👋 Welcome, {current_user}</span><span class='workspace-sheet-pill'>💼 Case Worker Workspace</span></div>", unsafe_allow_html=True)
     with top_col2:
         if st.button("🔄 Refresh", key="worker_refresh"):
             st.cache_data.clear()
