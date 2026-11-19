@@ -403,9 +403,8 @@ def append_rescheduled_to_active_sheet(
         if col not in row_to_active:
             row_to_active[col] = ""
 
-    row_to_active_clean = {col: row_to_active.get(col, "") for col in df_active.columns}
     df_active_ordered = pd.concat(
-        [df_active, pd.DataFrame([row_to_active_clean])], ignore_index=True
+        [df_active, pd.DataFrame([row_to_active])], ignore_index=True
     )
     save_data(df_active_ordered, sheet_name=active_sheet_name)
     return new_rescheduled_id, active_sheet_name
@@ -1684,11 +1683,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         st.session_state["is_reschedule_mode"] = False
                         st.session_state["selected_row_idx"] = None
                         st.session_state["open_dialog"] = None
-                        st.session_state["last_reschedule_banner"] = (
-                            f"✅ Booked ({sheet_name}) lo Old ID **{case_id_val}** alane undi | **{target_act_sheet}** lo New ID **{new_rescheduled_id}** tho **{assign_worker_res}** ki Rescheduled ayyindi!"
-                            if new_rescheduled_id
-                            else f"✅ Case ({case_id_val}) successfully rescheduled!"
-                        )
+                        if new_rescheduled_id:
+                            st.success(
+                                f"✅ Old ID ({case_id_val}) Booked sheet lone undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki assign ayyindi!"
+                            )
                         else:
                             st.success("✅ Case successfully rescheduled!")
                         st.rerun()
@@ -4110,9 +4108,6 @@ else:
             f'<div class="marquee-container"><marquee behavior="scroll" direction="left" scrollamount="6">📢 ADMIN NOTICE: {notice_msg}</marquee></div>',
             unsafe_allow_html=True,
         )
-
-    if st.session_state.get("last_reschedule_banner"):
-        st.success(st.session_state.pop("last_reschedule_banner"))
 
     w_c1, w_c2, w_c3, w_c4 = st.columns([1.3, 1.3, 1.4, 1.4], gap="small")
     with w_c1:
