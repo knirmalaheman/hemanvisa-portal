@@ -1650,22 +1650,36 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         ts_now = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
                         booked_snapshot_row = df_full.loc[row_idx].copy()
 
-                        df_full.at[row_idx, "Case_ID"] = case_id_val
-                        df_full.at[row_idx, "Preferred_Location"] = (
-                            pref_loc_input.strip()
-                        )
-                        df_full.at[row_idx, "Preferred_Dates"] = (
-                            pref_dates_input.strip()
-                        )
-                        df_full.at[row_idx, "Prior_Notice"] = (
-                            prior_notice_input.strip()
-                        )
-                        df_full.at[row_idx, "Booking_Status"] = (
-                            "Booked" if is_booked_sheet else "Rescheduled"
-                        )
-                        df_full.at[row_idx, "Updated_By"] = current_user
-                        df_full.at[row_idx, "Updated_At"] = ts_now
-                        df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
+                        if is_booked_sheet:
+                            df_full.at[row_idx, "Case_ID"] = case_id_val
+                            df_full.at[row_idx, "Booking_Status"] = "Booked"
+                            df_full.at[row_idx, "Preferred_Location"] = (
+                                pref_loc_input.strip()
+                            )
+                            df_full.at[row_idx, "Preferred_Dates"] = (
+                                pref_dates_input.strip()
+                            )
+                            df_full.at[row_idx, "Prior_Notice"] = (
+                                prior_notice_input.strip()
+                            )
+                            df_full.at[row_idx, "Updated_By"] = current_user
+                            df_full.at[row_idx, "Updated_At"] = ts_now
+                            df_full.at[row_idx, "Action_Type"] = "Booked"
+                        else:
+                            df_full.at[row_idx, "Case_ID"] = case_id_val
+                            df_full.at[row_idx, "Preferred_Location"] = (
+                                pref_loc_input.strip()
+                            )
+                            df_full.at[row_idx, "Preferred_Dates"] = (
+                                pref_dates_input.strip()
+                            )
+                            df_full.at[row_idx, "Prior_Notice"] = (
+                                prior_notice_input.strip()
+                            )
+                            df_full.at[row_idx, "Booking_Status"] = "Rescheduled"
+                            df_full.at[row_idx, "Updated_By"] = current_user
+                            df_full.at[row_idx, "Updated_At"] = ts_now
+                            df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
 
                         save_data(df_full, sheet_name=sheet_name)
 
