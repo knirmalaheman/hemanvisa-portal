@@ -3281,7 +3281,7 @@ elif st.session_state["open_dialog"] == "admin_kpi_popup":
         lead_filter=kpi_meta.get("lead", "All"),
     )
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == None:
+elif st.session_state["open_dialog"] == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
     if r_idx is not None:
         curr_role = st.session_state.get("role", "worker")
@@ -3297,7 +3297,6 @@ elif st.session_state["open_dialog"] == None:
         )
     else:
         close_case_popup_state()
-
 if not st.session_state["logged_in"]:
     default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
     selected_page = st.radio(
