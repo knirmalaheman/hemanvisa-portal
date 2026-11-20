@@ -193,6 +193,9 @@ def reorder_dataframe_columns(df):
 
     cols = list(df.columns)
     found_priority = []
+
+    if "Sheet_Name" in cols:
+        found_priority.append("Sheet_Name")
     if "Case_ID" in cols:
         found_priority.append("Case_ID")
 
@@ -235,18 +238,10 @@ def _is_valid_case_username(val):
 
 
 def _assign_case_username_based_ids(all_sheets):
-    """
-    1. Preserves existing Case_IDs already present in the Excel sheets.
-    2. Maps each Case Username across ALL sheets to a single Case_ID if that Case Username
-       already has an ID anywhere in the workbook.
-    3. For missing/empty Case_IDs, reuses the existing ID for that Case Username (if any),
-       or generates a brand-new sequential HM1001, HM1002... ID.
-    """
     max_num = 1000
     username_to_id = {}
     modified = False
 
-    # Pass 1: Scan all sheets for max numeric ID and existing Case Username -> Case_ID mappings
     for s_name, df in all_sheets.items():
         if df is None:
             continue
@@ -268,7 +263,6 @@ def _assign_case_username_based_ids(all_sheets):
                             if u_key not in username_to_id:
                                 username_to_id[u_key] = cid
 
-    # Pass 2: Fill only missing/empty Case_IDs using Case Username mapping or new HMxxxx ID
     for s_name, df in all_sheets.items():
         if df is None:
             continue
@@ -327,6 +321,8 @@ def load_all_sheets_cached(file_mtime):
                     df["Delete_Reason"] = ""
                 if "Booking_Status" not in df.columns:
                     df["Booking_Status"] = "Active"
+                if "Issue_Remark" not in df.columns:
+                    df["Issue_Remark"] = ""
 
                 if (
                     "Appointment_Entry" not in df.columns
@@ -392,7 +388,12 @@ def get_default_active_sheet(sheets_list=None):
     if not sheets_list:
         return "Sheet1"
     return next(
-        (s for s in sheets_list if "booked" not in s.lower()), sheets_list[0]
+        (
+            s
+            for s in sheets_list
+            if "booked" not in s.lower() and "issue" not in s.lower()
+        ),
+        sheets_list[0],
     )
 
 
@@ -651,11 +652,13 @@ def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
         res_s = df_curr[m]
         if not res_s.empty:
             res_s = res_s.copy()
+            res_s["__orig_idx__"] = res_s.index
             res_s["Sheet_Name"] = s_name
+            res_s = reorder_dataframe_columns(res_s)
             matched_dfs.append(res_s)
     if not matched_dfs:
         return pd.DataFrame()
-    return pd.concat(matched_dfs, ignore_index=True)
+    return reorder_dataframe_columns(pd.concat(matched_dfs, ignore_index=True))
 
 
 def search_main_data_any(df, query_text):
@@ -1413,6 +1416,7 @@ def render_clickable_table(
     sheet_for_link="",
     page_size=100,
     allow_edit=True,
+    restrict_edit_to_user=None,
 ):
     if df.empty:
         st.info("No cases found.")
@@ -1475,9 +1479,16 @@ def render_clickable_table(
                 st.rerun()
 
     cols_to_hide = (
-        ["Appointment_PDF"] if allow_edit else [p_col, "Appointment_PDF"]
+        ["Appointment_PDF", "__orig_idx__"]
+        if allow_edit
+        else [p_col, "Appointment_PDF", "__orig_idx__"]
     )
     display_cols = [c for c in page_df.columns if c not in cols_to_hide]
+
+    if "Sheet_Name" in display_cols:
+        display_cols = ["Sheet_Name"] + [
+            c for c in display_cols if c != "Sheet_Name"
+        ]
 
     curr_logged = qp.get(
         "logged_in", "true" if st.session_state.get("logged_in") else "false"
@@ -1507,10 +1518,25 @@ def render_clickable_table(
     q_logged = urllib.parse.quote(str(curr_logged))
     q_user = urllib.parse.quote(str(curr_user))
     q_role = urllib.parse.quote(str(curr_role))
-    q_sheet = urllib.parse.quote(str(curr_sheet))
-    base_link = f"?logged_in={q_logged}&username={q_user}&role={q_role}&active_sheet={q_sheet}&edit_row="
 
     indices = page_df.index.tolist()
+    orig_indices = (
+        page_df["__orig_idx__"].tolist()
+        if "__orig_idx__" in page_df.columns
+        else indices
+    )
+    row_sheets = (
+        page_df["Sheet_Name"].astype(str).tolist()
+        if "Sheet_Name" in page_df.columns
+        else [curr_sheet] * len(page_df)
+    )
+    login_c_tbl = find_login_user_column(page_df)
+    row_workers = (
+        page_df[login_c_tbl].astype(str).str.strip().tolist()
+        if login_c_tbl in page_df.columns
+        else [""] * len(page_df)
+    )
+
     act_col_vals = (
         page_df["Action_Type"].astype(str).str.strip().str.lower().tolist()
         if "Action_Type" in page_df.columns
@@ -1527,6 +1553,16 @@ def render_clickable_table(
         serial_no = start_idx + i + 1
         act_t = act_col_vals[i]
         b_status = booking_status_vals[i]
+        target_row_id = orig_indices[i]
+        target_sheet_name = row_sheets[i] if row_sheets[i] else curr_sheet
+        q_sheet_row = urllib.parse.quote(str(target_sheet_name))
+        row_link = f"?logged_in={q_logged}&username={q_user}&role={q_role}&active_sheet={q_sheet_row}&edit_row={target_row_id}"
+
+        row_can_edit = allow_edit
+        if row_can_edit and restrict_edit_to_user:
+            if row_workers[i].lower() != restrict_edit_to_user.strip().lower():
+                row_can_edit = False
+
         row_bg = (
             "#fee2e2"
             if act_t == "delete rejected"
@@ -1539,14 +1575,16 @@ def render_clickable_table(
 
         for col in display_cols:
             val = col_data[col][i]
-            if col == "Case_ID":
+            if col == "Sheet_Name":
+                cell_content = f'<span style="font-weight:700; color:#0f766e; background:#f0fdfa; padding:2px 8px; border-radius:6px; border:1px solid #99f6e4;">{val if val != "" else "-"}</span>'
+            elif col == "Case_ID":
                 cell_content = f'<span style="font-weight:800; color:#1e3a8a; background:#eff6ff; padding:2px 8px; border-radius:6px; border:1px solid #bfdbfe;">{val if val != "" else "-"}</span>'
             elif col == display_c:
                 display_val = (
                     val.strip() if val.strip() != "" else "Not Assigned"
                 )
-                if allow_edit:
-                    cell_content = f'<a href="{base_link}{idx}" target="_self" class="username-hyperlink">{display_val}</a>'
+                if row_can_edit:
+                    cell_content = f'<a href="{row_link}" target="_self" class="username-hyperlink">{display_val}</a>'
                 else:
                     cell_content = f'<span style="font-weight:700; color:#1e293b;">{display_val}</span>'
             else:
@@ -1564,6 +1602,9 @@ def render_clickable_table(
         elif b_status.lower() == "booked":
             status_display = "Booked"
             status_color = "#059669"
+        elif b_status.lower() == "issues":
+            status_display = "Issues"
+            status_color = "#7c3aed"
         else:
             status_display = "Active"
             status_color = "#1e293b"
@@ -1617,6 +1658,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
         curr_b_status = str(row_data.get("Booking_Status", "Active")).strip()
         st.markdown(f"📌 **Status:** `{curr_b_status}`")
+
+        issue_rem_view = str(row_data.get("Issue_Remark", "")).strip()
+        if issue_rem_view:
+            st.warning(f"⚠️ **Issue Remark:** {issue_rem_view}")
 
         app_entry = str(row_data.get("Appointment_Entry", "")).strip()
         if app_entry:
@@ -1889,6 +1934,20 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     else:
         st.markdown("### ✏️ Edit Case & Booking Status")
+        curr_bs = str(row_data.get("Booking_Status", "Active")).strip()
+        opts = ["Active", "Booked", "Rescheduled", "Issues"]
+        b_idx = next(
+            (i for i, o in enumerate(opts) if o.lower() == curr_bs.lower()),
+            0,
+        )
+
+        booking_status_choice = st.selectbox(
+            "📌 Select Status",
+            options=opts,
+            index=b_idx,
+            key=f"popup_bs_{row_idx}",
+        )
+
         with st.form(f"popup_edit_form_{row_idx}"):
             updated_values = {}
 
@@ -1899,7 +1958,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                 all_workers_list.insert(0, "Not Assigned")
 
             cols_to_show = (
-                list(df_full.columns)
+                [c for c in df_full.columns if c != "Issue_Remark"]
                 if role == "admin"
                 else [
                     c
@@ -1916,6 +1975,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         "Preferred_Location",
                         "Preferred_Dates",
                         "Prior_Notice",
+                        "Issue_Remark",
                     ]
                 ]
             )
@@ -1976,22 +2036,13 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             )
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-            curr_bs = str(row_data.get("Booking_Status", "Active")).strip()
-
-            opts = ["Active", "Booked", "Rescheduled"]
-            b_idx = opts.index(curr_bs) if curr_bs in opts else 0
-            booking_status_choice = st.selectbox(
-                "📌 Select Status",
-                options=opts,
-                index=b_idx,
-                key=f"popup_bs_{row_idx}",
-            )
 
             app_entry_val = ""
             uploaded_pdf_file = None
             popup_pref_loc = ""
             popup_pref_dates = ""
             popup_prior_notice = ""
+            popup_issue_remark = ""
 
             if booking_status_choice == "Booked":
                 app_entry_val = st.text_input(
@@ -2024,6 +2075,13 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                     placeholder="Enter prior notice details...",
                     key=f"popup_prior_notice_{row_idx}",
                 )
+            elif booking_status_choice == "Issues":
+                popup_issue_remark = st.text_area(
+                    "📝 Issue Remark (Required)",
+                    value=str(row_data.get("Issue_Remark", "")).strip(),
+                    placeholder="Enter issue remark / reason before saving...",
+                    key=f"popup_issue_remark_{row_idx}",
+                )
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             col_save, col_back = st.columns(2)
@@ -2051,6 +2109,10 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                     ):
                         st.warning(
                             "⚠️ Both Current Appointment Entry and Appointment PDF must be provided when selecting Booked status!"
+                        )
+                    elif booking_status_choice == "Issues" and not popup_issue_remark.strip():
+                        st.warning(
+                            "⚠️ Please fill the Issue Remark text box before saving Issues status!"
                         )
                     else:
                         current_time = get_ist_now()
@@ -2128,14 +2190,21 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             )
                             changed = True
 
+                        elif booking_status_choice == "Issues":
+                            df_full.at[row_idx, "Issue_Remark"] = (
+                                popup_issue_remark.strip()
+                            )
+                            changed = True
+
                         if changed:
                             df_full.at[row_idx, "Updated_By"] = current_user
                             df_full.at[row_idx, "Updated_At"] = current_time_str
-                            df_full.at[row_idx, "Action_Type"] = (
-                                "Rescheduled Case"
-                                if booking_status_choice == "Rescheduled"
-                                else "Updated Case"
-                            )
+                            if booking_status_choice == "Rescheduled":
+                                df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
+                            elif booking_status_choice == "Issues":
+                                df_full.at[row_idx, "Action_Type"] = "Issues Case"
+                            else:
+                                df_full.at[row_idx, "Action_Type"] = "Updated Case"
 
                         if booking_status_choice == "Booked":
                             sheets_all = get_sheet_names()
@@ -2165,6 +2234,37 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 )
                                 df_full = df_full.drop(row_idx)
 
+                        elif booking_status_choice == "Issues":
+                            sheets_all = get_sheet_names()
+                            issues_sheet_name = next(
+                                (s for s in sheets_all if "issue" in s.lower()),
+                                "Issues",
+                            )
+                            if issues_sheet_name != sheet_name:
+                                df_target_issues = load_data(
+                                    sheet_name=issues_sheet_name
+                                )
+                                row_to_transfer = df_full.loc[row_idx].copy()
+                                if df_target_issues is None:
+                                    df_target_issues = pd.DataFrame(
+                                        columns=df_full.columns
+                                    )
+                                for col in df_target_issues.columns:
+                                    if col not in row_to_transfer:
+                                        row_to_transfer[col] = ""
+
+                                df_target_issues = pd.concat(
+                                    [
+                                        df_target_issues,
+                                        pd.DataFrame([row_to_transfer]),
+                                    ],
+                                    ignore_index=True,
+                                )
+                                save_data(
+                                    df_target_issues, sheet_name=issues_sheet_name
+                                )
+                                df_full = df_full.drop(row_idx)
+
                         save_data(df_full, sheet_name=sheet_name)
 
                         if booking_status_choice == "Rescheduled" and is_booked_sheet:
@@ -2179,7 +2279,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             save_data(df_full, sheet_name=sheet_name)
 
                             append_rescheduled_to_active_sheet(
-                                source_row=df_full.loc[row_idx],
+                                source_row=df_full.loc[row_idx].copy(),
                                 pref_loc=popup_pref_loc,
                                 pref_dates=popup_pref_dates,
                                 prior_notice=popup_prior_notice,
@@ -3144,7 +3244,7 @@ def add_case_dialog(worker_name):
     sheets = get_sheet_names()
     default_idx = 0
     for idx_s, s_nm in enumerate(sheets):
-        if "booked" not in s_nm.lower():
+        if "booked" not in s_nm.lower() and "issue" not in s_nm.lower():
             default_idx = idx_s
             break
 
@@ -3201,6 +3301,7 @@ def add_case_dialog(worker_name):
                 "Preferred_Location",
                 "Preferred_Dates",
                 "Prior_Notice",
+                "Issue_Remark",
             ]
         ]
         for col_name in cols:
@@ -3264,44 +3365,31 @@ def add_case_dialog(worker_name):
                 st.error(f"❌ Error: {e}")
 
 
-@st.dialog("🔍 Search Records (Read-Only)", width="large")
-def search_data_dialog():
-    sheets = get_sheet_names()
-    selected_search_sheet = st.selectbox(
-        "Select Sheet to Search:", options=sheets, key="dlg_search_sheet"
-    )
-    df_search = load_data(sheet_name=selected_search_sheet)
-    if df_search is not None and not df_search.empty:
-        p_col = find_password_column(df_search)
-        search_query = (
-            st.text_input(
-                "Search by Case ID, Case Username, DS160, Case Password, or Case Worker:",
-                placeholder="Type Case ID, Username, DS160, Password, or Case Worker...",
-                key="dlg_search_input",
-            )
-            .strip()
+@st.dialog("🔍 Search Records Across All Sheets", width="large")
+def search_data_dialog(current_user=None, allow_edit=True):
+    search_query = (
+        st.text_input(
+            "Search by Case Worker Name, Case Username, DS160, Case Password, or Case ID (All Sheets):",
+            placeholder="Type Case Worker, Case Username, DS160, Password, or Case ID...",
+            key="dlg_search_input",
         )
-        if search_query != "":
-            found_data = df_search[
-                search_username_ds160_password_worker(df_search, search_query)
-            ]
-            if found_data.empty:
-                st.warning(f"No matching records found for '{search_query}'.")
-            else:
-                view_only_df = found_data.drop(
-                    columns=[
-                        p_col,
-                        "Updated_By",
-                        "Updated_At",
-                        "Action_Type",
-                        "Delete_Reason",
-                        "Appointment_PDF",
-                    ],
-                    errors="ignore",
-                )
-                view_only_df = reorder_dataframe_columns(view_only_df)
-                view_only_df.index = range(1, len(view_only_df) + 1)
-                st.dataframe(view_only_df, use_container_width=True)
+        .strip()
+    )
+    if search_query != "":
+        found_data = search_across_all_sheets_by_fields(search_query)
+        if found_data.empty:
+            st.warning(f"No matching records found across all sheets for '{search_query}'.")
+        else:
+            disp_c = find_display_username_column(found_data)
+            p_col = find_password_column(found_data)
+            render_clickable_table(
+                found_data,
+                disp_c,
+                p_col,
+                table_key="dlg_all_sheets_search",
+                allow_edit=allow_edit,
+                restrict_edit_to_user=current_user,
+            )
 
 
 dialog_map = {
@@ -3319,7 +3407,12 @@ dialog_map = {
         st.session_state.get("username", "")
     ),
     "add_case": lambda: add_case_dialog(st.session_state.get("username", "")),
-    "search_data": search_data_dialog,
+    "search_data": lambda: search_data_dialog(
+        current_user=st.session_state.get("username", ""),
+        allow_edit=load_permissions()
+        .get(st.session_state.get("username", ""), {})
+        .get("can_update", True),
+    ),
 }
 
 if st.session_state["open_dialog"] in dialog_map:
@@ -3349,6 +3442,7 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
         )
     else:
         close_case_popup_state()
+
 if not st.session_state["logged_in"]:
     default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
     selected_page = st.radio(
@@ -3739,7 +3833,7 @@ elif st.session_state["role"] == "admin":
                     disp_m,
                     p_col_m,
                     table_key="dash_global_search",
-                    allow_edit=False,
+                    allow_edit=True,
                 )
 
         total_cases_d = len(df_dash) if df_dash is not None else 0
@@ -4098,7 +4192,10 @@ elif st.session_state["role"] == "admin":
                             st.session_state["selected_visa_filter"] = "All"
                             st.rerun()
 
-        display_df = df_r
+        display_df = df_r.copy()
+        if "__orig_idx__" not in display_df.columns:
+            display_df["__orig_idx__"] = display_df.index
+
         if (
             st.session_state["records_selected_lead"] != "All"
             and not display_df.empty
@@ -4345,6 +4442,8 @@ else:
         if not df_w.empty
         else pd.DataFrame()
     )
+    if not user_rows_w.empty:
+        user_rows_w["__orig_idx__"] = user_rows_w.index
 
     st.markdown(
         "<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>",
@@ -4370,8 +4469,32 @@ else:
                 st.session_state[f"page_num_worker_{current_sheet}"] = 1
                 st.rerun()
 
+    worker_all_sheets_search_q = st.text_input(
+        "🔍 Search All Sheets (Case Worker Name, Case Username, DS160, Case Password, Case ID):",
+        placeholder="Type Case Worker Name, Case Username, DS160, Password, or Case ID...",
+        key="worker_all_sheets_search_input",
+    ).strip()
+
+    if worker_all_sheets_search_q != "":
+        all_sheets_found = search_across_all_sheets_by_fields(
+            worker_all_sheets_search_q
+        )
+        st.markdown(
+            f"<div class='section-banner'>🔎 Search Results Across All Sheets ({len(all_sheets_found)} found) — Sheet Name First</div>",
+            unsafe_allow_html=True,
+        )
+        render_clickable_table(
+            all_sheets_found,
+            display_c_w,
+            p_col_w,
+            table_key="worker_all_sheets_search_tbl",
+            sheet_for_link=current_sheet,
+            allow_edit=can_update,
+            restrict_edit_to_user=current_user,
+        )
+
     worker_search_q = st.text_input(
-        "🔍 Search your records:",
+        "🔍 Filter your assigned records in current sheet:",
         placeholder="Type Case ID, Username, DS160, Lead...",
         key="worker_records_search_input",
     ).strip()
@@ -4413,7 +4536,7 @@ else:
                 today_w_cases += 1
 
             bs_val = str(r.get("Booking_Status", "Active")).strip().lower()
-            if bs_val in ["booked", "rescheduled"]:
+            if bs_val in ["booked", "rescheduled", "issues"]:
                 booked_resched_w += 1
 
     st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
@@ -4460,5 +4583,5 @@ else:
         p_col_w,
         table_key=f"worker_{current_sheet}",
         sheet_for_link=current_sheet,
-        allow_edit=True,
+        allow_edit=can_update,
     )
