@@ -3281,7 +3281,7 @@ elif st.session_state["open_dialog"] == "admin_kpi_popup":
         lead_filter=kpi_meta.get("lead", "All"),
     )
     st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "edit_case_popup":
+elif st.session_state["open_dialog"] == None:
     r_idx = st.session_state.get("selected_row_idx")
     if r_idx is not None:
         curr_role = st.session_state.get("role", "worker")
