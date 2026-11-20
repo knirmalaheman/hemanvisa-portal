@@ -207,39 +207,113 @@ def reorder_dataframe_columns(df):
     return df[found_priority + remaining_cols]
 
 
+def _detect_case_username_col(df):
+    if df is None or df.empty:
+        return None
+    for col in df.columns:
+        if col.strip() == "USERNAME":
+            return col
+    login_c = None
+    for col in df.columns:
+        if col.strip().lower() in ["username", "case worker", "cases_worker", "user"]:
+            if col.strip() != "USERNAME":
+                login_c = col
+                break
+    for col in df.columns:
+        if col.strip().lower() == "username" and col != login_c:
+            return col
+    for col in df.columns:
+        c_low = col.strip().lower().replace("_", " ")
+        if "case" in c_low and "user" in c_low:
+            return col
+    return None
+
+
+def _is_valid_case_username(val):
+    s = str(val).strip().lower()
+    return s not in ["", "nan", "none", "not assigned", "unassigned", "-"]
+
+
+def _assign_case_username_based_ids(all_sheets):
+    """
+    1. Preserves existing Case_IDs already present in the Excel sheets.
+    2. Maps each Case Username across ALL sheets to a single Case_ID if that Case Username
+       already has an ID anywhere in the workbook.
+    3. For missing/empty Case_IDs, reuses the existing ID for that Case Username (if any),
+       or generates a brand-new sequential HM1001, HM1002... ID.
+    """
+    max_num = 1000
+    username_to_id = {}
+    modified = False
+
+    # Pass 1: Scan all sheets for max numeric ID and existing Case Username -> Case_ID mappings
+    for s_name, df in all_sheets.items():
+        if df is None:
+            continue
+        df.columns = df.columns.str.strip()
+        disp_col = _detect_case_username_col(df)
+        if "Case_ID" in df.columns:
+            for idx in df.index:
+                cid = str(df.at[idx, "Case_ID"]).strip()
+                if cid and cid.lower() != "nan":
+                    m = re.search(r"(\d+)", cid)
+                    if m:
+                        num = int(m.group(1))
+                        if num > max_num:
+                            max_num = num
+                    if disp_col and disp_col in df.columns:
+                        u_val = str(df.at[idx, disp_col]).strip()
+                        if _is_valid_case_username(u_val):
+                            u_key = u_val.lower()
+                            if u_key not in username_to_id:
+                                username_to_id[u_key] = cid
+
+    # Pass 2: Fill only missing/empty Case_IDs using Case Username mapping or new HMxxxx ID
+    for s_name, df in all_sheets.items():
+        if df is None:
+            continue
+        df.columns = df.columns.str.strip()
+        df = df.fillna("")
+        if "Case_ID" not in df.columns:
+            df.insert(0, "Case_ID", "")
+            modified = True
+
+        disp_col = _detect_case_username_col(df)
+        for idx in df.index:
+            cid = str(df.at[idx, "Case_ID"]).strip()
+            if cid == "" or cid.lower() == "nan":
+                u_key = ""
+                if disp_col and disp_col in df.columns:
+                    u_val = str(df.at[idx, disp_col]).strip()
+                    if _is_valid_case_username(u_val):
+                        u_key = u_val.lower()
+
+                if u_key and u_key in username_to_id:
+                    df.at[idx, "Case_ID"] = username_to_id[u_key]
+                else:
+                    max_num += 1
+                    new_cid = f"HM{max_num}"
+                    df.at[idx, "Case_ID"] = new_cid
+                    if u_key:
+                        username_to_id[u_key] = new_cid
+                modified = True
+
+        all_sheets[s_name] = df
+
+    return all_sheets, modified
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
     if os.path.exists(EXCEL_FILE):
         try:
             all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+            all_sheets, _ = _assign_case_username_based_ids(all_sheets)
             processed = {}
-            max_num = 1000
-            seen_ids = set()
-
-            for s_name, df in all_sheets.items():
-                df.columns = df.columns.str.strip()
-                if "Case_ID" in df.columns:
-                    for val in df["Case_ID"].fillna("").astype(str):
-                        m = re.search(r"(\d+)", val.strip())
-                        if m:
-                            num = int(m.group(1))
-                            if num > max_num:
-                                max_num = num
 
             for s_name, df in all_sheets.items():
                 df.columns = df.columns.str.strip()
                 df = df.fillna("")
-                if "Case_ID" not in df.columns:
-                    df.insert(0, "Case_ID", "")
-                for idx in df.index:
-                    cid = str(df.at[idx, "Case_ID"]).strip()
-                    if cid == "" or cid.lower() == "nan" or cid in seen_ids:
-                        max_num += 1
-                        new_cid = f"HV-{max_num}"
-                        df.at[idx, "Case_ID"] = new_cid
-                        seen_ids.add(new_cid)
-                    else:
-                        seen_ids.add(cid)
 
                 if "Unnamed: 5" in df.columns:
                     df = df.rename(columns={"Unnamed: 5": "Category"})
@@ -290,36 +364,9 @@ def ensure_all_cases_have_unique_ids(force=False):
         return
     try:
         all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-        modified = False
-        max_num = 1000
-        seen_ids = set()
+        all_sheets, modified = _assign_case_username_based_ids(all_sheets)
 
         for s_name, df in all_sheets.items():
-            df.columns = df.columns.str.strip()
-            if "Case_ID" in df.columns:
-                for val in df["Case_ID"].fillna("").astype(str):
-                    m = re.search(r"(\d+)", val.strip())
-                    if m:
-                        num = int(m.group(1))
-                        if num > max_num:
-                            max_num = num
-
-        for s_name, df in all_sheets.items():
-            df.columns = df.columns.str.strip()
-            df = df.fillna("")
-            if "Case_ID" not in df.columns:
-                df.insert(0, "Case_ID", "")
-                modified = True
-            for idx in df.index:
-                cid = str(df.at[idx, "Case_ID"]).strip()
-                if cid == "" or cid.lower() == "nan" or cid in seen_ids:
-                    max_num += 1
-                    new_cid = f"HV-{max_num}"
-                    df.at[idx, "Case_ID"] = new_cid
-                    seen_ids.add(new_cid)
-                    modified = True
-                else:
-                    seen_ids.add(cid)
             all_sheets[s_name] = reorder_dataframe_columns(df)
 
         if modified:
@@ -367,7 +414,7 @@ def generate_next_case_id(extra_reserved_ids=None):
                 num = int(m.group(1))
                 if num > max_num:
                     max_num = num
-    return f"HV-{max_num + 1}"
+    return f"HM{max_num + 1}"
 
 
 def append_rescheduled_to_active_sheet(
@@ -1687,7 +1734,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
     elif st.session_state["is_reschedule_mode"]:
         st.markdown(
-            f"### 🔄 Reschedule Appointment Case (Booked ID stays: `{case_id_val}`)"
+            f"### 🔄 Reschedule Appointment Case (Booked ID stays: `{case_id_val}` | New ID will be created)"
         )
         all_workers_res = get_all_workers_list()
         worker_opts_res = ["Not Assigned"] + [
@@ -1762,7 +1809,8 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Booking_Status"] = "Booked"
                             df_full.at[row_idx, "Action_Type"] = "Booked"
                         else:
-                            df_full.at[row_idx, "Case_ID"] = case_id_val
+                            new_res_id = generate_next_case_id()
+                            df_full.at[row_idx, "Case_ID"] = new_res_id
                             df_full.at[row_idx, "Preferred_Location"] = (
                                 pref_loc_input.strip()
                             )
@@ -2021,7 +2069,11 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 changed = True
                             df_full.at[row_idx, col_name] = str(new_val).strip()
 
-                        df_full.at[row_idx, "Case_ID"] = case_id_val
+                        active_case_id = case_id_val
+                        if booking_status_choice == "Rescheduled" and not is_booked_sheet:
+                            active_case_id = generate_next_case_id()
+
+                        df_full.at[row_idx, "Case_ID"] = active_case_id
 
                         if (
                             str(df_full.at[row_idx, "Booking_Status"])
@@ -2054,7 +2106,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     .strip()
                                     .replace(" ", "_")
                                 )
-                                pdf_filename = f"Appointment_{case_id_val}_{safe_uname}_{int(datetime.datetime.now().timestamp())}.pdf"
+                                pdf_filename = f"Appointment_{active_case_id}_{safe_uname}_{int(datetime.datetime.now().timestamp())}.pdf"
                                 full_pdf_path = os.path.join(
                                     date_folder, pdf_filename
                                 )
