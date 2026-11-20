@@ -762,7 +762,6 @@ def enable_right_cursor_navigation_in_popup():
                 const curRect = currentEl.getBoundingClientRect();
                 const curMidY = curRect.top + curRect.height / 2;
 
-                // First check if there is an input directly to the right on roughly the same horizontal row
                 let rightCandidate = null;
                 let bestRightScore = Infinity;
 
@@ -1638,8 +1637,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
                                 close_case_popup_state()
-                                st.session_state["open_dialog"] = None
-                                st.success("✅ Case deleted successfully!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Error deleting case: {e}")
@@ -1675,8 +1672,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
                                 close_case_popup_state()
-                                st.session_state["open_dialog"] = None
-                                st.success("✅ Case deleted successfully!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Error deleting case: {e}")
@@ -1784,29 +1779,18 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
                         save_data(df_full, sheet_name=sheet_name)
 
-                        new_rescheduled_id = None
-                        target_act_sheet = None
                         if is_booked_sheet:
-                            new_rescheduled_id, target_act_sheet = (
-                                append_rescheduled_to_active_sheet(
-                                    source_row=booked_snapshot_row,
-                                    pref_loc=pref_loc_input,
-                                    pref_dates=pref_dates_input,
-                                    prior_notice=prior_notice_input,
-                                    updated_by=current_user,
-                                    updated_at=ts_now,
-                                    assigned_worker=assign_worker_res,
-                                )
+                            append_rescheduled_to_active_sheet(
+                                source_row=booked_snapshot_row,
+                                pref_loc=pref_loc_input,
+                                pref_dates=pref_dates_input,
+                                prior_notice=prior_notice_input,
+                                updated_by=current_user,
+                                updated_at=ts_now,
+                                assigned_worker=assign_worker_res,
                             )
 
                         close_case_popup_state()
-                        st.session_state["open_dialog"] = None
-                        if new_rescheduled_id:
-                            st.success(
-                                f"✅ Old ID ({case_id_val}) Booked sheet lo {original_booked_worker} daggarane 'Booked' status tho undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki vellindi!"
-                            )
-                        else:
-                            st.success("✅ Case successfully rescheduled!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error saving reschedule: {e}")
@@ -1847,10 +1831,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
                         save_data(df_full, sheet_name=sheet_name)
                         close_case_popup_state()
-                        st.session_state["open_dialog"] = None
-                        st.success(
-                            "✅ Delete request sent to Admin with reason successfully!"
-                        )
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error: {e}")
@@ -2146,33 +2126,23 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             df_full.at[row_idx, "Action_Type"] = "Booked"
                             save_data(df_full, sheet_name=sheet_name)
 
-                            new_resched_id, target_act_sheet_p = (
-                                append_rescheduled_to_active_sheet(
-                                    source_row=df_full.loc[row_idx],
-                                    pref_loc=popup_pref_loc,
-                                    pref_dates=popup_pref_dates,
-                                    prior_notice=popup_prior_notice,
-                                    updated_by=current_user,
-                                    updated_at=current_time_str,
-                                    assigned_worker=active_worker_pick,
-                                )
+                            append_rescheduled_to_active_sheet(
+                                source_row=df_full.loc[row_idx],
+                                pref_loc=popup_pref_loc,
+                                pref_dates=popup_pref_dates,
+                                prior_notice=popup_prior_notice,
+                                updated_by=current_user,
+                                updated_at=current_time_str,
+                                assigned_worker=active_worker_pick,
                             )
-                            close_case_popup_state()
-                            st.session_state["open_dialog"] = None
-                            st.success(
-                                f"✅ Kept in Booked sheet ({case_id_val}, Status: Booked) & added to {target_act_sheet_p} with new ID: {new_resched_id} (Worker: {active_worker_pick or 'Not Assigned'})"
-                            )
-                        else:
-                            close_case_popup_state()
-                            st.session_state["open_dialog"] = None
-                            st.success("✅ Case successfully updated and saved!")
+
+                        close_case_popup_state()
                         st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error updating case: {e}")
 
             if cancelled:
                 close_case_popup_state()
-                st.session_state["open_dialog"] = None
                 st.rerun()
 
 
@@ -3237,9 +3207,6 @@ def add_case_dialog(worker_name):
                 )
                 save_data(updated_target_df, sheet_name=selected_target_sheet)
                 st.session_state["open_dialog"] = None
-                st.success(
-                    f"✅ New case added successfully with Case ID: {final_new_case_id}"
-                )
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {e}")
@@ -3304,17 +3271,16 @@ dialog_map = {
 }
 
 if st.session_state["open_dialog"] in dialog_map:
-    active_dlg_key = st.session_state["open_dialog"]
+    dialog_map[st.session_state["open_dialog"]]()
     st.session_state["open_dialog"] = None
-    dialog_map[active_dlg_key]()
 elif st.session_state["open_dialog"] == "admin_kpi_popup":
     kpi_meta = st.session_state.get("admin_kpi_popup_meta", {})
-    st.session_state["open_dialog"] = None
     admin_kpi_cases_dialog(
         sheet_name=kpi_meta.get("sheet", default_s_init),
         filter_mode=kpi_meta.get("mode", "not_assigned"),
         lead_filter=kpi_meta.get("lead", "All"),
     )
+    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
     if r_idx is not None:
@@ -3788,43 +3754,11 @@ elif st.session_state["role"] == "admin":
                 f"<div class='kpi-card teal'><div class='kpi-title'>Today Updated</div><div class='kpi-value'>{today_updated_count_d}</div></div>",
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                '<span class="admin-btn-5" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                f"🕒 View ({today_updated_count_d})",
-                key="kpi_btn_today_updated",
-                use_container_width=True,
-            ):
-                st.session_state["admin_kpi_popup_meta"] = {
-                    "sheet": dash_s_name,
-                    "mode": "today_updated",
-                    "lead": st.session_state["admin_selected_lead"],
-                }
-                st.session_state["open_dialog"] = "admin_kpi_popup"
-                st.rerun()
         with k_cols[3]:
             st.markdown(
                 f"<div class='kpi-card rose'><div class='kpi-title'>Not Assigned</div><div class='kpi-value'>{not_assigned_count_d}</div></div>",
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                '<span class="admin-btn-7" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                f"👤 View ({not_assigned_count_d})",
-                key="kpi_btn_not_assigned",
-                use_container_width=True,
-            ):
-                st.session_state["admin_kpi_popup_meta"] = {
-                    "sheet": dash_s_name,
-                    "mode": "not_assigned",
-                    "lead": st.session_state["admin_selected_lead"],
-                }
-                st.session_state["open_dialog"] = "admin_kpi_popup"
-                st.rerun()
         with k_cols[4]:
             st.markdown(
                 f"<div class='kpi-card purple'><div class='kpi-title'>Workers Online</div><div class='kpi-value'>{logged_in_cnt_d} / {len(all_workers_d)}</div></div>",
@@ -3940,8 +3874,25 @@ elif st.session_state["role"] == "admin":
                 st.session_state["open_dialog"] = "admin_notice"
                 st.rerun()
 
-        q_r3_1, q_r3_2, q_r3_3 = st.columns([1.3, 1.3, 1.4], gap="small")
+        q_r3_1, q_r3_2, q_r3_3, q_r3_4 = st.columns(4, gap="small")
         with q_r3_1:
+            st.markdown(
+                '<span class="admin-btn-7" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                f"👤 Not Assigned ({not_assigned_count_d})",
+                key="q_btn_not_assigned",
+                use_container_width=True,
+            ):
+                st.session_state["admin_kpi_popup_meta"] = {
+                    "sheet": dash_s_name,
+                    "mode": "not_assigned",
+                    "lead": st.session_state["admin_selected_lead"],
+                }
+                st.session_state["open_dialog"] = "admin_kpi_popup"
+                st.rerun()
+        with q_r3_2:
             st.markdown(
                 '<span class="admin-btn-1" style="display:none;"></span>',
                 unsafe_allow_html=True,
@@ -3953,7 +3904,7 @@ elif st.session_state["role"] == "admin":
             ):
                 st.session_state["open_dialog"] = "sync_excel"
                 st.rerun()
-        with q_r3_2:
+        with q_r3_3:
             st.markdown(
                 '<span class="admin-btn-6" style="display:none;"></span>',
                 unsafe_allow_html=True,
@@ -3965,7 +3916,7 @@ elif st.session_state["role"] == "admin":
             ):
                 st.session_state["open_dialog"] = "admin_password"
                 st.rerun()
-        with q_r3_3:
+        with q_r3_4:
             all_blk_d = are_all_workers_blocked()
             st.markdown(
                 f'<span class="{"admin-btn-1" if all_blk_d else "admin-btn-7"}" style="display:none;"></span>',
