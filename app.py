@@ -173,6 +173,11 @@ def close_case_popup_state():
     st.session_state["is_reschedule_mode"] = False
     st.session_state["selected_row_idx"] = None
     st.session_state["open_dialog"] = None
+    if "edit_row" in st.query_params:
+        try:
+            del st.query_params["edit_row"]
+        except Exception:
+            pass
 
 
 def reorder_dataframe_columns(df):
@@ -1633,6 +1638,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
                                 close_case_popup_state()
+                                st.session_state["open_dialog"] = None
                                 st.success("✅ Case deleted successfully!")
                                 st.rerun()
                             except Exception as e:
@@ -1669,6 +1675,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
                                 close_case_popup_state()
+                                st.session_state["open_dialog"] = None
                                 st.success("✅ Case deleted successfully!")
                                 st.rerun()
                             except Exception as e:
@@ -1793,6 +1800,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             )
 
                         close_case_popup_state()
+                        st.session_state["open_dialog"] = None
                         if new_rescheduled_id:
                             st.success(
                                 f"✅ Old ID ({case_id_val}) Booked sheet lo {original_booked_worker} daggarane 'Booked' status tho undi & New ID ({new_rescheduled_id}) tho {target_act_sheet} lo {assign_worker_res} ki vellindi!"
@@ -1839,6 +1847,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                         df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
                         save_data(df_full, sheet_name=sheet_name)
                         close_case_popup_state()
+                        st.session_state["open_dialog"] = None
                         st.success(
                             "✅ Delete request sent to Admin with reason successfully!"
                         )
@@ -2149,11 +2158,13 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                 )
                             )
                             close_case_popup_state()
+                            st.session_state["open_dialog"] = None
                             st.success(
                                 f"✅ Kept in Booked sheet ({case_id_val}, Status: Booked) & added to {target_act_sheet_p} with new ID: {new_resched_id} (Worker: {active_worker_pick or 'Not Assigned'})"
                             )
                         else:
                             close_case_popup_state()
+                            st.session_state["open_dialog"] = None
                             st.success("✅ Case successfully updated and saved!")
                         st.rerun()
                 except Exception as e:
@@ -2161,6 +2172,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if cancelled:
                 close_case_popup_state()
+                st.session_state["open_dialog"] = None
                 st.rerun()
 
 
@@ -3292,16 +3304,17 @@ dialog_map = {
 }
 
 if st.session_state["open_dialog"] in dialog_map:
-    dialog_map[st.session_state["open_dialog"]]()
+    active_dlg_key = st.session_state["open_dialog"]
     st.session_state["open_dialog"] = None
+    dialog_map[active_dlg_key]()
 elif st.session_state["open_dialog"] == "admin_kpi_popup":
     kpi_meta = st.session_state.get("admin_kpi_popup_meta", {})
+    st.session_state["open_dialog"] = None
     admin_kpi_cases_dialog(
         sheet_name=kpi_meta.get("sheet", default_s_init),
-        filter_mode=kpi_meta.get("mode", "today_updated"),
+        filter_mode=kpi_meta.get("mode", "not_assigned"),
         lead_filter=kpi_meta.get("lead", "All"),
     )
-    st.session_state["open_dialog"] = None
 elif st.session_state["open_dialog"] == "edit_case_popup":
     r_idx = st.session_state.get("selected_row_idx")
     if r_idx is not None:
