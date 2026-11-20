@@ -4320,7 +4320,7 @@ else:
             unsafe_allow_html=True,
         )
 
-    w_c1, w_c2, w_c3, w_c4 = st.columns([1.3, 1.3, 1.4, 1.4], gap="small")
+    w_c1, w_c2, w_c3 = st.columns([1.4, 1.4, 1.4], gap="small")
     with w_c1:
         if can_add:
             st.markdown(
@@ -4373,30 +4373,6 @@ else:
         ):
             st.session_state["open_dialog"] = "worker_password"
             st.rerun()
-    with w_c4:
-        if can_download:
-            st.markdown(
-                '<span class="admin-btn-5" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            w_dl_bytes_bar = get_worker_export_bytes(
-                _get_file_mtime(), current_user, current_sheet
-            )
-            st.download_button(
-                label="📥 Download Excel",
-                data=w_dl_bytes_bar,
-                file_name=f"{current_user}_Cases.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="worker_bar_excel_dl",
-            )
-        else:
-            st.button(
-                "📥 Download Excel",
-                key="worker_bar_excel_dl_dis",
-                disabled=True,
-                use_container_width=True,
-            )
 
     if sheets:
         st.markdown(
