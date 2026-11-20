@@ -1530,7 +1530,7 @@ def render_clickable_table(
     st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 
-@st.dialog("📋 Case Details, Edit & Appointment PDF", width="large")
+@st.dialog("📋 Case Details, Edit & Appointment PDF", width="large", on_dismiss=close_case_popup_state)
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     enable_right_cursor_navigation_in_popup()
     df_full = load_data(sheet_name=sheet_name)
