@@ -716,32 +716,6 @@ def _format_seconds_hhmm(total_seconds):
     return f"{hrs}h {mins}m"
 
 
-def load_attendance():
-    rows = _read_sheet_rows("App_Attendance")
-    cleaned = []
-    for r in rows:
-        w = str(r.get("Worker", "")).strip()
-        if w:
-            d_clean = _normalize_date_ist(r.get("Date", ""))
-            l_clean = _normalize_time_ist(r.get("Login_Time", "-"))
-            lo_clean = _normalize_time_ist(r.get("Logout_Time", "-"))
-            raw_st = str(r.get("Status", "")).strip()
-            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
-            is_act = st_clean.lower() in ["active", "logged in", "online"]
-            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
-            dur_str = _format_seconds_hhmm(dur_sec) if l_clean != "-" else "0h 0m"
-            cleaned.append({
-                "Worker": w,
-                "Date": d_clean,
-                "Login_Time": l_clean,
-                "Logout_Time": lo_clean,
-                "Duration": dur_str,
-                "Status": st_clean,
-                "_duration_sec": dur_sec,
-            })
-    return cleaned
-
-
 def save_attendance(att_list):
     records = []
     for item in (att_list or []):
