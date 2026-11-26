@@ -4065,8 +4065,7 @@ def add_case_dialog(worker_name):
     )
     target_df = load_data(sheet_name=selected_target_sheet)
     if target_df is None:
-        target_df = pd.DataFrame(columns=["Case
-        ])
+        target_df = pd.DataFrame(columns=["Case_ID", "USERNAME", "Password", "Lead"])
 
     target_df = reorder_dataframe_columns(target_df)
     login_c = find_login_user_column(target_df)
