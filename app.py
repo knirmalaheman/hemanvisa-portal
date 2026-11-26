@@ -4013,8 +4013,10 @@ elif st.session_state["role"] == "admin":
                 "<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>",
                 unsafe_allow_html=True,
             )
-            sw_cols = st.columns(len(sheets), gap="small")
-            for idx, s_name in enumerate(sheets):
+HIDDEN_SYSTEM_SHEETS = {"App_Logins", "App_Attendance", "App_Permissions", "App_Config"}
+visible_sheets = [s for s in sheets if str(s).strip() not in HIDDEN_SYSTEM_SHEETS]
+sw_cols = st.columns(max(1, len(visible_sheets)), gap="small")
+for idx, s_name in enumerate(visible_sheets):
                 with sw_cols[idx]:
                     is_active = s_name == dash_s_name
                     color_cls = "admin-btn-1" if is_active else "admin-btn-6"
