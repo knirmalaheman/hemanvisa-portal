@@ -49,7 +49,10 @@ def get_webapp_url():
 
 def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list) or len(raw_rows) == 0:
-        return pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"], dtype=str)
+        return pd.DataFrame(
+            columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"],
+            dtype=str,
+        )
     headers = [
         str(h).strip() if str(h).strip() != "" else f"Col_{i}"
         for i, h in enumerate(raw_rows[0])
@@ -89,9 +92,7 @@ def _fetch_sheets_from_webapp():
         if isinstance(payload, dict) and isinstance(payload.get("sheets"), dict):
             sheets_dict = {}
             for s_name, s_rows in payload["sheets"].items():
-                clean_s_name = str(s_name).strip()
-                if clean_s_name:
-                    sheets_dict[clean_s_name] = _rows_to_df(s_rows)
+                sheets_dict[str(s_name).strip()] = _rows_to_df(s_rows)
             return sheets_dict if sheets_dict else None
         if isinstance(payload, list):
             df_main = _rows_to_df(payload)
@@ -872,7 +873,7 @@ def _normalize_sheet_df(df):
     return reorder_dataframe_columns(df)
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
