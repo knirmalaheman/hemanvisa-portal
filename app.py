@@ -34,13 +34,15 @@ def get_webapp_url():
         return ""
 
 
-def _rows_to_df(raw_rows):
+def def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list):
         return pd.DataFrame()
     if len(raw_rows) == 0:
         return pd.DataFrame()
-    headers = [str(h).strip() if str(h).strip() != "" else f"Col_{i}" for i, h in enumerate(raw_rows[0])]
-    # Ensure unique column names
+    headers = [
+        str(h).strip() if str(h).strip() != "" else f"Col_{i}"
+        for i, h in enumerate(raw_rows[0])
+    ]
     seen = {}
     unique_headers = []
     for h in headers:
@@ -67,33 +69,30 @@ def _fetch_sheets_from_webapp():
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=30)
+        resp = requests.get(url, timeout=45, allow_redirects=True)
         resp.raise_for_status()
-        payload = resp.json()
+        text_body = resp.text.strip()
+        if not text_body:
+            return None
+        payload = json.loads(text_body)
         if isinstance(payload, dict) and isinstance(payload.get("sheets"), dict):
             sheets_dict = {}
             for s_name, s_rows in payload["sheets"].items():
-                sheets_dict[str(s_name)] = _rows_to_df(s_rows)
+                sheets_dict[str(s_name).strip()] = _rows_to_df(s_rows)
             return sheets_dict if sheets_dict else None
         if isinstance(payload, list):
-            default_sheet_name = "Sheet1"
-            if os.path.exists(EXCEL_FILE):
-                try:
-                    xl = pd.ExcelFile(EXCEL_FILE)
-                    if xl.sheet_names:
-                        default_sheet_name = xl.sheet_names[0]
-                except Exception:
-                    pass
             df_main = _rows_to_df(payload)
-            return {default_sheet_name: df_main}
+            return {"Active Cases": df_main}
         return None
-    except Exception:
+    except Exception as e:
+        st.session_state["_last_webapp_fetch_error"] = str(e)
         return None
 
 
 def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
     url = get_webapp_url()
     if not url:
+        st.error("GSHEET_WEBAPP_URL కనిపించడం లేదు!")
         return
     try:
         df_clean = df_to_push.fillna("").astype(str)
@@ -110,10 +109,13 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
                 all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
             body["sheets"] = all_payload
 
-        resp = requests.post(url, json=body, timeout=30)
+        resp = requests.post(url, json=body, timeout=45, allow_redirects=True)
         resp.raise_for_status()
-    except Exception:
-        pass
+        res_json = resp.json()
+        if isinstance(res_json, dict) and res_json.get("status") != "success":
+            st.error(f"Google Sheet Save Error ({sheet_name}): {res_json}")
+    except Exception as e:
+        st.error(f"Google Sheet Push Error ({sheet_name}): {e}")
 
 
 def get_ist_now():
@@ -126,73 +128,159 @@ def _get_file_mtime():
     return f"{f_mtime}_{sync_ver}"
 
 
+def _read_sheet_rows(sheet_name):
+    sheets = load_all_sheets_cached(_get_file_mtime())
+    df = sheets.get(sheet_name) if isinstance(sheets, dict) else None
+    if df is None or df.empty:
+        return []
+    return df.fillna("").astype(str).to_dict(orient="records")
+
+
+def _write_sheet_records(sheet_name, columns, records):
+    if records:
+        df_new = pd.DataFrame(records)
+        for col in columns:
+            if col not in df_new.columns:
+                df_new[col] = ""
+        df_new = df_new[columns].fillna("").astype(str)
+    else:
+        df_new = pd.DataFrame(columns=columns, dtype=str)
+
+    _push_sheet_to_webapp(sheet_name, df_new, all_sheets_dict=None)
+    st.session_state["_gsheet_sync_version"] = (
+        st.session_state.get("_gsheet_sync_version", 0) + 1
+    )
+    st.cache_data.clear()
+
+
 def get_admin_creds():
-    if os.path.exists(ADMIN_FILE):
-        with open(ADMIN_FILE, "r") as f:
-            lines = f.read().splitlines()
-            if len(lines) >= 2:
-                return lines[0].strip(), lines[1].strip()
+    rows = _read_sheet_rows("App_Config")
+    for r in rows:
+        if r.get("Key", "").strip() == "admin_creds":
+            u = r.get("Value1", "").strip() or "admin"
+            p = r.get("Value2", "").strip() or "admin123"
+            return u, p
     return "admin", "admin123"
 
 
 def save_admin_creds(new_user, new_pass):
-    with open(ADMIN_FILE, "w") as f:
-        f.write(f"{new_user}\n{new_pass}")
-
-
-def load_permissions():
-    if os.path.exists(PERMS_FILE):
-        try:
-            with open(PERMS_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-
-def save_permissions(perms_dict):
-    with open(PERMS_FILE, "w") as f:
-        json.dump(perms_dict, f, indent=4)
+    rows = _read_sheet_rows("App_Config")
+    updated = False
+    for r in rows:
+        if r.get("Key", "").strip() == "admin_creds":
+            r["Value1"] = str(new_user).strip()
+            r["Value2"] = str(new_pass).strip()
+            updated = True
+    if not updated:
+        rows.append({
+            "Key": "admin_creds",
+            "Value1": str(new_user).strip(),
+            "Value2": str(new_pass).strip(),
+        })
+    _write_sheet_records("App_Config", ["Key", "Value1", "Value2"], rows)
 
 
 def get_admin_notice():
-    if os.path.exists(NOTICE_FILE):
-        try:
-            with open(NOTICE_FILE, "r", encoding="utf-8") as f:
-                return f.read().strip()
-        except Exception:
-            return ""
+    rows = _read_sheet_rows("App_Config")
+    for r in rows:
+        if r.get("Key", "").strip() == "admin_notice":
+            return r.get("Value1", "").strip()
     return ""
 
 
 def save_admin_notice(notice_text):
-    with open(NOTICE_FILE, "w", encoding="utf-8") as f:
-        f.write(notice_text.strip())
+    rows = _read_sheet_rows("App_Config")
+    updated = False
+    for r in rows:
+        if r.get("Key", "").strip() == "admin_notice":
+            r["Value1"] = str(notice_text).strip()
+            updated = True
+    if not updated:
+        rows.append({
+            "Key": "admin_notice",
+            "Value1": str(notice_text).strip(),
+            "Value2": "",
+        })
+    _write_sheet_records("App_Config", ["Key", "Value1", "Value2"], rows)
+
+
+def load_permissions():
+    rows = _read_sheet_rows("App_Permissions")
+    perms = {}
+    for r in rows:
+        w = r.get("Worker", "").strip()
+        if w:
+            perms[w] = {
+                "can_edit": str(r.get("can_edit", "True")).strip().lower()
+                in ["true", "1", "yes"],
+                "can_delete_req": str(r.get("can_delete_req", "True")).strip().lower()
+                in ["true", "1", "yes"],
+                "can_reschedule": str(r.get("can_reschedule", "True")).strip().lower()
+                in ["true", "1", "yes"],
+                "can_add": str(r.get("can_add", "True")).strip().lower()
+                in ["true", "1", "yes"],
+            }
+    return perms
+
+
+def save_permissions(perms_dict):
+    cols = ["Worker", "can_edit", "can_delete_req", "can_reschedule", "can_add"]
+    records = []
+    for w, p in (perms_dict or {}).items():
+        if str(w).strip():
+            records.append({
+                "Worker": str(w).strip(),
+                "can_edit": str(p.get("can_edit", True)),
+                "can_delete_req": str(p.get("can_delete_req", True)),
+                "can_reschedule": str(p.get("can_reschedule", True)),
+                "can_add": str(p.get("can_add", True)),
+            })
+    _write_sheet_records("App_Permissions", cols, records)
 
 
 def load_login_tracking():
-    if os.path.exists(LOGINS_FILE):
-        try:
-            with open(LOGINS_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    rows = _read_sheet_rows("App_Logins")
+    logins = {}
+    for r in rows:
+        w = r.get("Worker", "").strip()
+        if w:
+            logins[w] = {
+                "status": r.get("status", "Not Logged In").strip() or "Not Logged In",
+                "last_login": r.get("last_login", "-").strip() or "-",
+            }
+    return logins
+
+
+def _save_login_tracking(logins_dict):
+    cols = ["Worker", "status", "last_login"]
+    records = []
+    for w, info in (logins_dict or {}).items():
+        if str(w).strip():
+            records.append({
+                "Worker": str(w).strip(),
+                "status": str(info.get("status", "Not Logged In")),
+                "last_login": str(info.get("last_login", "-")),
+            })
+    _write_sheet_records("App_Logins", cols, records)
 
 
 def load_attendance():
-    if os.path.exists(ATTENDANCE_FILE):
-        try:
-            with open(ATTENDANCE_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return []
-    return []
+    rows = _read_sheet_rows("App_Attendance")
+    cols = ["Worker", "Date", "Login_Time", "Logout_Time", "Status"]
+    cleaned = []
+    for r in rows:
+        if r.get("Worker", "").strip():
+            cleaned.append({c: str(r.get(c, "")).strip() for c in cols})
+    return cleaned
 
 
 def save_attendance(att_list):
-    with open(ATTENDANCE_FILE, "w") as f:
-        json.dump(att_list, f, indent=4)
+    cols = ["Worker", "Date", "Login_Time", "Logout_Time", "Status"]
+    records = []
+    for item in (att_list or []):
+        if str(item.get("Worker", "")).strip():
+            records.append({c: str(item.get(c, "")) for c in cols})
+    _write_sheet_records("App_Attendance", cols, records)
 
 
 def record_worker_login(worker_name):
@@ -208,8 +296,7 @@ def record_worker_login(worker_name):
         "status": "Logged In",
         "last_login": full_timestamp,
     }
-    with open(LOGINS_FILE, "w") as f:
-        json.dump(logins, f, indent=4)
+    _save_login_tracking(logins)
 
     attendance = load_attendance()
     found = False
@@ -245,8 +332,7 @@ def record_worker_logout(worker_name):
     for k in list(logins.keys()):
         if k.lower() == worker_name.strip().lower():
             logins[k]["status"] = "Not Logged In"
-    with open(LOGINS_FILE, "w") as f:
-        json.dump(logins, f, indent=4)
+    _save_login_tracking(logins)
 
     attendance = load_attendance()
     for entry in attendance:
@@ -256,6 +342,8 @@ def record_worker_logout(worker_name):
         ):
             entry["Logout_Time"] = time_str
             entry["Status"] = "Logged Out"
+            break
+    save_attendance(attendance)
             break
     save_attendance(attendance)
 
