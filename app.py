@@ -48,10 +48,8 @@ def get_webapp_url():
 
 
 def _rows_to_df(raw_rows):
-    if not raw_rows or not isinstance(raw_rows, list):
-        return pd.DataFrame()
-    if len(raw_rows) == 0:
-        return pd.DataFrame()
+    if not raw_rows or not isinstance(raw_rows, list) or len(raw_rows) == 0:
+        return pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"], dtype=str)
     headers = [
         str(h).strip() if str(h).strip() != "" else f"Col_{i}"
         for i, h in enumerate(raw_rows[0])
@@ -91,7 +89,9 @@ def _fetch_sheets_from_webapp():
         if isinstance(payload, dict) and isinstance(payload.get("sheets"), dict):
             sheets_dict = {}
             for s_name, s_rows in payload["sheets"].items():
-                sheets_dict[str(s_name).strip()] = _rows_to_df(s_rows)
+                clean_s_name = str(s_name).strip()
+                if clean_s_name:
+                    sheets_dict[clean_s_name] = _rows_to_df(s_rows)
             return sheets_dict if sheets_dict else None
         if isinstance(payload, list):
             df_main = _rows_to_df(payload)
@@ -877,23 +877,8 @@ def load_all_sheets_cached(file_mtime):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
 
-    if remote_sheets is not None:
-        if len(remote_sheets) == 1 and os.path.exists(EXCEL_FILE):
-            try:
-                local_raw = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-                remote_key = list(remote_sheets.keys())[0]
-                remote_df = remote_sheets[remote_key]
-                merged = {}
-                if remote_df is not None and not remote_df.empty:
-                    merged[remote_key] = remote_df
-                for l_s, l_df in local_raw.items():
-                    if str(l_s) not in merged:
-                        merged[str(l_s)] = l_df
-                all_sheets = merged if merged else remote_sheets
-            except Exception:
-                all_sheets = remote_sheets
-        else:
-            all_sheets = remote_sheets
+    if remote_sheets is not None and len(remote_sheets) > 0:
+        all_sheets = remote_sheets
     elif os.path.exists(EXCEL_FILE):
         try:
             all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
@@ -910,6 +895,8 @@ def load_all_sheets_cached(file_mtime):
             if df is None:
                 continue
             s_clean = str(s_name).strip()
+            if not s_clean:
+                continue
             if s_clean in SYSTEM_SHEETS:
                 df_sys = df.copy()
                 df_sys.columns = df_sys.columns.str.strip()
@@ -4518,22 +4505,16 @@ elif st.session_state["role"] == "admin":
                 for c in df_dash.columns
                 if any(k in c.lower() for k in ["date", "time", "day", "created"])
             ]
-            date_mask = pd.Series([False] * len(df_dash), index=df_dash.index)
-            for dc in date_cols_d:
-                date_mask = date_mask | df_dash[dc].astype(str).str.contains(today_str_d, na=False)
-            if "Updated_At" in df_dash.columns:
-                date_mask = date_mask | df_dash["Updated_At"].astype(str).str.contains(today_str_d, na=False)
-            today_count_d = int(date_mask.sum())
-
-            if "Updated_At" in df_dash.columns and "Updated_By" in df_dash.columns:
-                upd_mask = (
-                    df_dash["Updated_At"].astype(str).str.contains(today_str_d, na=False)
-                    & (df_dash["Updated_By"].astype(str).str.strip() != "")
-                )
-                today_updated_count_d = int(upd_mask.sum())
-
-            if login_c_d in df_dash.columns:
-                not_assigned_count_d = int(df_dash[login_c_d].apply(is_not_assigned_value).sum())
+            for _, r in df_dash.iterrows():
+                if any(
+                    today_str_d in str(r.get(dc, "")).strip()
+                    for dc in date_cols_d
+                ) or today_str_d in str(r.get("Updated_At", "")):
+                    today_count_d += 1
+                if is_today_updated_row(r, today_str_d):
+                    today_updated_count_d += 1
+                if is_not_assigned_value(r.get(login_c_d, "")):
+                    not_assigned_count_d += 1
 
         del_reqs_count_d = 0
         for _, df_s in all_sheets_map.items():
@@ -5012,26 +4993,6 @@ else:
                 use_container_width=True,
             ):
                 st.session_state["open_dialog"] = "add_case"
-                st.rerun()
-        else:
-            st.button(
-                "➕ Add New Case",
-                key="w_btn_add_dis",
-                disabled=True,
-                use_container_width=True,
-            )
-    with w_c2:
-        if can_search:
-            st.markdown(
-                '<span class="admin-btn-0" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "🔍 Search Records",
-                key="w_btn_search",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
             st.button(
