@@ -20,6 +20,8 @@ ATTENDANCE_FILE = "worker_attendance.json"
 PDF_BASE_DIR = "uploaded_appointment_pdfs"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
+SYSTEM_SHEETS = {"App_Logins", "App_Attendance", "App_Permissions", "App_Config"}
+
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
 
@@ -418,7 +420,7 @@ def _assign_case_username_based_ids(all_sheets):
     modified = False
 
     for s_name, df in all_sheets.items():
-        if df is None:
+        if df is None or str(s_name).strip() in SYSTEM_SHEETS:
             continue
         df.columns = df.columns.str.strip()
         disp_col = _detect_case_username_col(df)
@@ -439,7 +441,7 @@ def _assign_case_username_based_ids(all_sheets):
                                 username_to_id[u_key] = cid
 
     for s_name, df in all_sheets.items():
-        if df is None:
+        if df is None or str(s_name).strip() in SYSTEM_SHEETS:
             continue
         df.columns = df.columns.str.strip()
         df = df.fillna("")
@@ -551,7 +553,13 @@ def load_all_sheets_cached(file_mtime):
         for s_name, df in all_sheets.items():
             if df is None:
                 continue
-            processed[str(s_name)] = _normalize_sheet_df(df)
+            s_clean = str(s_name).strip()
+            if s_clean in SYSTEM_SHEETS:
+                df_sys = df.copy()
+                df_sys.columns = df_sys.columns.str.strip()
+                processed[s_clean] = df_sys.fillna("").astype(str)
+            else:
+                processed[s_clean] = _normalize_sheet_df(df)
         return processed
     except Exception:
         return {}
@@ -586,22 +594,25 @@ def ensure_all_cases_have_unique_ids(force=False):
 def get_sheet_names():
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     if all_sheets:
-        return list(all_sheets.keys())
+        visible = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
+        return visible if visible else list(all_sheets.keys())
     return ["Sheet1"]
 
 
 def get_default_active_sheet(sheets_list=None):
     if sheets_list is None:
         sheets_list = get_sheet_names()
-    if not sheets_list:
+    filtered = [s for s in sheets_list if str(s).strip() not in SYSTEM_SHEETS]
+    pool = filtered if filtered else sheets_list
+    if not pool:
         return "Sheet1"
     return next(
         (
             s
-            for s in sheets_list
+            for s in pool
             if "booked" not in s.lower() and "issue" not in s.lower()
         ),
-        sheets_list[0],
+        pool[0],
     )
 
 
@@ -4008,15 +4019,14 @@ elif st.session_state["role"] == "admin":
                     st.session_state["admin_selected_lead"] = l_name
                     st.rerun()
 
-        if sheets:
+        visible_dash_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
+        if visible_dash_sheets:
             st.markdown(
                 "<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>",
                 unsafe_allow_html=True,
             )
-HIDDEN_SYSTEM_SHEETS = {"App_Logins", "App_Attendance", "App_Permissions", "App_Config"}
-visible_sheets = [s for s in sheets if str(s).strip() not in HIDDEN_SYSTEM_SHEETS]
-sw_cols = st.columns(max(1, len(visible_sheets)), gap="small")
-for idx, s_name in enumerate(visible_sheets):
+            sw_cols = st.columns(len(visible_dash_sheets), gap="small")
+            for idx, s_name in enumerate(visible_dash_sheets):
                 with sw_cols[idx]:
                     is_active = s_name == dash_s_name
                     color_cls = "admin-btn-1" if is_active else "admin-btn-6"
@@ -4032,22 +4042,42 @@ for idx, s_name in enumerate(visible_sheets):
                     ):
                         st.session_state["dash_sheet"] = s_name
                         st.rerun()
-if (
-    st.session_state["admin_selected_lead"] != "All"
-    and not df_d_base.empty
-    and lead_col_d in df_d_base.columns
-):
-    sel_l = st.session_state["admin_selected_lead"].lower()
-    df_dash = df_d_base[
-        df_d_base[lead_col_d]
-        .astype(str)
-        .str.strip()
-        .str.lower()
-        .str.contains(sel_l, na=False)
-    ]
-else:
-    df_dash = df_d_base
-if dash_search_query != "":
+
+        hidden_sys_sheets = [s for s in sheets if str(s).strip() in SYSTEM_SHEETS]
+        if hidden_sys_sheets:
+            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+            with st.expander(
+                "⚙️ Hidden System Sheets (App_Logins, App_Attendance, App_Permissions, App_Config)",
+                expanded=False,
+            ):
+                selected_sys_s = st.selectbox(
+                    "Select System Sheet to View",
+                    options=hidden_sys_sheets,
+                    key="admin_hidden_sys_sheet_picker",
+                )
+                df_sys_view = all_sheets_map.get(selected_sys_s, pd.DataFrame())
+                if df_sys_view is not None and not df_sys_view.empty:
+                    st.dataframe(df_sys_view, use_container_width=True)
+                else:
+                    st.info(f"'{selected_sys_s}' sheet currently has no rows.")
+
+        if (
+            st.session_state["admin_selected_lead"] != "All"
+            and not df_d_base.empty
+            and lead_col_d in df_d_base.columns
+        ):
+            sel_l = st.session_state["admin_selected_lead"].lower()
+            df_dash = df_d_base[
+                df_d_base[lead_col_d]
+                .astype(str)
+                .str.strip()
+                .str.lower()
+                .str.contains(sel_l, na=False)
+            ]
+        else:
+            df_dash = df_d_base
+
+        if dash_search_query != "":
             all_matched = search_across_all_sheets_by_fields(
                 dash_search_query,
                 lead_filter=st.session_state["admin_selected_lead"],
@@ -4401,10 +4431,11 @@ if dash_search_query != "":
                 key="admin_search_input",
             ).strip()
         with col_sheets:
-            if sheets:
+            rec_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
+            if rec_visible_sheets:
                 st.markdown("📑 **Switch Sheet:**")
-                sw_cols_r = st.columns(len(sheets), gap="small")
-                for s_idx, s_name in enumerate(sheets):
+                sw_cols_r = st.columns(len(rec_visible_sheets), gap="small")
+                for s_idx, s_name in enumerate(rec_visible_sheets):
                     with sw_cols_r[s_idx]:
                         is_act = s_name == rec_s_name
                         color_c = "admin-btn-1" if is_act else "admin-btn-6"
@@ -4630,14 +4661,15 @@ else:
                 use_container_width=True,
             )
 
-    if sheets:
+    w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
+    if w_visible_sheets:
         st.markdown(
             "<div class='action-group-title'>📑 SWITCH SHEET:</div>",
             unsafe_allow_html=True,
         )
-        w_sw_cols = st.columns(len(sheets), gap="small")
+        w_sw_cols = st.columns(len(w_visible_sheets), gap="small")
         palette_w = ["admin-btn-0", "admin-btn-1", "admin-btn-2", "admin-btn-3", "admin-btn-4", "admin-btn-5"]
-        for s_idx_w, s_name_w in enumerate(sheets):
+        for s_idx_w, s_name_w in enumerate(w_visible_sheets):
             with w_sw_cols[s_idx_w]:
                 is_act_w = s_name_w == current_sheet
                 c_cls_w = palette_w[s_idx_w % len(palette_w)] if is_act_w else "admin-btn-6"
