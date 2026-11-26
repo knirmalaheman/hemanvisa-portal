@@ -26,7 +26,13 @@ ATTENDANCE_FILE = "worker_attendance.json"
 PDF_BASE_DIR = "uploaded_appointment_pdfs"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
-SYSTEM_SHEETS = {"App_Logins", "App_Attendance", "App_Permissions", "App_Config"}
+SYSTEM_SHEETS = {
+    "App_Logins",
+    "App_Attendance",
+    "App_Permissions",
+    "App_Config",
+    "App_Edit_Requests",
+}
 
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
@@ -168,6 +174,105 @@ def _write_sheet_records(sheet_name, columns, records):
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
     st.cache_data.clear()
+
+
+EDIT_REQ_COLS = [
+    "Request_ID",
+    "Worker",
+    "Sheet_Name",
+    "Case_ID",
+    "Case_Username",
+    "Row_Index",
+    "Reason",
+    "Status",
+    "Requested_At",
+    "Reviewed_By",
+    "Reviewed_At",
+]
+
+
+def load_edit_requests():
+    rows = _read_sheet_rows("App_Edit_Requests")
+    cleaned = []
+    for r in rows:
+        w = str(r.get("Worker", "")).strip()
+        cid = str(r.get("Case_ID", "")).strip()
+        if w or cid:
+            cleaned.append({col: str(r.get(col, "")).strip() for col in EDIT_REQ_COLS})
+    return cleaned
+
+
+def save_edit_requests(req_list):
+    records = []
+    for item in (req_list or []):
+        records.append({col: str(item.get(col, "")).strip() for col in EDIT_REQ_COLS})
+    _write_sheet_records("App_Edit_Requests", EDIT_REQ_COLS, records)
+
+
+def get_worker_case_edit_request(worker_name, sheet_name, case_id, case_username=""):
+    if not worker_name:
+        return None
+    w_low = str(worker_name).strip().lower()
+    s_low = str(sheet_name).strip().lower()
+    cid_low = str(case_id).strip().lower()
+    cu_low = str(case_username).strip().lower()
+
+    reqs = load_edit_requests()
+    matched = None
+    for r in reqs:
+        if r.get("Worker", "").strip().lower() != w_low:
+            continue
+        if r.get("Sheet_Name", "").strip().lower() != s_low:
+            continue
+        r_cid = r.get("Case_ID", "").strip().lower()
+        r_cu = r.get("Case_Username", "").strip().lower()
+        same_case = (cid_low and cid_low != "n/a" and r_cid == cid_low) or (
+            cu_low and r_cu == cu_low and (not cid_low or cid_low == "n/a" or r_cid == cid_low)
+        )
+        if same_case:
+            matched = r
+    return matched
+
+
+def create_or_reopen_edit_request(worker_name, sheet_name, case_id, case_username, row_idx, reason):
+    now_str = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+    reqs = load_edit_requests()
+    w_low = str(worker_name).strip().lower()
+    s_low = str(sheet_name).strip().lower()
+    cid_low = str(case_id).strip().lower()
+
+    for r in reqs:
+        if (
+            r.get("Worker", "").strip().lower() == w_low
+            and r.get("Sheet_Name", "").strip().lower() == s_low
+            and r.get("Case_ID", "").strip().lower() == cid_low
+        ):
+            r["Row_Index"] = str(row_idx)
+            r["Case_Username"] = str(case_username).strip()
+            r["Reason"] = str(reason).strip()
+            r["Status"] = "Pending"
+            r["Requested_At"] = now_str
+            r["Reviewed_By"] = ""
+            r["Reviewed_At"] = ""
+            save_edit_requests(reqs)
+            return r
+
+    new_req = {
+        "Request_ID": f"ER{int(get_ist_now().timestamp())}{len(reqs) + 1}",
+        "Worker": str(worker_name).strip(),
+        "Sheet_Name": str(sheet_name).strip(),
+        "Case_ID": str(case_id).strip(),
+        "Case_Username": str(case_username).strip(),
+        "Row_Index": str(row_idx),
+        "Reason": str(reason).strip(),
+        "Status": "Pending",
+        "Requested_At": now_str,
+        "Reviewed_By": "",
+        "Reviewed_At": "",
+    }
+    reqs.append(new_req)
+    save_edit_requests(reqs)
+    return new_req
 
 
 def get_admin_creds():
@@ -2138,6 +2243,11 @@ def render_clickable_table(
         if login_c_tbl in page_df.columns
         else [""] * len(page_df)
     )
+    row_case_ids = (
+        page_df["Case_ID"].astype(str).str.strip().tolist()
+        if "Case_ID" in page_df.columns
+        else [""] * len(page_df)
+    )
 
     act_col_vals = (
         page_df["Action_Type"].astype(str).str.strip().str.lower().tolist()
@@ -2151,6 +2261,12 @@ def render_clickable_table(
     )
     col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
 
+    all_edit_reqs = (
+        load_edit_requests()
+        if (curr_role == "worker" and allow_edit)
+        else []
+    )
+
     for i, idx in enumerate(indices):
         serial_no = start_idx + i + 1
         act_t = act_col_vals[i]
@@ -2161,7 +2277,35 @@ def render_clickable_table(
         row_link = f"?logged_in={q_logged}&username={q_user}&role={q_role}&active_sheet={q_sheet_row}&edit_row={target_row_id}"
 
         row_can_edit = allow_edit
-        if row_can_edit and restrict_edit_to_user:
+        is_other_worker_case = False
+        req_badge = ""
+
+        if row_can_edit and curr_role == "worker":
+            r_worker = row_workers[i].strip().lower()
+            r_cid = row_case_ids[i].strip().lower()
+            r_cu = col_data[display_c][i].strip().lower() if display_c in col_data else ""
+            if r_worker != curr_user.strip().lower():
+                is_other_worker_case = True
+                matched_req = None
+                for er in all_edit_reqs:
+                    if (
+                        er.get("Worker", "").strip().lower() == curr_user.strip().lower()
+                        and er.get("Sheet_Name", "").strip().lower() == target_sheet_name.strip().lower()
+                    ):
+                        er_cid = er.get("Case_ID", "").strip().lower()
+                        er_cu = er.get("Case_Username", "").strip().lower()
+                        if (r_cid and er_cid == r_cid) or (not r_cid and r_cu and er_cu == r_cu):
+                            matched_req = er
+                if matched_req and matched_req.get("Status", "").strip().lower() == "approved":
+                    req_badge = ' <span style="font-size:10.5px; color:#047857; background:#d1fae5; padding:1px 6px; border-radius:5px; font-weight:700;">Approved Edit</span>'
+                elif matched_req and matched_req.get("Status", "").strip().lower() == "pending":
+                    req_badge = ' <span style="font-size:10.5px; color:#b45309; background:#fef3c7; padding:1px 6px; border-radius:5px; font-weight:700;">Edit Pending</span>'
+                elif matched_req and matched_req.get("Status", "").strip().lower() == "rejected":
+                    req_badge = ' <span style="font-size:10.5px; color:#b91c1c; background:#fee2e2; padding:1px 6px; border-radius:5px; font-weight:700;">Edit Rejected</span>'
+                else:
+                    req_badge = ' <span style="font-size:10.5px; color:#4338ca; background:#e0e7ff; padding:1px 6px; border-radius:5px; font-weight:700;">Request Edit</span>'
+
+        if row_can_edit and restrict_edit_to_user and not is_other_worker_case:
             if row_workers[i].lower() != restrict_edit_to_user.strip().lower():
                 row_can_edit = False
 
@@ -2186,7 +2330,7 @@ def render_clickable_table(
                     val.strip() if val.strip() != "" else "Not Assigned"
                 )
                 if row_can_edit:
-                    cell_content = f'<a href="{row_link}" target="_self" class="username-hyperlink">{display_val}</a>'
+                    cell_content = f'<a href="{row_link}" target="_self" class="username-hyperlink">{display_val}</a>{req_badge}'
                 else:
                     cell_content = f'<span style="font-weight:700; color:#1e293b;">{display_val}</span>'
             else:
@@ -2237,6 +2381,24 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
     login_c = find_login_user_column(df_full)
     p_col = find_password_column(df_full)
     case_id_val = str(row_data.get("Case_ID", "N/A")).strip()
+    case_user_val = str(row_data.get(display_c, "")).strip()
+    case_owner_val = str(row_data.get(login_c, "")).strip()
+
+    is_foreign_case_for_worker = (
+        role == "worker"
+        and case_owner_val.lower() != str(current_user).strip().lower()
+    )
+    edit_req_rec = (
+        get_worker_case_edit_request(current_user, sheet_name, case_id_val, case_user_val)
+        if is_foreign_case_for_worker
+        else None
+    )
+    edit_req_status = (
+        str(edit_req_rec.get("Status", "")).strip().lower()
+        if edit_req_rec
+        else ""
+    )
+    foreign_case_approved = is_foreign_case_for_worker and (edit_req_status == "approved")
 
     st.info(
         f"🆔 Case ID: **{case_id_val}** | 📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Case Username: **{row_data[display_c]}**"
@@ -2298,7 +2460,47 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             st.warning(
                 "⚠️ View Only Mode: Admin has disabled update permissions for your account."
             )
+        elif is_foreign_case_for_worker and not foreign_case_approved:
+            st.warning(
+                f"🔒 This case belongs to **{case_owner_val if case_owner_val else 'another / unassigned worker'}**. To edit this case, send an Edit Request to Admin first; you can edit only after Admin accepts it."
+            )
+            if edit_req_status == "pending":
+                st.info(
+                    f"⏳ Your Edit Request for Case **{case_id_val}** is currently **Pending** Admin approval (Requested at: `{edit_req_rec.get('Requested_At', '')}`)."
+                )
+            elif edit_req_status == "rejected":
+                st.error(
+                    f"❌ Your previous Edit Request for Case **{case_id_val}** was **Rejected** by Admin. You can submit a fresh request below."
+                )
+
+            with st.form(f"worker_edit_req_form_{sheet_name}_{row_idx}"):
+                edit_reason_in = st.text_area(
+                    "✍️ Why do you need to edit this case? (Required)",
+                    value=str(edit_req_rec.get("Reason", "")).strip() if edit_req_rec else "",
+                    placeholder="Enter reason for editing this case...",
+                )
+                sub_edit_req = st.form_submit_button(
+                    "📤 Send Edit Request to Admin",
+                    type="primary",
+                    use_container_width=True,
+                )
+                if sub_edit_req:
+                    if not edit_reason_in.strip():
+                        st.warning("⚠️ Please enter a reason before sending the edit request.")
+                    else:
+                        create_or_reopen_edit_request(
+                            worker_name=current_user,
+                            sheet_name=sheet_name,
+                            case_id=case_id_val,
+                            case_username=case_user_val,
+                            row_idx=row_idx,
+                            reason=edit_reason_in,
+                        )
+                        st.success("✅ Edit Request sent to Admin! Wait for Admin approval to edit.")
+                        st.rerun()
         else:
+            if foreign_case_approved:
+                st.success("✅ Admin has **Approved** your Edit Request for this case. You can now edit and save it.")
             if is_booked_sheet:
                 col_act1, col_act2, col_act3 = st.columns(3)
                 with col_act1:
@@ -2698,7 +2900,9 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
 
             if submitted:
                 try:
-                    if booking_status_choice == "Rescheduled" and (
+                    if role == "worker" and is_foreign_case_for_worker and not foreign_case_approved:
+                        st.error("❌ Edit not allowed! Admin has not approved your Edit Request for this case.")
+                    elif booking_status_choice == "Rescheduled" and (
                         not popup_pref_loc.strip()
                         or not popup_pref_dates.strip()
                         or not popup_prior_notice.strip()
@@ -2898,6 +3102,68 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             if cancelled:
                 close_case_popup_state()
                 st.rerun()
+
+
+@st.dialog("✏️ Case Edit Requests (From Case Workers)", width="large")
+def admin_edit_requests_dialog():
+    st.info(
+        "💡 Case workers requesting edit access for cases not assigned to them. Accept to allow editing that case:"
+    )
+    reqs = load_edit_requests()
+    if not reqs:
+        st.info("No edit requests found.")
+        return
+
+    pending_reqs = [r for r in reqs if r.get("Status", "").strip().lower() == "pending"]
+    other_reqs = [r for r in reqs if r.get("Status", "").strip().lower() != "pending"]
+
+    st.markdown(f"#### ⏳ Pending Edit Requests ({len(pending_reqs)})")
+    if not pending_reqs:
+        st.success("No pending edit requests.")
+    else:
+        for idx_p, r_item in enumerate(pending_reqs):
+            with st.container(border=True):
+                st.markdown(
+                    f"👷 **Worker:** `{r_item.get('Worker', '')}` &nbsp;|&nbsp; 🆔 **Case ID:** `{r_item.get('Case_ID', '')}` &nbsp;|&nbsp; 👤 **Case User:** `{r_item.get('Case_Username', '')}` &nbsp;|&nbsp; 📂 **Sheet:** `{r_item.get('Sheet_Name', '')}`"
+                )
+                st.markdown(f"✍️ **Reason:** `{r_item.get('Reason', '-')}`")
+                st.caption(f"Requested At: {r_item.get('Requested_At', '-')}")
+                c_acc, c_rej = st.columns(2)
+                with c_acc:
+                    if st.button(
+                        "✅ Accept Edit",
+                        key=f"acc_edit_req_{r_item.get('Request_ID', idx_p)}_{idx_p}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        all_r = load_edit_requests()
+                        for item in all_r:
+                            if item.get("Request_ID") == r_item.get("Request_ID"):
+                                item["Status"] = "Approved"
+                                item["Reviewed_By"] = st.session_state.get("username", "admin")
+                                item["Reviewed_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        save_edit_requests(all_r)
+                        st.rerun()
+                with c_rej:
+                    if st.button(
+                        "❌ Reject Edit",
+                        key=f"rej_edit_req_{r_item.get('Request_ID', idx_p)}_{idx_p}",
+                        use_container_width=True,
+                    ):
+                        all_r = load_edit_requests()
+                        for item in all_r:
+                            if item.get("Request_ID") == r_item.get("Request_ID"):
+                                item["Status"] = "Rejected"
+                                item["Reviewed_By"] = st.session_state.get("username", "admin")
+                                item["Reviewed_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        save_edit_requests(all_r)
+                        st.rerun()
+
+    if other_reqs:
+        st.markdown("#### 📜 Processed Edit Requests")
+        df_proc = pd.DataFrame(other_reqs)
+        df_proc.index = range(1, len(df_proc) + 1)
+        st.dataframe(df_proc, use_container_width=True)
 
 
 @st.dialog("📌 KPI Case Details", width="large")
@@ -3203,7 +3469,9 @@ def admin_login_status_dialog():
 
 @st.dialog("📊 Case Worker Attendance & Hours Report", width="large")
 def admin_attendance_dialog():
-    st.info("💡 Case Worker-wise & Overall login/logout hours summary along with daily & session logs:")
+    st.info(
+        "💡 Multiple logins on the same day or across days are automatically summed per Case Worker (Day-wise & Overall Total):"
+    )
     attendance_data = load_attendance()
     if not attendance_data:
         st.warning("No attendance records found.")
@@ -3229,11 +3497,11 @@ def admin_attendance_dialog():
         ])
 
         with tab_ov:
-            st.markdown("#### Case Worker Wise & Overall Hours Summary")
+            st.markdown("#### Case Worker Wise & Overall Hours Summary (All Logins Summed)")
             st.dataframe(df_overall, use_container_width=True)
 
         with tab_dy:
-            st.markdown("#### Day-wise Hours per Case Worker")
+            st.markdown("#### Day-wise Hours per Case Worker (Multiple Logins Same Day Summed)")
             st.dataframe(df_day, use_container_width=True)
 
         with tab_lg:
@@ -3881,7 +4149,10 @@ def worker_password_dialog(worker_name):
                         pc = find_password_column(df_copy)
                         if lc in df_copy.columns and pc in df_copy.columns:
                             mask = (
-                                df_copy[lc].astype(str).str.strip().str.lower()
+                                df_copy[lc]
+                                .astype(str)
+                                .str.strip()
+                                .str.lower()
                                 == worker_name.lower()
                             )
                             if mask.any():
@@ -4053,7 +4324,7 @@ def search_data_dialog(current_user=None, allow_edit=True):
                 p_col,
                 table_key="dlg_all_sheets_search",
                 allow_edit=allow_edit,
-                restrict_edit_to_user=current_user,
+                restrict_edit_to_user=None,
             )
 
 
@@ -4063,6 +4334,7 @@ dialog_map = {
     "sync_excel": sync_excel_dialog,
     "admin_updated_cases": admin_updated_cases_dialog,
     "admin_delete_requests": admin_delete_requests_dialog,
+    "admin_edit_requests": admin_edit_requests_dialog,
     "admin_notice": admin_notice_dialog,
     "admin_login_status": admin_login_status_dialog,
     "admin_attendance": admin_attendance_dialog,
@@ -4472,7 +4744,7 @@ elif st.session_state["role"] == "admin":
         if hidden_sys_sheets:
             st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
             with st.expander(
-                "⚙️ Hidden System Sheets (App_Logins, App_Attendance, App_Permissions, App_Config)",
+                "⚙️ Hidden System Sheets (App_Logins, App_Attendance, App_Permissions, App_Config, App_Edit_Requests)",
                 expanded=False,
             ):
                 selected_sys_s = st.selectbox(
@@ -4501,6 +4773,9 @@ elif st.session_state["role"] == "admin":
                         for k, v in log_map_view.items()
                     ]
                     df_sys_view = pd.DataFrame(log_rows_view) if log_rows_view else pd.DataFrame()
+                elif selected_sys_s == "App_Edit_Requests":
+                    er_rows_view = load_edit_requests()
+                    df_sys_view = pd.DataFrame(er_rows_view) if er_rows_view else pd.DataFrame()
                 else:
                     df_sys_view = all_sheets_map.get(selected_sys_s, pd.DataFrame())
                 if df_sys_view is not None and not df_sys_view.empty:
@@ -4582,6 +4857,12 @@ elif st.session_state["role"] == "admin":
                         == "delete request"
                     ).sum()
                 )
+
+        pending_edit_reqs_cnt = sum(
+            1
+            for er in load_edit_requests()
+            if str(er.get("Status", "")).strip().lower() == "pending"
+        )
 
         all_workers_d = get_all_workers_list()
         login_recs_d = load_login_tracking()
@@ -4785,6 +5066,20 @@ elif st.session_state["role"] == "admin":
                 use_container_width=True,
             ):
                 toggle_all_workers_block(not all_blk_d)
+                st.rerun()
+
+        q_r4_1, q_r4_2, q_r4_3, q_r4_4 = st.columns(4, gap="small")
+        with q_r4_1:
+            st.markdown(
+                '<span class="admin-btn-3" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                f"✏️ Edit Reqs ({pending_edit_reqs_cnt})",
+                key="q_btn_editreqs",
+                use_container_width=True,
+            ):
+                st.session_state["open_dialog"] = "admin_edit_requests"
                 st.rerun()
 
     elif active_admin_view == "records":
@@ -5195,7 +5490,7 @@ else:
             table_key="worker_all_sheets_search_tbl",
             sheet_for_link=current_sheet,
             allow_edit=can_update,
-            restrict_edit_to_user=current_user,
+            restrict_edit_to_user=None,
         )
 
     if (
