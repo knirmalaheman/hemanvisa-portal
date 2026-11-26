@@ -4047,7 +4047,7 @@ if (
     ]
 else:
     df_dash = df_d_base
-        if dash_search_query != "":
+if dash_search_query != "":
             all_matched = search_across_all_sheets_by_fields(
                 dash_search_query,
                 lead_filter=st.session_state["admin_selected_lead"],
