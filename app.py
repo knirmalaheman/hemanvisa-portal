@@ -338,13 +338,10 @@ def record_worker_logout(worker_name):
             entry.get("Worker", "").lower() == worker_name.strip().lower()
             and entry.get("Date") == today_str
         ):
-            entry["Logout_Time"] = time_str
+    entry["Logout_Time"] = time_str
             entry["Status"] = "Logged Out"
             break
     save_attendance(attendance)
-            break
-    save_attendance(attendance)
-
 
 def close_case_popup_state():
     st.session_state["is_editing_popup"] = False
