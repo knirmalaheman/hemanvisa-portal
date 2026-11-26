@@ -32,7 +32,7 @@ def get_webapp_url():
         return str(url).strip() if url else ""
     except Exception:
         return ""
-def def _rows_to_df(raw_rows):
+def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list):
         return pd.DataFrame()
     if len(raw_rows) == 0:
