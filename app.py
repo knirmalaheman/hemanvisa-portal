@@ -33,7 +33,6 @@ def get_webapp_url():
     except Exception:
         return ""
 
-
 def def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list):
         return pd.DataFrame()
