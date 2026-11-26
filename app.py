@@ -28,6 +28,7 @@ if not os.path.exists(PDF_BASE_DIR):
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_webapp_url():
     try:
         url = st.secrets.get("GSHEET_WEBAPP_URL", "")
@@ -37,9 +38,7 @@ def get_webapp_url():
 
 
 def _rows_to_df(raw_rows):
-    if not raw_rows or not isinstance(raw_rows, list):
-        return pd.DataFrame()
-    if len(raw_rows) == 0:
+    if not raw_rows or not isinstance(raw_rows, list) or len(raw_rows) == 0:
         return pd.DataFrame()
     headers = [
         str(h).strip() if str(h).strip() != "" else f"Col_{i}"
@@ -55,13 +54,14 @@ def _rows_to_df(raw_rows):
             seen[h] = 0
             unique_headers.append(h)
     data_rows = raw_rows[1:] if len(raw_rows) > 1 else []
+    n_cols = len(unique_headers)
     cleaned_rows = []
     for r in data_rows:
         row_list = list(r) if isinstance(r, list) else [r]
-        if len(row_list) < len(unique_headers):
-            row_list = row_list + [""] * (len(unique_headers) - len(row_list))
-        elif len(row_list) > len(unique_headers):
-            row_list = row_list[: len(unique_headers)]
+        if len(row_list) < n_cols:
+            row_list = row_list + [""] * (n_cols - len(row_list))
+        elif len(row_list) > n_cols:
+            row_list = row_list[:n_cols]
         cleaned_rows.append(["" if v is None else str(v) for v in row_list])
     return pd.DataFrame(cleaned_rows, columns=unique_headers, dtype=str)
 
@@ -71,7 +71,7 @@ def _fetch_sheets_from_webapp():
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=45, allow_redirects=True)
+        resp = requests.get(url, timeout=12, allow_redirects=True)
         resp.raise_for_status()
         text_body = resp.text.strip()
         if not text_body:
@@ -111,7 +111,7 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
                 all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
             body["sheets"] = all_payload
 
-        resp = requests.post(url, json=body, timeout=45, allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=12, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
@@ -130,8 +130,8 @@ def _get_file_mtime():
     return f"{f_mtime}_{sync_ver}"
 
 
-def _read_sheet_rows(sheet_name):
-    sheets = load_all_sheets_cached(_get_file_mtime())
+def _read_sheet_rows(sheet_name, sheets_cache=None):
+    sheets = sheets_cache if isinstance(sheets_cache, dict) else load_all_sheets_cached(_get_file_mtime())
     df = sheets.get(sheet_name) if isinstance(sheets, dict) else None
     if df is None or df.empty:
         return []
@@ -155,8 +155,8 @@ def _write_sheet_records(sheet_name, columns, records):
     st.cache_data.clear()
 
 
-def get_admin_creds():
-    rows = _read_sheet_rows("App_Config")
+def get_admin_creds(sheets_cache=None):
+    rows = _read_sheet_rows("App_Config", sheets_cache)
     for r in rows:
         if r.get("Key", "").strip() == "admin_creds":
             u = r.get("Value1", "").strip() or "admin"
@@ -182,8 +182,8 @@ def save_admin_creds(new_user, new_pass):
     _write_sheet_records("App_Config", ["Key", "Value1", "Value2"], rows)
 
 
-def get_admin_notice():
-    rows = _read_sheet_rows("App_Config")
+def get_admin_notice(sheets_cache=None):
+    rows = _read_sheet_rows("App_Config", sheets_cache)
     for r in rows:
         if r.get("Key", "").strip() == "admin_notice":
             return r.get("Value1", "").strip()
@@ -206,8 +206,8 @@ def save_admin_notice(notice_text):
     _write_sheet_records("App_Config", ["Key", "Value1", "Value2"], rows)
 
 
-def load_permissions():
-    rows = _read_sheet_rows("App_Permissions")
+def load_permissions(sheets_cache=None):
+    rows = _read_sheet_rows("App_Permissions", sheets_cache)
     perms = {}
     for r in rows:
         w = r.get("Worker", "").strip()
@@ -215,27 +215,53 @@ def load_permissions():
             perms[w] = {
                 "can_edit": str(r.get("can_edit", "True")).strip().lower()
                 in ["true", "1", "yes"],
+                "can_update": str(r.get("can_update", r.get("can_edit", "True"))).strip().lower()
+                in ["true", "1", "yes"],
                 "can_delete_req": str(r.get("can_delete_req", "True")).strip().lower()
                 in ["true", "1", "yes"],
                 "can_reschedule": str(r.get("can_reschedule", "True")).strip().lower()
                 in ["true", "1", "yes"],
                 "can_add": str(r.get("can_add", "True")).strip().lower()
                 in ["true", "1", "yes"],
+                "can_search": str(r.get("can_search", "True")).strip().lower()
+                in ["true", "1", "yes"],
+                "can_download": str(r.get("can_download", "False")).strip().lower()
+                in ["true", "1", "yes"],
+                "can_sync": str(r.get("can_sync", "False")).strip().lower()
+                in ["true", "1", "yes"],
+                "block_login": str(r.get("block_login", "False")).strip().lower()
+                in ["true", "1", "yes"],
             }
     return perms
 
 
 def save_permissions(perms_dict):
-    cols = ["Worker", "can_edit", "can_delete_req", "can_reschedule", "can_add"]
+    cols = [
+        "Worker",
+        "can_edit",
+        "can_update",
+        "can_delete_req",
+        "can_reschedule",
+        "can_add",
+        "can_search",
+        "can_download",
+        "can_sync",
+        "block_login",
+    ]
     records = []
     for w, p in (perms_dict or {}).items():
         if str(w).strip():
             records.append({
                 "Worker": str(w).strip(),
-                "can_edit": str(p.get("can_edit", True)),
+                "can_edit": str(p.get("can_edit", p.get("can_update", True))),
+                "can_update": str(p.get("can_update", p.get("can_edit", True))),
                 "can_delete_req": str(p.get("can_delete_req", True)),
                 "can_reschedule": str(p.get("can_reschedule", True)),
                 "can_add": str(p.get("can_add", True)),
+                "can_search": str(p.get("can_search", True)),
+                "can_download": str(p.get("can_download", False)),
+                "can_sync": str(p.get("can_sync", False)),
+                "block_login": str(p.get("block_login", False)),
             })
     _write_sheet_records("App_Permissions", cols, records)
 
@@ -293,8 +319,8 @@ def _normalize_time_ist(val_str):
     return norm_full
 
 
-def load_login_tracking():
-    rows = _read_sheet_rows("App_Logins")
+def load_login_tracking(sheets_cache=None):
+    rows = _read_sheet_rows("App_Logins", sheets_cache)
     logins = {}
     for r in rows:
         w = r.get("Worker", "").strip()
@@ -323,7 +349,7 @@ def _save_login_tracking(logins_dict):
     _write_sheet_records("App_Logins", cols, records)
 
 
-ATTENDANCE_COLS = ["Worker", "Date", "Login_Time", "Logout_Time", "Duration", "Status"]
+ATTENDANCE_COLS = ["S.No", "Worker", "Date", "Login_Time", "Logout_Time", "Duration", "Status"]
 
 
 def _parse_time_12_or_24(t_str):
@@ -383,20 +409,10 @@ def _format_seconds_hhmm(total_seconds):
     return f"{hrs}h {mins}m"
 
 
-def with_serial_number(df):
-    """Adds 1-based 'S.No' column as the first column without altering underlying data."""
-    if df is None or df.empty:
-        return pd.DataFrame()
-    out = df.copy().reset_index(drop=True)
-    if "S.No" in out.columns:
-        out = out.drop(columns=["S.No"])
-    out.insert(0, "S.No", range(1, len(out) + 1))
-    return out
-
-
-def load_attendance():
-    rows = _read_sheet_rows("App_Attendance")
+def load_attendance(sheets_cache=None):
+    rows = _read_sheet_rows("App_Attendance", sheets_cache)
     cleaned = []
+    sno = 1
     for r in rows:
         w = str(r.get("Worker", "")).strip()
         if w:
@@ -409,6 +425,7 @@ def load_attendance():
             dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
             dur_str = _format_seconds_hhmm(dur_sec) if (l_clean != "-" and (lo_clean != "-" or is_act)) else "0h 0m"
             cleaned.append({
+                "S.No": sno,
                 "Worker": w,
                 "Date": d_clean,
                 "Login_Time": l_clean,
@@ -417,11 +434,13 @@ def load_attendance():
                 "Status": st_clean,
                 "_duration_sec": dur_sec,
             })
+            sno += 1
     return cleaned
 
 
 def save_attendance(att_list):
     records = []
+    sno = 1
     for item in (att_list or []):
         w = str(item.get("Worker", "")).strip()
         if w:
@@ -434,6 +453,7 @@ def save_attendance(att_list):
             dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
             dur_str = _format_seconds_hhmm(dur_sec) if (l_clean != "-" and (lo_clean != "-" or is_act)) else "0h 0m"
             records.append({
+                "S.No": sno,
                 "Worker": w,
                 "Date": d_clean,
                 "Login_Time": l_clean,
@@ -441,6 +461,7 @@ def save_attendance(att_list):
                 "Duration": dur_str,
                 "Status": st_clean,
             })
+            sno += 1
     _write_sheet_records("App_Attendance", ATTENDANCE_COLS, records)
 
 
@@ -459,16 +480,8 @@ def record_worker_login(worker_name):
     }
     _save_login_tracking(logins)
 
+    # ప్రతి కొత్త login ఒక స్వతంత్ర session గా యాడ్ అవుతుంది (పాత sessions duration చెక్కుచెదరదు)
     attendance = load_attendance()
-    for entry in attendance:
-        if (
-            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-            and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
-            and str(entry.get("Status", "")).strip().lower() in ["active", "logged in", ""]
-        ):
-            entry["Logout_Time"] = time_str
-            entry["Status"] = "Logged Out"
-
     attendance.append({
         "Worker": worker_name.strip(),
         "Date": today_str,
@@ -496,6 +509,7 @@ def record_worker_logout(worker_name):
     attendance = load_attendance()
     updated_any = False
 
+    # 1. నేటి open session (Logout_Time == "-") ని మాత్రమే క్లోజ్ చేసి ఆ session duration లెక్కించడం
     for entry in reversed(attendance):
         entry_date = _normalize_date_ist(entry.get("Date", ""))
         if (
@@ -506,38 +520,23 @@ def record_worker_logout(worker_name):
             entry["Date"] = today_str
             entry["Logout_Time"] = time_str
             entry["Status"] = "Logged Out"
+            dur_sec = _compute_duration_seconds(today_str, entry.get("Login_Time", "-"), time_str, is_active=False)
+            entry["Duration"] = _format_seconds_hhmm(dur_sec)
             updated_any = True
             break
 
+    # 2. ఏదైనా open session (Logout_Time == "-") ఉంటే క్లోజ్ చేయడం
     if not updated_any:
         for entry in reversed(attendance):
             if (
                 entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
                 and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
             ):
+                e_date = _normalize_date_ist(entry.get("Date", "")) or today_str
                 entry["Logout_Time"] = time_str
                 entry["Status"] = "Logged Out"
-                updated_any = True
-                break
-
-    if not updated_any:
-        for entry in reversed(attendance):
-            entry_date = _normalize_date_ist(entry.get("Date", ""))
-            if (
-                entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-                and entry_date == today_str
-            ):
-                entry["Date"] = today_str
-                entry["Logout_Time"] = time_str
-                entry["Status"] = "Logged Out"
-                updated_any = True
-                break
-
-    if not updated_any:
-        for entry in reversed(attendance):
-            if entry.get("Worker", "").strip().lower() == worker_name.strip().lower():
-                entry["Logout_Time"] = time_str
-                entry["Status"] = "Logged Out"
+                dur_sec = _compute_duration_seconds(e_date, entry.get("Login_Time", "-"), time_str, is_active=False)
+                entry["Duration"] = _format_seconds_hhmm(dur_sec)
                 updated_any = True
                 break
 
@@ -610,9 +609,10 @@ def build_attendance_summary_tables(attendance_data):
         wo["Current_Status"] = st
 
     day_rows = []
-    for _, wd in worker_date_map.items():
+    for idx_d, (_, wd) in enumerate(worker_date_map.items(), start=1):
         tot_sec = wd["Total_Seconds"]
         day_rows.append({
+            "S.No": idx_d,
             "Worker": wd["Worker"],
             "Date": wd["Date"],
             "Sessions": wd["Sessions"],
@@ -626,11 +626,12 @@ def build_attendance_summary_tables(attendance_data):
     overall_rows = []
     grand_sec = 0
     grand_sessions = 0
-    for _, wo in worker_overall_map.items():
+    for idx_o, (_, wo) in enumerate(worker_overall_map.items(), start=1):
         tot_sec = wo["Total_Seconds"]
         grand_sec += tot_sec
         grand_sessions += wo["Total_Sessions"]
         overall_rows.append({
+            "S.No": idx_o,
             "Worker": wo["Worker"],
             "Days_Worked": len(wo["Active_Days"]),
             "Total_Sessions": wo["Total_Sessions"],
@@ -643,6 +644,7 @@ def build_attendance_summary_tables(attendance_data):
 
     if overall_rows:
         overall_rows.append({
+            "S.No": len(overall_rows) + 1,
             "Worker": "OVERALL TOTAL",
             "Days_Worked": "-",
             "Total_Sessions": grand_sessions,
@@ -655,10 +657,6 @@ def build_attendance_summary_tables(attendance_data):
 
     df_day = pd.DataFrame(day_rows)
     df_overall = pd.DataFrame(overall_rows)
-    if not df_day.empty:
-        df_day = with_serial_number(df_day)
-    if not df_overall.empty:
-        df_overall = with_serial_number(df_overall)
     return df_day, df_overall
 
 
@@ -833,7 +831,7 @@ def _normalize_sheet_df(df):
     return reorder_dataframe_columns(df)
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
@@ -908,8 +906,8 @@ def ensure_all_cases_have_unique_ids(force=False):
         pass
 
 
-def get_sheet_names():
-    all_sheets = load_all_sheets_cached(_get_file_mtime())
+def get_sheet_names(sheets_cache=None):
+    all_sheets = sheets_cache if isinstance(sheets_cache, dict) else load_all_sheets_cached(_get_file_mtime())
     if all_sheets:
         visible = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
         return visible if visible else list(all_sheets.keys())
@@ -1005,7 +1003,7 @@ def append_rescheduled_to_active_sheet(
     return new_rescheduled_id, active_sheet_name
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -1079,7 +1077,7 @@ def save_data(df_to_save, sheet_name=0):
     st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=86400, show_spinner=False)
 def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
@@ -1174,7 +1172,7 @@ def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     matched_dfs = []
     for s_name, df_s in all_sheets.items():
-        if df_s is None or df_s.empty:
+        if df_s is None or df_s.empty or str(s_name).strip() in SYSTEM_SHEETS:
             continue
         df_curr = reorder_dataframe_columns(df_s.copy())
         if lead_filter and lead_filter != "All":
@@ -1250,17 +1248,17 @@ def find_visa_type_column(df):
     return None
 
 
-def get_all_workers_list():
-    all_sheets = load_all_sheets_cached(_get_file_mtime())
+def get_all_workers_list(sheets_cache=None, perms_cache=None):
+    all_sheets = sheets_cache if isinstance(sheets_cache, dict) else load_all_sheets_cached(_get_file_mtime())
     all_workers = set()
-    for _, df_s in all_sheets.items():
-        if df_s is not None and not df_s.empty:
+    for s_n, df_s in all_sheets.items():
+        if df_s is not None and not df_s.empty and str(s_n).strip() not in SYSTEM_SHEETS:
             lc = find_login_user_column(df_s)
             users = df_s[lc].astype(str).str.strip()
             for u in users.unique():
                 if u != "" and u.lower() not in ["", "admin", "not assigned", "nan", "none"]:
                     all_workers.add(u)
-    perms_map = load_permissions()
+    perms_map = perms_cache if isinstance(perms_cache, dict) else load_permissions(all_sheets)
     for p_user in perms_map.keys():
         u_clean = str(p_user).strip()
         if u_clean and u_clean.lower() not in ["admin", "not assigned"]:
@@ -1271,21 +1269,21 @@ def get_all_workers_list():
     return sorted(list(all_workers))
 
 
-def are_all_workers_blocked():
-    workers = get_all_workers_list()
+def are_all_workers_blocked(sheets_cache=None, perms_cache=None):
+    workers = get_all_workers_list(sheets_cache, perms_cache)
     if not workers:
         return False
-    perms = load_permissions()
+    perms = perms_cache if isinstance(perms_cache, dict) else load_permissions(sheets_cache)
     norm_perms = {k.lower(): v for k, v in perms.items()}
     return all(
         norm_perms.get(w.lower(), {}).get("block_login", False) for w in workers
     )
 
 
-def is_worker_blocked(worker_name):
+def is_worker_blocked(worker_name, sheets_cache=None, perms_cache=None):
     if not worker_name:
         return False
-    perms = load_permissions()
+    perms = perms_cache if isinstance(perms_cache, dict) else load_permissions(sheets_cache)
     for k, v in perms.items():
         if k.lower() == worker_name.strip().lower():
             return v.get("block_login", False)
@@ -1408,6 +1406,10 @@ def enable_right_cursor_navigation_in_popup():
     )
 
 
+# Single fast load per render cycle
+all_sheets_root = load_all_sheets_cached(_get_file_mtime())
+perms_root = load_permissions(all_sheets_root)
+
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -1436,7 +1438,7 @@ if "is_reschedule_mode" not in st.session_state:
 if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
     qp_role = qp.get("role", "worker")
     qp_user = qp.get("username", "")
-    if qp_role == "worker" and is_worker_blocked(qp_user):
+    if qp_role == "worker" and is_worker_blocked(qp_user, all_sheets_root, perms_root):
         record_worker_logout(qp_user)
         qp.clear()
         st.session_state["force_logged_out_msg"] = True
@@ -1450,7 +1452,7 @@ if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
 
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
     curr_w = st.session_state.get("username", "")
-    if is_worker_blocked(curr_w):
+    if is_worker_blocked(curr_w, all_sheets_root, perms_root):
         record_worker_logout(curr_w)
         st.query_params.clear()
         st.session_state["logged_in"] = False
@@ -1467,10 +1469,13 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
+sheets_init = get_sheet_names(all_sheets_root)
+default_s_init = get_default_active_sheet(sheets_init)
+
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
-        if "active_sheet" in qp and qp["active_sheet"] in get_sheet_names():
+        if "active_sheet" in qp and qp["active_sheet"] in sheets_init:
             st.session_state["active_sheet"] = qp["active_sheet"]
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
@@ -1484,9 +1489,6 @@ if st.session_state["logged_in"] and "edit_row" in qp:
             del st.query_params["edit_row"]
 elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
-
-sheets_init = get_sheet_names()
-default_s_init = get_default_active_sheet(sheets_init)
 
 if "active_sheet" not in st.session_state:
     st.session_state["active_sheet"] = default_s_init
@@ -1755,6 +1757,7 @@ st.markdown("""
         border-bottom: 3px solid #34d399 !important;
         color: #ffffff !important;
     }
+    div[data-testid="stElementContainer"]:
     div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #92400e 0%, #d97706 100%) !important;
@@ -1763,3451 +1766,1019 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
+        background: linear-gradient(135deg, #3730a3 0%, #4f46e5 100%) !important;
         border-bottom: 3px solid #818cf8 !important;
         color: #ffffff !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #831843 0%, #db2777 100%) !important;
-        border-bottom: 3px solid #f472b6 !important;
-        color: #ffffff !important;
-    }
-    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button,
-    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
         background: linear-gradient(135deg, #115e59 0%, #0d9488 100%) !important;
         border-bottom: 3px solid #2dd4bf !important;
         color: #ffffff !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button,
-    div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #334155 0%, #475569 100%) !important;
-        border-bottom: 3px solid #94a3b8 !important;
-        color: #ffffff !important;
-    }
-    div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button,
-    div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%) !important;
-        border-bottom: 3px solid #f87171 !important;
+    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #881337 0%, #e11d48 100%) !important;
+        border-bottom: 3px solid #fb7185 !important;
         color: #ffffff !important;
     }
 
-    .section-banner {
-        background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
-        border-left: 5px solid #1e293b;
-        padding: 11px 16px;
-        border-radius: 8px;
-        margin: 8px 0px;
-        font-weight: 800;
-        color: #1e293b;
-        font-size: 15.5px;
-        border: 1px solid #e2e8f0;
-    }
-    .action-group-title {
-        font-size: 12.5px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        color: #334155;
-        margin: 8px 0 4px 2px;
-    }
-    .stButton > button, [data-testid="stDownloadButton"] > button {
+    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button {
         width: 100% !important;
-        min-height: 40px !important;
-        border-radius: 10px !important;
-        font-weight: 600 !important;
+        height: 44px !important;
+        padding: 4px 10px !important;
         font-size: 13px !important;
-        padding: 6px 10px !important;
-        color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.1);
-        margin-top: 2px !important;
-        margin-bottom: 6px !important;
+        font-weight: 800 !important;
+        border-radius: 10px !important;
         white-space: nowrap !important;
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.14) !important;
+        transition: transform 0.12s ease, filter 0.12s ease !important;
     }
-    .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
-        opacity: 0.94;
+    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button:hover {
+        transform: translateY(-1px) !important;
+        filter: brightness(1.08) !important;
     }
-    .username-hyperlink {
-        color: #1e293b !important;
-        text-decoration: underline !important;
-        font-weight: 700 !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: wrap !important;
-        gap: 8px !important;
-        background: #f1f5f9 !important;
-        padding: 6px !important;
+    div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
+        width: 100% !important;
+        height: 68px !important;
+        padding: 6px 8px !important;
+        font-size: 12.5px !important;
+        font-weight: 800 !important;
         border-radius: 12px !important;
-        border: 1px solid #cbd5e1 !important;
-        width: fit-content !important;
+        line-height: 1.25 !important;
+        white-space: normal !important;
+        box-shadow: 0 5px 14px rgba(15, 23, 42, 0.18) !important;
+        transition: transform 0.12s ease, filter 0.12s ease !important;
     }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label {
-        background: transparent !important;
-        padding: 7px 16px !important;
-        border-radius: 9px !important;
-        margin: 0 !important;
+    div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button:hover,
+    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button:hover {
+        transform: translateY(-2px) !important;
+        filter: brightness(1.08) !important;
     }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label > div:first-child,
-    div[data-testid="stRadio"] > div[role="radiogroup"] label > span:first-child,
-    div[data-testid="stRadio"] > div[role="radiogroup"] label input[type="radio"] {
-        display: none !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label p {
-        font-size: 13.5px !important;
-        font-weight: 700 !important;
-        color: #475569 !important;
-        margin: 0 !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
-        background: linear-gradient(135deg, #0f1c3f 0%, #1e3a8a 100%) !important;
-        border-bottom: 2.5px solid #d4af37 !important;
-    }
-    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) p {
-        color: #ffffff !important;
-    }
-    .worker-hero-banner {
-        background: linear-gradient(135deg, #0f1c3f 0%, #1e3a8a 45%, #065f46 100%);
-        color: #ffffff;
-        padding: 13px 18px;
+
+    .edit-box-banner {
+        background: linear-gradient(135deg, #0f1c3f 0%, #172554 100%);
+        color: white;
+        padding: 16px 22px;
         border-radius: 12px;
-        border-left: 5px solid #fbbf24;
-        border-bottom: 2px solid rgba(251, 191, 36, 0.45);
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 8px;
+        margin-bottom: 16px;
+        border-left: 5px solid #d4af37;
     }
-    .worker-hero-title {
-        font-size: 16px;
+    .edit-box-banner h4 {
+        margin: 0 0 4px 0;
+        font-size: 19px;
         font-weight: 800;
-        letter-spacing: 0.4px;
     }
-    .worker-pill-group {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
+    .edit-box-banner p {
+        margin: 0;
+        font-size: 13px;
+        opacity: 0.88;
     }
-    .worker-pill-gold {
-        background: rgba(251, 191, 36, 0.2);
-        border: 1px solid #fbbf24;
-        color: #fef08a;
-        padding: 4px 12px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
+    .footer {
+        text-align: center;
+        color: #475569;
+        font-size: 13px;
+        padding: 20px;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 32px;
     }
-    .worker-pill-cyan {
-        background: rgba(56, 189, 248, 0.2);
-        border: 1px solid #38bdf8;
-        color: #bae6fd;
-        padding: 4px 12px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
-    }
-    [data-testid="stVerticalBlock"] {
-        gap: 0.35rem !important;
-    }
-    hr {
-        margin-top: 0.75rem !important;
-        margin-bottom: 0.75rem !important;
+    div.stButton > button:focus {
+        outline: none !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-found_logo = next((f for f in LOGO_FILES if os.path.exists(f)), None)
-if found_logo:
-    ext = found_logo.split(".")[-1].lower()
-    mime_type = "image/png" if ext == "png" else "image/jpeg"
-    img_b64 = get_base64_image(found_logo)
-    logo_html = f'<div class="logo-container"><img src="data:{mime_type};base64,{img_b64}" alt="HemanVisa Logo"></div>'
-else:
-    logo_html = '<div class="logo-container"><h2 style="margin:0; color:#ffffff;">HemanVisa</h2></div>'
+logo_b64 = ""
+for l_file in LOGO_FILES:
+    if os.path.exists(l_file):
+        logo_b64 = get_base64_image(l_file)
+        break
+
+logo_img_tag = (
+    f'<img src="data:image/jpeg;base64,{logo_b64}" alt="HemanVisa Logo">'
+    if logo_b64
+    else '<div style="background:#d4af37;color:#070f24;padding:8px 14px;border-radius:8px;font-weight:800;">HV</div>'
+)
 
 st.markdown(f"""
-    <div class="sticky-top-banner">
-        <div>{logo_html}</div>
-        <div class="banner-middle">
-            <div class="world-map-title">🌐 GLOBAL VISA & IMMIGRATION EXPERTS</div>
-            <div class="world-map-subtitle">✈️ Your Gateway to Study, Work & Travel Worldwide</div>
-        </div>
-        <div class="banner-info">
-            <div class="banner-badge">✉️ <a href="mailto:services@hemanvisa.com">services@hemanvisa.com</a></div>
-            <div class="banner-badge">📞 <a href="tel:+919533840632">+91 95338 40632</a></div>
-            <div class="social-icons">
-                <a href="https://facebook.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="FB"></a>
-                <a href="https://instagram.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733558.png" alt="IG"></a>
-                <a href="https://youtube.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YT"></a>
-            </div>
+<div class="sticky-top-banner">
+    <div class="logo-container">
+        {logo_img_tag}
+    </div>
+    <div class="banner-middle">
+        <div class="world-map-title">HEMANVISA GLOBAL SERVICES</div>
+        <div class="world-map-subtitle">GLOBAL IMMIGRATION &amp; VISA CONSULTANCY</div>
+    </div>
+    <div class="banner-info">
+        <div class="banner-badge">📧 <a href="mailto:info@hemanvisa.com">info@hemanvisa.com</a></div>
+        <div class="banner-badge">🌐 <a href="https://hemanvisa.com" target="_blank">www.hemanvisa.com</a></div>
+        <div class="social-icons">
+            <a href="https://www.instagram.com" target="_blank" title="Instagram"><img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram"></a>
+            <a href="https://www.facebook.com" target="_blank" title="Facebook"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook"></a>
+            <a href="https://www.linkedin.com" target="_blank" title="LinkedIn"><img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" alt="LinkedIn"></a>
+            <a href="https://www.youtube.com" target="_blank" title="YouTube"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube"></a>
         </div>
     </div>
+</div>
 """, unsafe_allow_html=True)
 
+try:
+    from zoneinfo import ZoneInfo
+    _IST_TZ = ZoneInfo("Asia/Kolkata")
+except Exception:
+    _IST_TZ = None
 
-def render_clickable_table(
-    df,
-    display_c,
-    p_col,
-    table_key="main",
-    sheet_for_link="",
-    page_size=100,
-    allow_edit=True,
-    restrict_edit_to_user=None,
-):
-    if df.empty:
-        st.info("No cases found.")
+
+def get_ist_now():
+    if _IST_TZ is not None:
+        return datetime.datetime.now(_IST_TZ).replace(tzinfo=None)
+    return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+
+
+def _parse_any_dt_to_ist(val_str):
+    s = str(val_str).strip()
+    if not s or s == "-":
+        return None
+    for fmt in (
+        "%Y-%m-%d %I:%M:%S %p",
+        "%Y-%m-%d %I:%M %p",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+    ):
+        try:
+            return datetime.datetime.strptime(s, fmt)
+        except Exception:
+            continue
+    iso_match = re.match(
+        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
+        s,
+        re.IGNORECASE,
+    )
+    if iso_match:
+        d_part, t_part = iso_match.groups()
+        try:
+            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
+            return dt_utc + datetime.timedelta(hours=5, minutes=30)
+        except Exception:
+            pass
+    return None
+
+
+def _compute_duration_seconds(date_str, login_str, logout_str, is_active=False):
+    t_in = _parse_time_12_or_24(login_str)
+    if not t_in:
+        return 0
+    try:
+        d_clean = _normalize_date_ist(date_str)
+        d_base = (
+            datetime.datetime.strptime(d_clean, "%Y-%m-%d").date()
+            if d_clean
+            else get_ist_now().date()
+        )
+    except Exception:
+        d_base = get_ist_now().date()
+
+    dt_in = datetime.datetime.combine(d_base, t_in)
+
+    t_out = _parse_time_12_or_24(logout_str)
+    if t_out:
+        dt_out = datetime.datetime.combine(d_base, t_out)
+        if dt_out < dt_in:
+            dt_out = dt_out + datetime.timedelta(days=1)
+        return max(0, int((dt_out - dt_in).total_seconds()))
+
+    if is_active:
+        now_ist = get_ist_now()
+        dt_now = datetime.datetime.combine(d_base, now_ist.time())
+        if d_base < now_ist.date():
+            dt_now = now_ist
+        elif dt_now < dt_in:
+            dt_now = dt_now + datetime.timedelta(days=1)
+        return max(0, int((dt_now - dt_in).total_seconds()))
+
+    return 0
+
+
+def _format_seconds_hhmm(total_seconds):
+    sec = max(0, int(total_seconds))
+    hrs = sec // 3600
+    mins = (sec % 3600) // 60
+    return f"{hrs}h {mins}m"
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_attendance_cached(file_mtime):
+    rows = _read_sheet_rows("App_Attendance")
+    cleaned = []
+    sno = 1
+    for r in rows:
+        w = str(r.get("Worker", "")).strip()
+        if w:
+            d_clean = _normalize_date_ist(r.get("Date", ""))
+            l_clean = _normalize_time_ist(r.get("Login_Time", "-"))
+            lo_clean = _normalize_time_ist(r.get("Logout_Time", "-"))
+            raw_st = str(r.get("Status", "")).strip()
+            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
+            is_act = st_clean.lower() in ["active", "logged in", "online"]
+            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
+            dur_str = _format_seconds_hhmm(dur_sec) if (l_clean != "-" and (lo_clean != "-" or is_act)) else "0h 0m"
+            cleaned.append({
+                "S.No": sno,
+                "Worker": w,
+                "Date": d_clean,
+                "Login_Time": l_clean,
+                "Logout_Time": lo_clean,
+                "Duration": dur_str,
+                "Status": st_clean,
+                "_duration_sec": dur_sec,
+            })
+            sno += 1
+    return cleaned
+
+
+def load_attendance(sheets_cache=None):
+    return _load_attendance_cached(_get_file_mtime())
+
+
+def save_attendance(att_list):
+    records = []
+    sno = 1
+    for item in (att_list or []):
+        w = str(item.get("Worker", "")).strip()
+        if w:
+            d_clean = _normalize_date_ist(item.get("Date", ""))
+            l_clean = _normalize_time_ist(item.get("Login_Time", "-"))
+            lo_clean = _normalize_time_ist(item.get("Logout_Time", "-"))
+            raw_st = str(item.get("Status", "")).strip()
+            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
+            is_act = st_clean.lower() in ["active", "logged in", "online"]
+            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
+            dur_str = _format_seconds_hhmm(dur_sec) if (l_clean != "-" and (lo_clean != "-" or is_act)) else "0h 0m"
+            records.append({
+                "S.No": sno,
+                "Worker": w,
+                "Date": d_clean,
+                "Login_Time": l_clean,
+                "Logout_Time": lo_clean,
+                "Duration": dur_str,
+                "Status": st_clean,
+            })
+            sno += 1
+    _write_sheet_records("App_Attendance", ATTENDANCE_COLS, records)
+
+
+def record_worker_login(worker_name):
+    if not worker_name:
         return
+    now_dt = get_ist_now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+    full_timestamp = f"{today_str} {time_str}"
 
-    df = reorder_dataframe_columns(df)
-    total_rows = len(df)
-    total_pages = max(1, math.ceil(total_rows / page_size))
-    page_state_key = f"page_num_{table_key}"
+    logins = load_login_tracking()
+    logins[worker_name.strip()] = {
+        "status": "Logged In",
+        "last_login": full_timestamp,
+    }
+    _save_login_tracking(logins)
 
-    if page_state_key not in st.session_state:
-        st.session_state[page_state_key] = 1
-    if st.session_state[page_state_key] > total_pages:
-        st.session_state[page_state_key] = total_pages
-    if st.session_state[page_state_key] < 1:
-        st.session_state[page_state_key] = 1
+    attendance = load_attendance()
+    attendance.append({
+        "Worker": worker_name.strip(),
+        "Date": today_str,
+        "Login_Time": time_str,
+        "Logout_Time": "-",
+        "Duration": "0h 0m",
+        "Status": "Active",
+    })
+    save_attendance(attendance)
 
-    curr_page = st.session_state[page_state_key]
-    start_idx = (curr_page - 1) * page_size
-    end_idx = min(start_idx + page_size, total_rows)
-    page_df = df.iloc[start_idx:end_idx]
 
-    if total_pages > 1:
-        p_c1, p_c2, p_c3, p_c4 = st.columns([1.2, 2.6, 1.2, 1.2], gap="small")
-        with p_c1:
-            if st.button(
-                "⬅️ Previous",
-                key=f"prev_{table_key}",
-                disabled=(curr_page <= 1),
-                use_container_width=True,
+def record_worker_logout(worker_name):
+    if not worker_name:
+        return
+    now_dt = get_ist_now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+
+    logins = load_login_tracking()
+    for k in list(logins.keys()):
+        if k.strip().lower() == worker_name.strip().lower():
+            logins[k]["status"] = "Not Logged In"
+    _save_login_tracking(logins)
+
+    attendance = load_attendance()
+    updated_any = False
+
+    for entry in reversed(attendance):
+        entry_date = _normalize_date_ist(entry.get("Date", ""))
+        if (
+            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
+            and entry_date == today_str
+            and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
+        ):
+            entry["Date"] = today_str
+            entry["Logout_Time"] = time_str
+            entry["Status"] = "Logged Out"
+            dur_sec = _compute_duration_seconds(today_str, entry.get("Login_Time", "-"), time_str, is_active=False)
+            entry["Duration"] = _format_seconds_hhmm(dur_sec)
+            updated_any = True
+            break
+
+    if not updated_any:
+        for entry in reversed(attendance):
+            if (
+                entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
+                and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
             ):
-                st.session_state[page_state_key] = curr_page - 1
-                st.rerun()
-        with p_c2:
-            st.markdown(
-                f"<div style='text-align:center; padding-top:10px; font-weight:700; color:#1e293b; font-size:13.5px;'>"
-                f"Page {curr_page} of {total_pages} &nbsp;|&nbsp; Showing {start_idx + 1}–{end_idx} of {total_rows} cases</div>",
-                unsafe_allow_html=True,
-            )
-        with p_c3:
-            if st.button(
-                "Next ➡️",
-                key=f"next_{table_key}",
-                disabled=(curr_page >= total_pages),
-                use_container_width=True,
-            ):
-                st.session_state[page_state_key] = curr_page + 1
-                st.rerun()
-        with p_c4:
-            jump_page = st.number_input(
-                "Page",
-                min_value=1,
-                max_value=total_pages,
-                value=curr_page,
-                label_visibility="collapsed",
-                key=f"jump_{table_key}",
-            )
-            if jump_page != curr_page:
-                st.session_state[page_state_key] = int(jump_page)
-                st.rerun()
+                e_date = _normalize_date_ist(entry.get("Date", "")) or today_str
+                entry["Logout_Time"] = time_str
+                entry["Status"] = "Logged Out"
+                dur_sec = _compute_duration_seconds(e_date, entry.get("Login_Time", "-"), time_str, is_active=False)
+                entry["Duration"] = _format_seconds_hhmm(dur_sec)
+                updated_any = True
+                break
 
-    cols_to_hide = (
-        ["Appointment_PDF", "__orig_idx__"]
-        if allow_edit
-        else [p_col, "Appointment_PDF", "__orig_idx__"]
-    )
-    display_cols = [c for c in page_df.columns if c not in cols_to_hide]
+    if not updated_any:
+        attendance.append({
+            "Worker": worker_name.strip(),
+            "Date": today_str,
+            "Login_Time": "-",
+            "Logout_Time": time_str,
+            "Duration": "0h 0m",
+            "Status": "Logged Out",
+        })
+    save_attendance(attendance)
 
-    if "Sheet_Name" in display_cols:
-        display_cols = ["Sheet_Name"] + [
-            c for c in display_cols if c != "Sheet_Name"
-        ]
 
-    curr_logged = qp.get(
-        "logged_in", "true" if st.session_state.get("logged_in") else "false"
-    )
-    curr_user = qp.get("username", st.session_state.get("username", ""))
-    curr_role = qp.get("role", st.session_state.get("role", ""))
-    curr_sheet = (
-        sheet_for_link
-        or qp.get("active_sheet", st.session_state.get("active_sheet", ""))
-    )
+def build_attendance_summary_tables(attendance_data):
+    if not attendance_data:
+        return pd.DataFrame(), pd.DataFrame()
 
-    html_parts = [
-        '<div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 14px;">',
-        '<table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">',
-        '<thead><tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">',
-        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: center;">#</th>',
-    ]
-    for col in display_cols:
-        html_parts.append(
-            f'<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
-        )
-    html_parts.append(
-        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
-    )
-    html_parts.append("</tr></thead><tbody>")
+    worker_date_map = {}
+    worker_overall_map = {}
 
-    q_logged = urllib.parse.quote(str(curr_logged))
-    q_user = urllib.parse.quote(str(curr_user))
-    q_role = urllib.parse.quote(str(curr_role))
+    for row in attendance_data:
+        w = str(row.get("Worker", "")).strip() or "Unknown"
+        d = str(row.get("Date", "")).strip() or "Unknown"
+        l_t = str(row.get("Login_Time", "-")).strip() or "-"
+        lo_t = str(row.get("Logout_Time", "-")).strip() or "-"
+        st = str(row.get("Status", "")).strip() or ("Logged Out" if lo_t != "-" else "Active")
+        sec = int(row.get("_duration_sec", 0) or 0)
 
-    indices = page_df.index.tolist()
-    orig_indices = (
-        page_df["__orig_idx__"].tolist()
-        if "__orig_idx__" in page_df.columns
-        else indices
-    )
-    row_sheets = (
-        page_df["Sheet_Name"].astype(str).tolist()
-        if "Sheet_Name" in page_df.columns
-        else [curr_sheet] * len(page_df)
-    )
-    login_c_tbl = find_login_user_column(page_df)
-    row_workers = (
-        page_df[login_c_tbl].astype(str).str.strip().tolist()
-        if login_c_tbl in page_df.columns
-        else [""] * len(page_df)
-    )
+        t_in = _parse_time_12_or_24(l_t)
+        t_out = _parse_time_12_or_24(lo_t)
 
-    act_col_vals = (
-        page_df["Action_Type"].astype(str).str.strip().str.lower().tolist()
-        if "Action_Type" in page_df.columns
-        else [""] * len(page_df)
-    )
-    booking_status_vals = (
-        page_df["Booking_Status"].astype(str).str.strip().tolist()
-        if "Booking_Status" in page_df.columns
-        else ["Active"] * len(page_df)
-    )
-    col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
+        wd_key = (w, d)
+        if wd_key not in worker_date_map:
+            worker_date_map[wd_key] = {
+                "Worker": w,
+                "Date": d,
+                "Sessions": 0,
+                "First_Login": l_t if l_t != "-" else None,
+                "_first_login_t": t_in,
+                "Last_Logout": lo_t if lo_t != "-" else None,
+                "_last_logout_t": t_out,
+                "Total_Seconds": 0,
+                "Current_Status": st,
+            }
+        wd = worker_date_map[wd_key]
+        wd["Sessions"] += 1
+        if t_in is not None:
+            if wd["_first_login_t"] is None or t_in < wd["_first_login_t"]:
+                wd["_first_login_t"] = t_in
+                wd["First_Login"] = l_t
+        if t_out is not None:
+            if wd["_last_logout_t"] is None or t_out >= wd["_last_logout_t"]:
+                wd["_last_logout_t"] = t_out
+                wd["Last_Logout"] = lo_t
+        wd["Total_Seconds"] += sec
+        wd["Current_Status"] = st
 
-    for i, idx in enumerate(indices):
-        serial_no = start_idx + i + 1
-        act_t = act_col_vals[i]
-        b_status = booking_status_vals[i]
-        target_row_id = orig_indices[i]
-        target_sheet_name = row_sheets[i] if row_sheets[i] else curr_sheet
-        q_sheet_row = urllib.parse.quote(str(target_sheet_name))
-        row_link = f"?logged_in={q_logged}&username={q_user}&role={q_role}&active_sheet={q_sheet_row}&edit_row={target_row_id}"
+        if w not in worker_overall_map:
+            worker_overall_map[w] = {
+                "Worker": w,
+                "Active_Days": set(),
+                "Total_Sessions": 0,
+                "Last_Login": l_t if l_t != "-" else "-",
+                "Last_Logout": lo_t if lo_t != "-" else "-",
+                "Total_Seconds": 0,
+                "Current_Status": st,
+            }
+        wo = worker_overall_map[w]
+        if d and d != "Unknown":
+            wo["Active_Days"].add(d)
+        wo["Total_Sessions"] += 1
+        if l_t != "-":
+            wo["Last_Login"] = l_t
+        if lo_t != "-":
+            wo["Last_Logout"] = lo_t
+        wo["Total_Seconds"] += sec
+        wo["Current_Status"] = st
 
-        row_can_edit = allow_edit
-        if row_can_edit and restrict_edit_to_user:
-            if row_workers[i].lower() != restrict_edit_to_user.strip().lower():
-                row_can_edit = False
+    day_rows = []
+    for idx_d, (_, wd) in enumerate(worker_date_map.items(), start=1):
+        tot_sec = wd["Total_Seconds"]
+        day_rows.append({
+            "S.No": idx_d,
+            "Worker": wd["Worker"],
+            "Date": wd["Date"],
+            "Sessions": wd["Sessions"],
+            "First_Login": wd["First_Login"] or "-",
+            "Last_Logout": wd["Last_Logout"] or "-",
+            "Total_Hours": round(tot_sec / 3600.0, 2),
+            "Total_Duration": _format_seconds_hhmm(tot_sec),
+            "Status": wd["Current_Status"],
+        })
 
-        row_bg = (
-            "#fee2e2"
-            if act_t == "delete rejected"
-            else ("#f8fafc" if i % 2 == 0 else "#ffffff")
-        )
-        html_parts.append(f'<tr style="background-color: {row_bg};">')
-        html_parts.append(
-            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 700;">{serial_no}</td>'
-        )
+    overall_rows = []
+    grand_sec = 0
+    grand_sessions = 0
+    for idx_o, (_, wo) in enumerate(worker_overall_map.items(), start=1):
+        tot_sec = wo["Total_Seconds"]
+        grand_sec += tot_sec
+        grand_sessions += wo["Total_Sessions"]
+        overall_rows.append({
+            "S.No": idx_o,
+            "Worker": wo["Worker"],
+            "Days_Worked": len(wo["Active_Days"]),
+            "Total_Sessions": wo["Total_Sessions"],
+            "Last_Login": wo["Last_Login"],
+            "Last_Logout": wo["Last_Logout"],
+            "Total_Hours": round(tot_sec / 3600.0, 2),
+            "Total_Duration": _format_seconds_hhmm(tot_sec),
+            "Status": wo["Current_Status"],
+        })
 
-        for col in display_cols:
-            val = col_data[col][i]
-            if col == "Sheet_Name":
-                cell_content = f'<span style="font-weight:700; color:#0f766e; background:#f0fdfa; padding:2px 8px; border-radius:6px; border:1px solid #99f6e4;">{val if val != "" else "-"}</span>'
-            elif col == "Case_ID":
-                cell_content = f'<span style="font-weight:800; color:#1e3a8a; background:#eff6ff; padding:2px 8px; border-radius:6px; border:1px solid #bfdbfe;">{val if val != "" else "-"}</span>'
-            elif col == display_c:
-                display_val = (
-                    val.strip() if val.strip() != "" else "Not Assigned"
-                )
-                if row_can_edit:
-                    cell_content = f'<a href="{row_link}" target="_self" class="username-hyperlink">{display_val}</a>'
+    if overall_rows:
+        overall_rows.append({
+            "S.No": len(overall_rows) + 1,
+            "Worker": "OVERALL TOTAL",
+            "Days_Worked": "-",
+            "Total_Sessions": grand_sessions,
+            "Last_Login": "-",
+            "Last_Logout": "-",
+            "Total_Hours": round(grand_sec / 3600.0, 2),
+            "Total_Duration": _format_seconds_hhmm(grand_sec),
+            "Status": "-",
+        })
+
+    df_day = pd.DataFrame(day_rows)
+    df_overall = pd.DataFrame(overall_rows)
+    return df_day, df_overall
+
+
+def _reset_sno_df(df):
+    if df is None or df.empty:
+        return df
+    out = df.copy().reset_index(drop=True)
+    out.insert(0, "S.No", range(1, len(out) + 1)) if "S.No" not in out.columns else out.__setitem__("S.No", range(1, len(out) + 1))
+    return out
+
+
+# ==========================================
+# HOME PAGE (NOT LOGGED IN)
+# ==========================================
+if not st.session_state["logged_in"]:
+    if st.session_state.get("force_logged_out_msg"):
+        st.warning("🔒 అడ్మిన్ మీ లాగిన్ యాక్సెస్‌ను తాత్కాలికంగా నిలిపివేశారు. మీ సెషన్ లాగ్ అవుట్ చేయబడింది.")
+        st.session_state["force_logged_out_msg"] = False
+
+    st.markdown("""
+    <div class="hero-section">
+        <div class="hero-title">✈️ Welcome to HemanVisa Global Services</div>
+        <div class="hero-subtitle">
+            Seamless Visa Processing, Appointment Management &amp; Global Immigration Assistance.
+            Sign in below to access your personalized case dashboard.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("""
+        <div class="corporate-card">
+            <h3>🌍 Global Visa Expertise</h3>
+            <p>End-to-end guidance for tourist, business, work, and student visas across major international destinations.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown("""
+        <div class="corporate-card">
+            <h3>📅 Smart Appointment Tracking</h3>
+            <p>Real-time monitoring of visa slots, rescheduling workflows, and instant document status updates.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with c3:
+        st.markdown("""
+        <div class="corporate-card">
+            <h3>🛡️ Secure Case Operations</h3>
+            <p>Role-based access control, automated case IDs, and synchronized reporting for team efficiency.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    _, login_col, _ = st.columns([1, 1.4, 1])
+    with login_col:
+        st.markdown("### 🔐 Portal Sign In")
+        login_mode = st.radio("Select Login Role", ["Case Worker", "Admin"], horizontal=True)
+
+        if login_mode == "Admin":
+            admin_u_input = st.text_input("Admin Username", key="admin_login_u")
+            admin_p_input = st.text_input("Admin Password", type="password", key="admin_login_p")
+            if st.button("Sign In as Admin", type="primary", use_container_width=True):
+                expected_u, expected_p = get_admin_creds(all_sheets_root)
+                if admin_u_input.strip() == expected_u and admin_p_input == expected_p:
+                    st.session_state["logged_in"] = True
+                    st.session_state["username"] = expected_u
+                    st.session_state["role"] = "admin"
+                    st.query_params["logged_in"] = "true"
+                    st.query_params["role"] = "admin"
+                    st.query_params["username"] = expected_u
+                    st.rerun()
                 else:
-                    cell_content = f'<span style="font-weight:700; color:#1e293b;">{display_val}</span>'
-            else:
-                cell_content = val if val != "" else "-"
-            html_parts.append(
-                f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
-            )
-
-        if act_t == "delete rejected":
-            status_display = "Rejected"
-            status_color = "#b91c1c"
-        elif b_status.lower() == "rescheduled":
-            status_display = "Rescheduled"
-            status_color = "#d97706"
-        elif b_status.lower() == "booked":
-            status_display = "Booked"
-            status_color = "#059669"
-        elif b_status.lower() == "issues":
-            status_display = "Issues"
-            status_color = "#7c3aed"
+                    st.error("❌ Invalid Admin Username or Password.")
         else:
-            status_display = "Active"
-            status_color = "#1e293b"
+            all_workers_list = get_all_workers_list(all_sheets_root, perms_root)
+            worker_options = all_workers_list if all_workers_list else ["Keerthana", "Sai", "Kalyan", "Anil"]
+            selected_worker = st.selectbox("Select Case Worker", worker_options, key="worker_login_select")
+            if st.button("Sign In as Case Worker", type="primary", use_container_width=True):
+                if is_worker_blocked(selected_worker, all_sheets_root, perms_root):
+                    st.error("🔒 మీ ఖాతా (Login) ప్రస్తుతం అడ్మిన్ ద్వారా బ్లాక్ చేయబడింది.")
+                else:
+                    st.session_state["logged_in"] = True
+                    st.session_state["username"] = selected_worker
+                    st.session_state["role"] = "worker"
+                    st.query_params["logged_in"] = "true"
+                    st.query_params["role"] = "worker"
+                    st.query_params["username"] = selected_worker
+                    record_worker_login(selected_worker)
+                    st.session_state["attendance_recorded"] = True
+                    st.rerun()
 
-        html_parts.append(
-            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: {status_color}; font-weight: 700; white-space: nowrap;">{status_display}</td>'
-        )
-        html_parts.append("</tr>")
-
-    html_parts.append("</tbody></table></div>")
-    st.markdown("".join(html_parts), unsafe_allow_html=True)
+    st.markdown('<div class="footer">© HemanVisa Global Services. All Rights Reserved.</div>', unsafe_allow_html=True)
+    st.stop()
 
 
-@st.dialog("📋 Case Details, Edit & Appointment PDF", width="large", on_dismiss=close_case_popup_state)
-def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
-    enable_right_cursor_navigation_in_popup()
-    df_full = load_data(sheet_name=sheet_name)
-    if df_full is None or row_idx not in df_full.index:
-        st.error("Case data not found.")
-        if st.button("✖️ Close Popup", key="dlg_missing_close"):
+# ==========================================
+# LOGGED IN WORKSPACE (ADMIN & WORKER)
+# ==========================================
+current_user = st.session_state.get("username", "")
+current_role = st.session_state.get("role", "worker")
+is_admin = current_role == "admin"
+
+sheets_list = get_sheet_names(all_sheets_root)
+if st.session_state.get("active_sheet") not in sheets_list:
+    st.session_state["active_sheet"] = get_default_active_sheet(sheets_list)
+
+active_sheet_name = st.session_state["active_sheet"]
+df_current = load_data(sheet_name=active_sheet_name)
+if df_current is None:
+    df_current = pd.DataFrame()
+
+notice_text = get_admin_notice(all_sheets_root)
+if notice_text:
+    st.markdown(f"""
+    <div class="marquee-container">
+        <marquee behavior="scroll" direction="left" scrollamount="6">📢 {notice_text}</marquee>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
+hdr_c1, hdr_c2, hdr_c3 = st.columns([4.5, 2.5, 1.5])
+with hdr_c1:
+    role_badge = "ADMIN PORTAL" if is_admin else f"CASE WORKER • {current_user}"
+    st.markdown(f"""
+    <div class="workspace-header-bar">
+        <span>📌 {role_badge}</span>
+        <span class="workspace-sheet-pill">Sheet: {active_sheet_name}</span>
+    </div>
+    """, unsafe_allow_html=True)
+with hdr_c2:
+    chosen_sheet = st.selectbox(
+        "Active Sheet",
+        sheets_list,
+        index=sheets_list.index(active_sheet_name) if active_sheet_name in sheets_list else 0,
+        key="topbar_sheet_selector",
+        label_visibility="collapsed",
+    )
+    if chosen_sheet != active_sheet_name:
+        st.session_state["active_sheet"] = chosen_sheet
+        st.session_state["dash_sheet"] = chosen_sheet
+        st.session_state["records_sheet"] = chosen_sheet
+        st.query_params["active_sheet"] = chosen_sheet
+        close_case_popup_state()
+        st.rerun()
+with hdr_c3:
+    if st.button("🚪 Logout", use_container_width=True, key="topbar_logout_btn"):
+        if not is_admin and current_user:
+            record_worker_logout(current_user)
+        close_case_popup_state()
+        st.query_params.clear()
+        st.session_state["logged_in"] = False
+        st.session_state["username"] = ""
+        st.session_state["role"] = ""
+        st.session_state["attendance_recorded"] = False
+        st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
+
+enable_right_cursor_navigation_in_popup()
+
+worker_perms = perms_root.get(current_user, {}) if not is_admin else {}
+can_edit_w = True if is_admin else worker_perms.get("can_edit", worker_perms.get("can_update", True))
+can_del_req_w = True if is_admin else worker_perms.get("can_delete_req", True)
+can_resched_w = True if is_admin else worker_perms.get("can_reschedule", True)
+can_add_w = True if is_admin else worker_perms.get("can_add", True)
+can_search_w = True if is_admin else worker_perms.get("can_search", True)
+can_download_w = True if is_admin else worker_perms.get("can_download", False)
+can_sync_w = True if is_admin else worker_perms.get("can_sync", False)
+
+
+@st.dialog("📋 Case Details & Actions", width="large")
+def render_case_popup_dialog():
+    r_idx = st.session_state.get("selected_row_idx")
+    df_pop = load_data(sheet_name=st.session_state.get("active_sheet", active_sheet_name))
+    if df_pop is None or df_pop.empty or r_idx is None or r_idx not in df_pop.index:
+        st.warning("Case record not found.")
+        if st.button("Close", key="pop_not_found_close"):
             close_case_popup_state()
             st.rerun()
         return
 
-    df_full = reorder_dataframe_columns(df_full)
-    row_data = df_full.loc[row_idx]
-    display_c = find_display_username_column(df_full)
-    login_c = find_login_user_column(df_full)
-    p_col = find_password_column(df_full)
-    case_id_val = str(row_data.get("Case_ID", "N/A")).strip()
+    row_s = df_pop.loc[r_idx]
+    st.markdown(f"""
+    <div class="edit-box-banner">
+        <h4>Case ID: {row_s.get("Case_ID", "-")}</h4>
+        <p>Sheet: {st.session_state.get("active_sheet", active_sheet_name)} | Status: {row_s.get("Booking_Status", "Active")}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.info(
-        f"🆔 Case ID: **{case_id_val}** | 📂 Sheet: **{sheet_name}** | Row #: **{row_idx + 1}** | Case Username: **{row_data[display_c]}**"
-    )
+    info_cols = st.columns(2)
+    for i, col_name in enumerate(df_pop.columns):
+        with info_cols[i % 2]:
+            st.text_input(col_name, value=str(row_s.get(col_name, "")), disabled=True, key=f"view_field_{r_idx}_{col_name}")
 
-    action_type_val = str(row_data.get("Action_Type", "")).strip().lower()
-    if role == "worker" and action_type_val == "delete rejected":
-        st.error("❌ Your delete request was rejected by Admin.")
+    act_c1, act_c2, act_c3, act_c4 = st.columns(4)
+    with act_c1:
+        if can_edit_w and st.button("✏️ Edit Case", key=f"btn_edit_mode_{r_idx}", use_container_width=True):
+            st.session_state["is_editing_popup"] = True
+            st.session_state["is_delete_request_mode"] = False
+            st.session_state["is_reschedule_mode"] = False
+    with act_c2:
+        if can_resched_w and st.button("🔄 Reschedule", key=f"btn_resched_mode_{r_idx}", use_container_width=True):
+            st.session_state["is_reschedule_mode"] = True
+            st.session_state["is_editing_popup"] = False
+            st.session_state["is_delete_request_mode"] = False
+    with act_c3:
+        if can_del_req_w and st.button("🗑️ Delete Req", key=f"btn_del_mode_{r_idx}", use_container_width=True):
+            st.session_state["is_delete_request_mode"] = True
+            st.session_state["is_editing_popup"] = False
+            st.session_state["is_reschedule_mode"] = False
+    with act_c4:
+        if st.button("❌ Close", key=f"btn_close_pop_{r_idx}", use_container_width=True):
+            close_case_popup_state()
+            st.rerun()
 
-    is_booked_sheet = "booked" in sheet_name.lower()
+    if st.session_state.get("is_editing_popup") and can_edit_w:
+        st.markdown("#### ✏️ Edit Fields")
+        updated_vals = {}
+        editable_cols = [c for c in df_pop.columns if c not in ["Case_ID", "Updated_By", "Updated_At"]]
+        for idx_e, col_e in enumerate(editable_cols):
+            updated_vals[col_e] = st.text_input(f"Edit {col_e}", value=str(row_s.get(col_e, "")), key=f"edit_inp_{r_idx}_{idx_e}")
+        if st.button("💾 Save Changes", type="primary", key=f"save_edit_btn_{r_idx}"):
+            now_ist = get_ist_now()
+            for col_e, val_e in updated_vals.items():
+                df_pop.at[r_idx, col_e] = val_e
+            df_pop.at[r_idx, "Updated_By"] = current_user
+            df_pop.at[r_idx, "Updated_At"] = f"{now_ist.strftime('%Y-%m-%d')} {now_ist.strftime('%I:%M:%S %p')}"
+            df_pop.at[r_idx, "Action_Type"] = "Updated"
+            save_data(df_pop, sheet_name=st.session_state.get("active_sheet", active_sheet_name))
+            close_case_popup_state()
+            st.success("✅ Saved successfully!")
+            st.rerun()
 
-    if (
-        not st.session_state["is_editing_popup"]
-        and not st.session_state["is_delete_request_mode"]
-        and not st.session_state["is_reschedule_mode"]
-    ):
-        st.markdown("### 📄 Case Information")
-        for col in df_full.columns:
-            if col not in [p_col, "Appointment_PDF"]:
-                st.text(f"{col}: {row_data[col]}")
+    if st.session_state.get("is_reschedule_mode") and can_resched_w:
+        st.markdown("#### 🔄 Reschedule Details")
+        pref_loc = st.text_input("Preferred Location", value=str(row_s.get("Preferred_Location", "")), key=f"res_loc_{r_idx}")
+        pref_dates = st.text_input("Preferred Dates", value=str(row_s.get("Preferred_Dates", "")), key=f"res_dates_{r_idx}")
+        prior_notice = st.text_input("Prior Notice", value=str(row_s.get("Prior_Notice", "")), key=f"res_notice_{r_idx}")
+        if st.button("✅ Confirm Reschedule", type="primary", key=f"confirm_res_{r_idx}"):
+            now_ist = get_ist_now()
+            ts_str = f"{now_ist.strftime('%Y-%m-%d')} {now_ist.strftime('%I:%M:%S %p')}"
+            df_pop.at[r_idx, "Booking_Status"] = "Rescheduled"
+            df_pop.at[r_idx, "Preferred_Location"] = pref_loc
+            df_pop.at[r_idx, "Preferred_Dates"] = pref_dates
+            df_pop.at[r_idx, "Prior_Notice"] = prior_notice
+            df_pop.at[r_idx, "Updated_By"] = current_user
+            df_pop.at[r_idx, "Updated_At"] = ts_str
+            df_pop.at[r_idx, "Action_Type"] = "Rescheduled"
+            save_data(df_pop, sheet_name=st.session_state.get("active_sheet", active_sheet_name))
+            append_rescheduled_to_active_sheet(row_s, pref_loc, pref_dates, prior_notice, current_user, ts_str)
+            close_case_popup_state()
+            st.success("✅ Rescheduled!")
+            st.rerun()
 
-        curr_b_status = str(row_data.get("Booking_Status", "Active")).strip()
-        st.markdown(f"📌 **Status:** `{curr_b_status}`")
-
-        issue_rem_view = str(row_data.get("Issue_Remark", "")).strip()
-        if issue_rem_view:
-            st.warning(f"⚠️ **Issue Remark:** {issue_rem_view}")
-
-        app_entry = str(row_data.get("Appointment_Entry", "")).strip()
-        if app_entry:
-            st.markdown(f"📝 **Current Appointment Entry:** `{app_entry}`")
-
-        pref_loc = str(row_data.get("Preferred_Location", "")).strip()
-        pref_dates = str(row_data.get("Preferred_Dates", "")).strip()
-        prior_notice = str(row_data.get("Prior_Notice", "")).strip()
-        if pref_loc or pref_dates or prior_notice:
-            st.markdown(
-                f"🔄 **Reschedule Info:** Location: `{pref_loc}` | Dates: `{pref_dates}` | Prior Notice: `{prior_notice}`"
-            )
-
-        pdf_path = str(row_data.get("Appointment_PDF", "")).strip()
-        if pdf_path and os.path.exists(pdf_path):
-            st.success("📎 Appointment PDF is attached.")
-            with open(pdf_path, "rb") as pf:
-                pdf_bytes = pf.read()
-            st.download_button(
-                label="📥 Download Appointment PDF",
-                data=pdf_bytes,
-                file_name=os.path.basename(pdf_path),
-                mime="application/pdf",
-                key=f"dl_pdf_view_{row_idx}",
-                use_container_width=True,
-            )
-        else:
-            st.info("ℹ️ No Appointment PDF uploaded yet.")
-
-        st.markdown("---")
-        if role == "worker" and not can_update:
-            st.warning(
-                "⚠️ View Only Mode: Admin has disabled update permissions for your account."
-            )
-        else:
-            if is_booked_sheet:
-                col_act1, col_act2, col_act3 = st.columns(3)
-                with col_act1:
-                    if st.button(
-                        "✏️ Edit Case",
-                        type="primary",
-                        use_container_width=True,
-                        key="btn_trigger_edit",
-                    ):
-                        st.session_state["is_editing_popup"] = True
-                        st.rerun()
-                with col_act2:
-                    if st.button(
-                        "🔄 Reschedule",
-                        type="secondary",
-                        use_container_width=True,
-                        key="btn_trigger_reschedule",
-                    ):
-                        st.session_state["is_reschedule_mode"] = True
-                        st.rerun()
-                with col_act3:
-                    if role == "admin":
-                        if st.button(
-                            "🗑️ Delete",
-                            type="secondary",
-                            use_container_width=True,
-                            key="btn_trigger_delete",
-                        ):
-                            try:
-                                df_full = df_full.drop(row_idx)
-                                save_data(df_full, sheet_name=sheet_name)
-                                close_case_popup_state()
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Error deleting case: {e}")
-                    else:
-                        if st.button(
-                            "🗑️ Request Delete",
-                            type="secondary",
-                            use_container_width=True,
-                            key="btn_trigger_del_req_mode",
-                        ):
-                            st.session_state["is_delete_request_mode"] = True
-                            st.rerun()
+    if st.session_state.get("is_delete_request_mode") and can_del_req_w:
+        st.markdown("#### 🗑️ Delete Request")
+        del_reason = st.text_input("Reason for Deletion", value=str(row_s.get("Delete_Reason", "")), key=f"del_reason_{r_idx}")
+        if st.button("📨 Submit Delete Request", type="primary", key=f"sub_del_{r_idx}"):
+            if not del_reason.strip():
+                st.warning("Please enter a deletion reason.")
             else:
-                col_act1, col_act2 = st.columns(2)
-                with col_act1:
-                    if st.button(
-                        "✏️ Edit Case & Update Booking",
-                        type="primary",
-                        use_container_width=True,
-                        key="btn_trigger_edit",
-                    ):
-                        st.session_state["is_editing_popup"] = True
-                        st.rerun()
-                with col_act2:
-                    if role == "admin":
-                        if st.button(
-                            "🗑️ Delete Case",
-                            type="secondary",
-                            use_container_width=True,
-                            key="btn_trigger_delete",
-                        ):
-                            try:
-                                df_full = df_full.drop(row_idx)
-                                save_data(df_full, sheet_name=sheet_name)
-                                close_case_popup_state()
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Error deleting case: {e}")
-                    else:
-                        if st.button(
-                            "🗑️ Request Delete",
-                            type="secondary",
-                            use_container_width=True,
-                            key="btn_trigger_del_req_mode",
-                        ):
-                            st.session_state["is_delete_request_mode"] = True
-                            st.rerun()
+                now_ist = get_ist_now()
+                df_pop.at[r_idx, "Delete_Reason"] = del_reason.strip()
+                df_pop.at[r_idx, "Action_Type"] = "Delete Requested"
+                df_pop.at[r_idx, "Updated_By"] = current_user
+                df_pop.at[r_idx, "Updated_At"] = f"{now_ist.strftime('%Y-%m-%d')} {now_ist.strftime('%I:%M:%S %p')}"
+                save_data(df_pop, sheet_name=st.session_state.get("active_sheet", active_sheet_name))
+                close_case_popup_state()
+                st.success("✅ Delete request submitted!")
+                st.rerun()
 
-    elif st.session_state["is_reschedule_mode"]:
-        st.markdown(
-            f"### 🔄 Reschedule Appointment Case (Booked ID stays: `{case_id_val}` | New ID will be created)"
-        )
-        all_workers_res = get_all_workers_list()
-        worker_opts_res = ["Not Assigned"] + [
-            w for w in all_workers_res if w.lower() != "not assigned"
-        ]
-        curr_w_val = str(row_data.get(login_c, "")).strip()
-        preferred_res_worker = (
-            "Anil"
-            if (curr_w_val.lower() == "kalyan" or current_user.lower() == "kalyan")
-            and "Anil" in worker_opts_res
-            else curr_w_val
-        )
-        def_w_idx = (
-            worker_opts_res.index(preferred_res_worker)
-            if preferred_res_worker in worker_opts_res
-            else (
-                worker_opts_res.index(current_user)
-                if current_user in worker_opts_res
-                else 0
-            )
-        )
-        with st.form(f"reschedule_form_{row_idx}"):
-            assign_worker_res = st.selectbox(
-                "👷 Allocate Rescheduled Case to Case Worker (Active Sheet)",
-                options=worker_opts_res,
-                index=def_w_idx,
-            )
-            pref_loc_input = st.text_input(
-                "Preferred Location",
-                value="",
-                placeholder="Enter preferred location...",
-            )
-            pref_dates_input = st.text_input(
-                "Preferred Dates",
-                value="",
-                placeholder="Enter preferred dates...",
-            )
-            prior_notice_input = st.text_input(
-                "Prior Notice",
-                value="",
-                placeholder="Enter prior notice details...",
-            )
 
-            col_res_save, col_res_back = st.columns(2)
-            with col_res_save:
-                submitted_res = st.form_submit_button(
-                    "💾 Save Reschedule", type="primary", use_container_width=True
-                )
-            with col_res_back:
-                cancelled_res = st.form_submit_button(
-                    "↩️ Back", use_container_width=True
-                )
+if st.session_state.get("open_dialog") == "edit_case_popup":
+    render_case_popup_dialog()
 
-            if submitted_res:
-                if (
-                    not pref_loc_input.strip()
-                    or not pref_dates_input.strip()
-                    or not prior_notice_input.strip()
-                ):
-                    st.warning(
-                        "⚠️ All 3 fields (Preferred Location, Preferred Dates, and Prior Notice) must be entered to save Reschedule!"
-                    )
-                else:
-                    try:
-                        ts_now = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
-                        booked_snapshot_row = df_full.loc[row_idx].copy()
-                        original_booked_worker = str(booked_snapshot_row.get(login_c, "")).strip()
 
-                        if is_booked_sheet:
-                            df_full.at[row_idx, "Case_ID"] = case_id_val
-                            df_full.at[row_idx, login_c] = original_booked_worker
-                            df_full.at[row_idx, "Booking_Status"] = "Booked"
-                            df_full.at[row_idx, "Action_Type"] = "Booked"
-                        else:
-                            new_res_id = generate_next_case_id()
-                            df_full.at[row_idx, "Case_ID"] = new_res_id
-                            df_full.at[row_idx, "Preferred_Location"] = (
-                                pref_loc_input.strip()
-                            )
-                            df_full.at[row_idx, "Preferred_Dates"] = (
-                                pref_dates_input.strip()
-                            )
-                            df_full.at[row_idx, "Prior_Notice"] = (
-                                prior_notice_input.strip()
-                            )
-                            df_full.at[row_idx, "Booking_Status"] = "Rescheduled"
-                            df_full.at[row_idx, "Updated_By"] = current_user
-                            df_full.at[row_idx, "Updated_At"] = ts_now
-                            df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
+# ==========================================
+# TABS SECTION
+# ==========================================
+if is_admin:
+    tabs = st.tabs(["📊 Dashboard", "📁 All Cases", "➕ Add Case", "🕒 Attendance & Logins", "⚙️ Admin Settings"])
+else:
+    tabs = st.tabs(["📊 Dashboard", "📁 My Cases", "➕ Add Case", "🕒 My Attendance"])
 
-                        save_data(df_full, sheet_name=sheet_name)
+# --- TAB 0: DASHBOARD ---
+with tabs[0]:
+    if not df_current.empty:
+        login_col_d = find_login_user_column(df_current)
+        if is_admin:
+            df_dash = df_current.copy()
+        else:
+            df_dash = df_current[
+                df_current[login_col_d].astype(str).str.strip().str.lower() == current_user.lower()
+            ].copy()
 
-                        if is_booked_sheet:
-                            append_rescheduled_to_active_sheet(
-                                source_row=booked_snapshot_row,
-                                pref_loc=pref_loc_input,
-                                pref_dates=pref_dates_input,
-                                prior_notice=prior_notice_input,
-                                updated_by=current_user,
-                                updated_at=ts_now,
-                                assigned_worker=assign_worker_res,
-                            )
+        total_cases_cnt = len(df_dash)
+        booked_cnt = int(
+            df_dash["Booking_Status"].astype(str).str.lower().eq("booked").sum()
+        ) if "Booking_Status" in df_dash.columns else 0
+        resched_cnt = int(
+            df_dash["Booking_Status"].astype(str).str.lower().eq("rescheduled").sum()
+        ) if "Booking_Status" in df_dash.columns else 0
+        del_req_cnt = int(
+            df_dash["Action_Type"].astype(str).str.lower().str.contains("delete", na=False).sum()
+        ) if "Action_Type" in df_dash.columns else 0
 
-                        close_case_popup_state()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error saving reschedule: {e}")
+        k1, k2, k3, k4 = st.columns(4)
+        with k1:
+            st.markdown(f'<div class="kpi-card"><div class="kpi-title">Total Cases</div><div class="kpi-value">{total_cases_cnt}</div></div>', unsafe_allow_html=True)
+        with k2:
+            st.markdown(f'<div class="kpi-card green"><div class="kpi-title">Booked</div><div class="kpi-value">{booked_cnt}</div></div>', unsafe_allow_html=True)
+        with k3:
+            st.markdown(f'<div class="kpi-card gold"><div class="kpi-title">Rescheduled</div><div class="kpi-value">{resched_cnt}</div></div>', unsafe_allow_html=True)
+        with k4:
+            st.markdown(f'<div class="kpi-card rose"><div class="kpi-title">Delete Requests</div><div class="kpi-value">{del_req_cnt}</div></div>', unsafe_allow_html=True)
 
-            if cancelled_res:
+        visa_col_d = find_visa_type_column(df_dash)
+        if visa_col_d:
+            st.markdown("#### Visa Categories")
+            visa_vals = sorted([v for v in df_dash[visa_col_d].astype(str).str.strip().unique() if v])
+            v_cols = st.columns(min(6, max(1, len(visa_vals) + 1)))
+            with v_cols[0]:
+                st.markdown('<div class="visa-color-0"></div>', unsafe_allow_html=True)
+                if st.button("All Visas", key="visa_btn_all"):
+                    st.session_state["selected_visa_filter"] = "All"
+            for idx_v, v_name in enumerate(visa_vals[:5], start=1):
+                with v_cols[idx_v]:
+                    st.markdown(f'<div class="visa-color-{idx_v % 6}"></div>', unsafe_allow_html=True)
+                    if st.button(v_name, key=f"visa_btn_{idx_v}"):
+                        st.session_state["selected_visa_filter"] = v_name
+
+            sel_visa = st.session_state.get("selected_visa_filter", "All")
+            if sel_visa != "All":
+                df_dash = df_dash[df_dash[visa_col_d].astype(str).str.strip() == sel_visa]
+
+        st.dataframe(_reset_sno_df(df_dash), use_container_width=True, hide_index=True)
+    else:
+        st.info("No records available in this sheet.")
+
+# --- TAB 1: CASES LIST & POPUP TRIGGER ---
+with tabs[1]:
+    if not df_current.empty:
+        login_col_c = find_login_user_column(df_current)
+        if is_admin:
+            df_view = df_current.copy()
+        else:
+            df_view = df_current[
+                df_current[login_col_c].astype(str).str.strip().str.lower() == current_user.lower()
+            ].copy()
+
+        if can_search_w:
+            q_txt = st.text_input("🔍 Search Case ID, Username, Password, DS-160, Worker...", key="cases_search_box")
+            if q_txt.strip():
+                mask_q = search_username_ds160_password_worker(df_view, q_txt)
+                df_view = df_view[mask_q]
+
+        if not df_view.empty:
+            st.dataframe(_reset_sno_df(df_view), use_container_width=True, hide_index=True)
+
+            st.markdown("#### Select Case to Open Popup")
+            row_options = {
+                f"{idx + 1}. {r.get('Case_ID', 'HM')} | {r.get(find_display_username_column(df_view), '-')}": orig_i
+                for idx, (orig_i, r) in enumerate(df_view.iterrows())
+            }
+            chosen_case_label = st.selectbox("Choose Case", list(row_options.keys()), key="popup_case_selector")
+            if st.button("📂 Open Case Popup", type="primary", key="open_case_popup_btn"):
+                st.session_state["selected_row_idx"] = row_options[chosen_case_label]
+                st.session_state["open_dialog"] = "edit_case_popup"
+                st.session_state["is_editing_popup"] = False
+                st.session_state["is_delete_request_mode"] = False
                 st.session_state["is_reschedule_mode"] = False
                 st.rerun()
 
-    elif st.session_state["is_delete_request_mode"]:
-        st.markdown("### 🗑️ Request Delete Case")
-        with st.form(f"delete_reason_form_{row_idx}"):
-            del_reason = st.text_area(
-                "✍️ Reason for deletion (Required):",
-                placeholder="Type your reason here...",
+        if can_download_w and not is_admin:
+            dl_bytes = get_worker_export_bytes(_get_file_mtime(), current_user, active_sheet_name)
+            st.download_button(
+                "📥 Download My Cases (Excel)",
+                data=dl_bytes,
+                file_name=f"{current_user}_cases.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="worker_dl_btn",
             )
-            col_sub_req, col_back_req = st.columns(2)
-            with col_sub_req:
-                submitted_req = st.form_submit_button(
-                    "🚀 Submit Delete Request",
-                    type="primary",
-                    use_container_width=True,
-                )
-            with col_back_req:
-                cancelled_req = st.form_submit_button(
-                    "↩️ Back", use_container_width=True
-                )
-
-            if submitted_req:
-                if del_reason.strip() == "":
-                    st.warning("⚠️ Please provide a reason for deletion.")
-                else:
-                    try:
-                        df_full.at[row_idx, "Updated_By"] = current_user
-                        df_full.at[row_idx, "Updated_At"] = (
-                            get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
-                        )
-                        df_full.at[row_idx, "Action_Type"] = "Delete Request"
-                        df_full.at[row_idx, "Delete_Reason"] = del_reason.strip()
-                        save_data(df_full, sheet_name=sheet_name)
-                        close_case_popup_state()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error: {e}")
-
-            if cancelled_req:
-                st.session_state["is_delete_request_mode"] = False
-                st.rerun()
-
     else:
-        st.markdown("### ✏️ Edit Case & Booking Status")
-        curr_bs = str(row_data.get("Booking_Status", "Active")).strip()
-        opts = ["Active", "Booked", "Rescheduled", "Issues"]
-        b_idx = next(
-            (i for i, o in enumerate(opts) if o.lower() == curr_bs.lower()),
-            0,
-        )
-
-        booking_status_choice = st.selectbox(
-            "📌 Select Status",
-            options=opts,
-            index=b_idx,
-            key=f"popup_bs_{row_idx}",
-        )
-
-        with st.form(f"popup_edit_form_{row_idx}"):
-            updated_values = {}
-
-            all_workers_list = get_all_workers_list()
-            if not all_workers_list:
-                all_workers_list = ["Not Assigned"]
-            elif "Not Assigned" not in all_workers_list:
-                all_workers_list.insert(0, "Not Assigned")
-
-            cols_to_show = (
-                [c for c in df_full.columns if c != "Issue_Remark"]
-                if role == "admin"
-                else [
-                    c
-                    for c in df_full.columns
-                    if c
-                    not in [
-                        p_col,
-                        "Updated_By",
-                        "Updated_At",
-                        "Delete_Reason",
-                        "Appointment_PDF",
-                        "Appointment_Entry",
-                        "Booking_Status",
-                        "Preferred_Location",
-                        "Preferred_Dates",
-                        "Prior_Notice",
-                        "Issue_Remark",
-                    ]
-                ]
-            )
-
-            f_col1, f_col2 = st.columns(2)
-
-            for i, col_name in enumerate(cols_to_show):
-                target_col = f_col1 if i % 2 == 0 else f_col2
-                with target_col:
-                    if col_name == "Case_ID":
-                        st.text_input(
-                            "Case_ID (Locked / Non-Editable)",
-                            value=case_id_val,
-                            disabled=True,
-                            key=f"popup_locked_cid_{row_idx}",
-                        )
-                    elif col_name == display_c:
-                        updated_values[display_c] = st.text_input(
-                            f"{col_name} (Case Username)",
-                            value=str(row_data[col_name]),
-                            key=f"popup_field_{row_idx}_{col_name}",
-                        )
-                    elif col_name == login_c:
-                        curr_worker_val = str(row_data.get(login_c, "")).strip()
-                        w_idx = (
-                            all_workers_list.index(curr_worker_val)
-                            if curr_worker_val in all_workers_list
-                            else 0
-                        )
-                        selected_worker = st.selectbox(
-                            f"{col_name} (Case Worker)",
-                            options=all_workers_list,
-                            index=w_idx,
-                            key=f"popup_worker_select_{row_idx}",
-                        )
-                        updated_values[login_c] = selected_worker
-                    else:
-                        c_lower = col_name.lower()
-                        if "date" in c_lower and "prefer" not in c_lower:
-                            try:
-                                parsed_d = datetime.datetime.strptime(
-                                    str(row_data[col_name]).split()[0],
-                                    "%Y-%m-%d",
-                                ).date()
-                            except Exception:
-                                parsed_d = datetime.date.today()
-                            sel_d = st.date_input(
-                                f"{col_name}",
-                                value=parsed_d,
-                                key=f"popup_date_{row_idx}_{col_name}",
-                            )
-                            updated_values[col_name] = sel_d.strftime("%Y-%m-%d")
-                        else:
-                            updated_values[col_name] = st.text_input(
-                                f"{col_name}",
-                                value=str(row_data[col_name]),
-                                key=f"popup_field_{row_idx}_{col_name}",
-                            )
-
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-
-            app_entry_val = ""
-            uploaded_pdf_file = None
-            popup_pref_loc = ""
-            popup_pref_dates = ""
-            popup_prior_notice = ""
-            popup_issue_remark = ""
-
-            if booking_status_choice == "Booked":
-                app_entry_val = st.text_input(
-                    "📝 Current Appointment Entry",
-                    value="",
-                    placeholder="Enter appointment entry details...",
-                    key=f"popup_app_entry_{row_idx}",
-                )
-                uploaded_pdf_file = st.file_uploader(
-                    "📎 Upload Appointment PDF (Required)",
-                    type=["pdf"],
-                    key=f"popup_pdf_up_{row_idx}",
-                )
-            elif booking_status_choice == "Rescheduled":
-                popup_pref_loc = st.text_input(
-                    "Preferred Location",
-                    value="",
-                    placeholder="Enter preferred location...",
-                    key=f"popup_pref_loc_{row_idx}",
-                )
-                popup_pref_dates = st.text_input(
-                    "Preferred Dates",
-                    value="",
-                    placeholder="Enter preferred dates...",
-                    key=f"popup_pref_dates_{row_idx}",
-                )
-                popup_prior_notice = st.text_input(
-                    "Prior Notice",
-                    value="",
-                    placeholder="Enter prior notice details...",
-                    key=f"popup_prior_notice_{row_idx}",
-                )
-            elif booking_status_choice == "Issues":
-                popup_issue_remark = st.text_area(
-                    "📝 Issue Remark (Required)",
-                    value=str(row_data.get("Issue_Remark", "")).strip(),
-                    placeholder="Enter issue remark / reason before saving...",
-                    key=f"popup_issue_remark_{row_idx}",
-                )
-
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-            col_save, col_back = st.columns(2)
-            with col_save:
-                submitted = st.form_submit_button(
-                    "💾 Save & Update", type="primary", use_container_width=True
-                )
-            with col_back:
-                cancelled = st.form_submit_button(
-                    "↩️ Cancel", use_container_width=True
-                )
-
-            if submitted:
-                try:
-                    if booking_status_choice == "Rescheduled" and (
-                        not popup_pref_loc.strip()
-                        or not popup_pref_dates.strip()
-                        or not popup_prior_notice.strip()
-                    ):
-                        st.warning(
-                            "⚠️ All 3 fields (Preferred Location, Preferred Dates, and Prior Notice) must be entered to save Rescheduled status!"
-                        )
-                    elif booking_status_choice == "Booked" and (
-                        not app_entry_val.strip() or not uploaded_pdf_file
-                    ):
-                        st.warning(
-                            "⚠️ Both Current Appointment Entry and Appointment PDF must be provided when selecting Booked status!"
-                        )
-                    elif booking_status_choice == "Issues" and not popup_issue_remark.strip():
-                        st.warning(
-                            "⚠️ Please fill the Issue Remark text box before saving Issues status!"
-                        )
-                    else:
-                        current_time = get_ist_now()
-                        current_time_str = current_time.strftime(
-                            "%Y-%m-%d %I:%M:%S %p"
-                        )
-                        today_date_str = current_time.strftime("%Y-%m-%d")
-
-                        changed = False
-
-                        for col_name, new_val in updated_values.items():
-                            if col_name == "Case_ID":
-                                continue
-                            old_val = str(df_full.at[row_idx, col_name]).strip()
-                            if old_val != str(new_val).strip():
-                                changed = True
-                            df_full.at[row_idx, col_name] = str(new_val).strip()
-
-                        active_case_id = case_id_val
-                        if booking_status_choice == "Rescheduled" and not is_booked_sheet:
-                            active_case_id = generate_next_case_id()
-
-                        df_full.at[row_idx, "Case_ID"] = active_case_id
-
-                        if (
-                            str(df_full.at[row_idx, "Booking_Status"])
-                            != booking_status_choice
-                        ):
-                            df_full.at[row_idx, "Booking_Status"] = (
-                                booking_status_choice
-                            )
-                            changed = True
-
-                        if booking_status_choice == "Booked":
-                            df_full.at[row_idx, "Appointment_Entry"] = (
-                                app_entry_val.strip()
-                            )
-                            changed = True
-
-                            if uploaded_pdf_file is not None:
-                                date_folder = os.path.join(
-                                    PDF_BASE_DIR, today_date_str
-                                )
-                                if not os.path.exists(date_folder):
-                                    os.makedirs(date_folder)
-
-                                safe_uname = (
-                                    str(
-                                        df_full.at[row_idx, display_c]
-                                        if display_c in df_full.columns
-                                        else "case"
-                                    )
-                                    .strip()
-                                    .replace(" ", "_")
-                                )
-                                pdf_filename = f"Appointment_{active_case_id}_{safe_uname}_{int(datetime.datetime.now().timestamp())}.pdf"
-                                full_pdf_path = os.path.join(
-                                    date_folder, pdf_filename
-                                )
-                                with open(full_pdf_path, "wb") as pf:
-                                    pf.write(uploaded_pdf_file.getbuffer())
-                                df_full.at[row_idx, "Appointment_PDF"] = (
-                                    full_pdf_path
-                                )
-
-                        elif booking_status_choice == "Rescheduled":
-                            df_full.at[row_idx, "Preferred_Location"] = (
-                                popup_pref_loc.strip()
-                            )
-                            df_full.at[row_idx, "Preferred_Dates"] = (
-                                popup_pref_dates.strip()
-                            )
-                            df_full.at[row_idx, "Prior_Notice"] = (
-                                popup_prior_notice.strip()
-                            )
-                            changed = True
-
-                        elif booking_status_choice == "Issues":
-                            df_full.at[row_idx, "Issue_Remark"] = (
-                                popup_issue_remark.strip()
-                            )
-                            changed = True
-
-                        if changed:
-                            df_full.at[row_idx, "Updated_By"] = current_user
-                            df_full.at[row_idx, "Updated_At"] = current_time_str
-                            if booking_status_choice == "Rescheduled":
-                                df_full.at[row_idx, "Action_Type"] = "Rescheduled Case"
-                            elif booking_status_choice == "Issues":
-                                df_full.at[row_idx, "Action_Type"] = "Issues Case"
-                            else:
-                                df_full.at[row_idx, "Action_Type"] = "Updated Case"
-
-                        if booking_status_choice == "Booked":
-                            sheets_all = get_sheet_names()
-                            booked_sheet_name = next(
-                                (s for s in sheets_all if "booked" in s.lower()),
-                                None,
-                            )
-                            if booked_sheet_name and booked_sheet_name != sheet_name:
-                                df_target_booked = load_data(
-                                    sheet_name=booked_sheet_name
-                                )
-                                row_to_transfer = df_full.loc[row_idx].copy()
-
-                                for col in df_target_booked.columns:
-                                    if col not in row_to_transfer:
-                                        row_to_transfer[col] = ""
-
-                                df_target_booked = pd.concat(
-                                    [
-                                        df_target_booked,
-                                        pd.DataFrame([row_to_transfer]),
-                                    ],
-                                    ignore_index=True,
-                                )
-                                save_data(
-                                    df_target_booked, sheet_name=booked_sheet_name
-                                )
-                                df_full = df_full.drop(row_idx)
-
-                        elif booking_status_choice == "Issues":
-                            sheets_all = get_sheet_names()
-                            issues_sheet_name = next(
-                                (s for s in sheets_all if "issue" in s.lower()),
-                                "Issues",
-                            )
-                            if issues_sheet_name != sheet_name:
-                                df_target_issues = load_data(
-                                    sheet_name=issues_sheet_name
-                                )
-                                row_to_transfer = df_full.loc[row_idx].copy()
-                                if df_target_issues is None:
-                                    df_target_issues = pd.DataFrame(
-                                        columns=df_full.columns
-                                    )
-                                for col in df_target_issues.columns:
-                                    if col not in row_to_transfer:
-                                        row_to_transfer[col] = ""
-
-                                df_target_issues = pd.concat(
-                                    [
-                                        df_target_issues,
-                                        pd.DataFrame([row_to_transfer]),
-                                    ],
-                                    ignore_index=True,
-                                )
-                                save_data(
-                                    df_target_issues, sheet_name=issues_sheet_name
-                                )
-                                df_full = df_full.drop(row_idx)
-
-                        save_data(df_full, sheet_name=sheet_name)
-
-                        if booking_status_choice == "Rescheduled" and is_booked_sheet:
-                            active_worker_pick = str(
-                                updated_values.get(login_c, df_full.at[row_idx, login_c])
-                            ).strip()
-                            orig_worker_booked = str(row_data.get(login_c, "")).strip()
-                            df_full.at[row_idx, "Case_ID"] = case_id_val
-                            df_full.at[row_idx, login_c] = orig_worker_booked
-                            df_full.at[row_idx, "Booking_Status"] = "Booked"
-                            df_full.at[row_idx, "Action_Type"] = "Booked"
-                            save_data(df_full, sheet_name=sheet_name)
-
-                            append_rescheduled_to_active_sheet(
-                                source_row=df_full.loc[row_idx].copy(),
-                                pref_loc=popup_pref_loc,
-                                pref_dates=popup_pref_dates,
-                                prior_notice=popup_prior_notice,
-                                updated_by=current_user,
-                                updated_at=current_time_str,
-                                assigned_worker=active_worker_pick,
-                            )
-
-                        close_case_popup_state()
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error updating case: {e}")
-
-            if cancelled:
-                close_case_popup_state()
-                st.rerun()
-
-
-@st.dialog("📌 KPI Case Details", width="large")
-def admin_kpi_cases_dialog(sheet_name, filter_mode, lead_filter="All"):
-    today_str = get_ist_now().strftime("%Y-%m-%d")
-    df_s = load_data(sheet_name=sheet_name)
-    if df_s is None or df_s.empty:
         st.info("No cases found.")
-        return
 
-    df_s = reorder_dataframe_columns(df_s)
-    login_c = find_login_user_column(df_s)
-    display_c = find_display_username_column(df_s)
-    p_col = find_password_column(df_s)
-    lead_col = next(
-        (c for c in df_s.columns if "lead" in c.strip().lower()), login_c
-    )
-
-    if lead_filter and lead_filter != "All" and lead_col in df_s.columns:
-        df_s = df_s[
-            df_s[lead_col]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-            .str.contains(lead_filter.lower(), na=False)
-        ]
-
-    if filter_mode == "today_updated":
-        st.info(
-            f"🕒 Today Updated Cases ({today_str}) in **{sheet_name}** | Lead: **{lead_filter}**"
-        )
-        matched = df_s[
-            df_s.apply(lambda r: is_today_updated_row(r, today_str), axis=1)
-        ]
-    elif filter_mode == "not_assigned":
-        st.info(
-            f"👤 Not Assigned Cases in **{sheet_name}** | Lead: **{lead_filter}**"
-        )
-        matched = df_s[df_s[login_c].apply(is_not_assigned_value)]
+# --- TAB 2: ADD CASE ---
+with tabs[2]:
+    if not can_add_w:
+        st.warning("🔒 You do not have permission to add new cases.")
     else:
-        matched = df_s
+        st.markdown("### ➕ Add New Case")
+        new_case_id = generate_next_case_id()
+        st.text_input("Generated Case ID", value=new_case_id, disabled=True, key="add_case_id_disp")
 
-    if matched.empty:
-        st.warning("No matching cases found for this KPI.")
-    else:
-        st.success(f"Total Matching Cases: {len(matched)}")
-        render_clickable_table(
-            matched,
-            display_c,
-            p_col,
-            table_key=f"kpi_dlg_{filter_mode}_{sheet_name}",
-            sheet_for_link=sheet_name,
-            allow_edit=True,
-        )
+        base_cols = [c for c in df_current.columns if c not in ["Case_ID", "Updated_By", "Updated_At", "Action_Type"]]
+        if not base_cols:
+            base_cols = ["USERNAME", "PASSWORD", "Lead", "Booking_Status"]
 
+        new_record = {"Case_ID": new_case_id}
+        for i_c, col_n in enumerate(base_cols):
+            default_val = current_user if (not is_admin and col_n == find_login_user_column(df_current)) else ""
+            new_record[col_n] = st.text_input(col_n, value=default_val, key=f"new_case_inp_{i_c}")
 
-@st.dialog(
-    "📥 Appointment PDFs Download Center (Date-Wise Folders & Search)",
-    width="large",
-)
-def admin_pdf_download_dialog():
-    st.info(
-        "💡 Uploaded Appointment PDFs organized date-wise in respective folders with overall Case Username search:"
-    )
-
-    if not os.path.exists(PDF_BASE_DIR):
-        os.makedirs(PDF_BASE_DIR)
-
-    all_sheets = load_all_sheets_cached(_get_file_mtime())
-    pdf_info_map = {}
-    for s, df_s in all_sheets.items():
-        if (
-            df_s is not None
-            and not df_s.empty
-            and "Appointment_PDF" in df_s.columns
-        ):
-            disp_c = find_display_username_column(df_s)
-            login_c = find_login_user_column(df_s)
-            for _, r in df_s.iterrows():
-                p_path = str(r.get("Appointment_PDF", "")).strip()
-                if p_path:
-                    abs_p = os.path.abspath(p_path)
-                    pdf_info_map[abs_p] = {
-                        "case_id": str(r.get("Case_ID", "N/A")),
-                        "case_user": str(r.get(disp_c, "N/A")),
-                        "worker": str(r.get(login_c, "N/A")),
-                        "sheet": s,
-                    }
-
-    search_query = (
-        st.text_input(
-            "🔍 Search PDFs by Case ID, Case Username or Filename across all folders:",
-            placeholder="Type Case ID or username here...",
-            key="pdf_overall_search",
-        )
-        .strip()
-        .lower()
-    )
-
-    date_folders = sorted(
-        [
-            d
-            for d in os.listdir(PDF_BASE_DIR)
-            if os.path.isdir(os.path.join(PDF_BASE_DIR, d))
-        ],
-        reverse=True,
-    )
-    root_files = [
-        f
-        for f in os.listdir(PDF_BASE_DIR)
-        if f.lower().endswith(".pdf")
-        and os.path.isfile(os.path.join(PDF_BASE_DIR, f))
-    ]
-    if root_files:
-        date_folders.insert(0, "Unsorted / General")
-
-    if not date_folders:
-        st.warning("No date folders or Appointment PDFs found yet.")
-    else:
-        found_any = False
-        for d_folder in date_folders:
-            folder_path = (
-                PDF_BASE_DIR
-                if d_folder == "Unsorted / General"
-                else os.path.join(PDF_BASE_DIR, d_folder)
-            )
-            files_in_folder = (
-                [
-                    f
-                    for f in os.listdir(folder_path)
-                    if f.lower().endswith(".pdf")
-                    and os.path.isfile(os.path.join(folder_path, f))
-                ]
-                if os.path.isdir(folder_path)
-                else []
-            )
-
-            if files_in_folder:
-                filtered_files = []
-                for f_name in files_in_folder:
-                    f_full_path = os.path.join(folder_path, f_name)
-                    abs_full_p = os.path.abspath(f_full_path)
-                    meta = pdf_info_map.get(
-                        abs_full_p,
-                        {
-                            "case_id": "N/A",
-                            "case_user": "N/A",
-                            "worker": "N/A",
-                            "sheet": "N/A",
-                        },
-                    )
-
-                    if (
-                        search_query == ""
-                        or search_query in meta["case_id"].lower()
-                        or search_query in meta["case_user"].lower()
-                        or search_query in f_name.lower()
-                        or search_query in meta["worker"].lower()
-                    ):
-                        filtered_files.append((f_name, f_full_path, meta))
-
-                if filtered_files:
-                    found_any = True
-                    expander_label = (
-                        f"📁 Folder: {d_folder} ({len(filtered_files)} PDFs matching)"
-                        if search_query != ""
-                        else f"📁 Folder: {d_folder} ({len(filtered_files)} PDFs)"
-                    )
-                    with st.expander(
-                        expander_label, expanded=(search_query != "")
-                    ):
-                        for f_name, f_full_path, meta in filtered_files:
-                            with st.container(border=True):
-                                c_info, c_dl, c_del = st.columns([2.6, 1.1, 1.1])
-                                with c_info:
-                                    st.write(f"📄 **File:** `{f_name}`")
-                                    st.markdown(
-                                        f"🆔 **Case ID:** `{meta['case_id']}` &nbsp;|&nbsp; 👤 **Case Username:** `{meta['case_user']}` &nbsp;|&nbsp; 👷 **Worker:** `{meta['worker']}`"
-                                    )
-                                    st.caption(
-                                        f"Sheet: {meta['sheet']} | Path: {f_full_path}"
-                                    )
-                                with c_dl:
-                                    with open(f_full_path, "rb") as f:
-                                        b_data = f.read()
-                                    st.download_button(
-                                        label="📥 Download",
-                                        data=b_data,
-                                        file_name=f_name,
-                                        mime="application/pdf",
-                                        key=f"dl_pdf_{d_folder}_{f_name}_{os.path.getmtime(f_full_path)}",
-                                        use_container_width=True,
-                                    )
-                                with c_del:
-                                    if st.button(
-                                        "🗑️ Delete",
-                                        key=f"del_pdf_{d_folder}_{f_name}_{os.path.getmtime(f_full_path)}",
-                                        use_container_width=True,
-                                    ):
-                                        try:
-                                            if os.path.exists(f_full_path):
-                                                os.remove(f_full_path)
-                                            st.success(
-                                                f"✅ Deleted '{f_name}' successfully!"
-                                            )
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(
-                                                f"❌ Error deleting file: {e}"
-                                            )
-
-        if search_query != "" and not found_any:
-            st.warning(
-                f"No PDFs found matching Case ID, username, or filename: '{search_query}'"
-            )
-
-
-@st.dialog("📢 Add / Update Notice (Scrolling Announcement)", width="medium")
-def admin_notice_dialog():
-    current_notice = get_admin_notice()
-    st.info(
-        "💡 Add or update the scrolling marquee notice for all case workers:"
-    )
-
-    with st.form("admin_notice_form"):
-        notice_input = st.text_area(
-            "Notice Text:",
-            value=current_notice,
-            placeholder="e.g., All case workers must complete pending cases by today...",
-        )
-        col_save_n, col_clear_n = st.columns(2)
-        with col_save_n:
-            submitted_notice = st.form_submit_button(
-                "💾 Save Notice", type="primary", use_container_width=True
-            )
-        with col_clear_n:
-            cleared_notice = st.form_submit_button(
-                "🗑️ Clear Notice", use_container_width=True
-            )
-
-        if submitted_notice:
-            save_admin_notice(notice_input)
-            st.success("✅ Notice updated successfully for all case workers!")
-            st.rerun()
-        if cleared_notice:
-            save_admin_notice("")
-            st.success("✅ Notice cleared successfully!")
+        if st.button("💾 Save New Case", type="primary", key="save_new_case_btn"):
+            now_ist = get_ist_now()
+            new_record["Updated_By"] = current_user
+            new_record["Updated_At"] = f"{now_ist.strftime('%Y-%m-%d')} {now_ist.strftime('%I:%M:%S %p')}"
+            new_record["Action_Type"] = "Added"
+            df_updated = pd.concat([df_current, pd.DataFrame([new_record])], ignore_index=True)
+            save_data(df_updated, sheet_name=active_sheet_name)
+            st.success(f"✅ Case {new_case_id} added successfully!")
             st.rerun()
 
-
-@st.dialog("👥 Case Worker Login Status", width="large")
-def admin_login_status_dialog():
-    st.info("💡 View real-time login and active status of all case workers:")
-    all_workers = get_all_workers_list()
-    login_records = load_login_tracking()
-    normalized_login_records = {k.lower(): v for k, v in login_records.items()}
-
-    logged_in_list = []
-    not_logged_in_list = []
-
-    for w in all_workers:
-        rec = normalized_login_records.get(w.lower(), {})
-        status = rec.get("status", "Not Logged In")
-        last_time = rec.get("last_login", "-")
-
-        item = {"worker": w, "status": status, "time": last_time}
-        if status == "Logged In":
-            logged_in_list.append(item)
-        else:
-            not_logged_in_list.append(item)
-
-    tab_logged, tab_not_logged = st.tabs([
-        f"🟢 Logged In ({len(logged_in_list)})",
-        f"🔴 Not Logged In ({len(not_logged_in_list)})",
-    ])
-
-    with tab_logged:
-        if not logged_in_list:
-            st.warning("Currently no case workers are logged in.")
-        else:
-            for item in logged_in_list:
-                c1, c2, c3 = st.columns([2, 2, 2])
-                with c1:
-                    st.write(f"👤 **{item['worker']}**")
-                with c2:
-                    st.success("🟢 Logged In")
-                with c3:
-                    st.text(item["time"])
-
-    with tab_not_logged:
-        if not not_logged_in_list:
-            st.success("All case workers are currently logged in!")
-        else:
-            for item in not_logged_in_list:
-                c1, c2, c3 = st.columns([2, 2, 2])
-                with c1:
-                    st.write(f"👤 **{item['worker']}**")
-                with c2:
-                    st.error("🔴 Not Logged In")
-                with c3:
-                    st.text(item["time"])
-
-
-@st.dialog("📊 Case Worker Attendance & Hours Report", width="large")
-def admin_attendance_dialog():
-    st.info("💡 Case Worker-wise & Overall login/logout hours summary along with daily & session logs:")
-    attendance_data = load_attendance()
-    if not attendance_data:
-        st.warning("No attendance records found.")
+# --- TAB 3: ATTENDANCE & LOGINS ---
+with tabs[3]:
+    att_all = load_attendance()
+    if is_admin:
+        att_filtered = att_all
     else:
-        df_day, df_overall = build_attendance_summary_tables(attendance_data)
-        df_att = pd.DataFrame([
-            {k: v for k, v in r.items() if not str(k).startswith("_")}
-            for r in attendance_data
-        ])
-        if not df_att.empty:
-            df_att.index = range(1, len(df_att) + 1)
+        att_filtered = [r for r in att_all if str(r.get("Worker", "")).strip().lower() == current_user.lower()]
 
-        if not df_overall.empty and len(df_overall) > 1:
-            ov_last = df_overall.iloc[-1]
-            st.success(
-                f"⏱️ Overall Total Logged Hours: **{ov_last['Total_Duration']}** ({ov_last['Total_Hours']} hrs) | Total Sessions: **{ov_last['Total_Sessions']}**"
-            )
+    df_day_sum, df_overall_sum = build_attendance_summary_tables(att_filtered)
 
-        tab_ov, tab_dy, tab_lg = st.tabs([
-            "👷 Case Worker Wise & Overall Total",
-            "📅 Day-wise Worker Hours",
-            "🕒 All Session Logs",
-        ])
-
-        with tab_ov:
-            st.markdown("#### Case Worker Wise & Overall Hours Summary")
-            st.dataframe(df_overall, use_container_width=True)
-
-        with tab_dy:
-            st.markdown("#### Day-wise Hours per Case Worker")
-            st.dataframe(df_day, use_container_width=True)
-
-        with tab_lg:
-            st.markdown("#### Detailed Login / Logout Session Logs")
-            st.dataframe(df_att, use_container_width=True)
-
-        att_buffer = io.BytesIO()
-        with pd.ExcelWriter(att_buffer, engine="openpyxl") as writer:
-            if not df_overall.empty:
-                df_overall.to_excel(writer, sheet_name="Worker_Wise_Overall", index=False)
-            if not df_day.empty:
-                df_day.to_excel(writer, sheet_name="Day_Wise_Hours", index=False)
-            if not df_att.empty:
-                df_att.to_excel(writer, sheet_name="Session_Logs", index=False)
-
-        st.download_button(
-            label="📥 Download Attendance & Hours Report (.xlsx)",
-            data=att_buffer.getvalue(),
-            file_name="Case_Worker_Attendance_Hours.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="download_attendance_excel",
-        )
-
-
-@st.dialog(
-    "📊 Case Worker & Visa Type Booked Cases Report", width="large"
-)
-def admin_worker_wise_report_dialog():
-    st.info(
-        "💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types:"
-    )
-    sheets = get_sheet_names()
-    target_sheet = next(
-        (s for s in sheets if "booked" in s.lower()),
-        sheets[0] if sheets else "Sheet1",
-    )
-    today_str = get_ist_now().strftime("%Y-%m-%d")
-
-    today_worker_stats = {}
-    total_worker_stats = {}
-    visa_type_stats = {}
-
-    df_s = load_data(sheet_name=target_sheet)
-    if df_s is not None and not df_s.empty:
-        login_c = find_login_user_column(df_s)
-        visa_c = find_visa_type_column(df_s)
-        date_cols = [
-            c
-            for c in df_s.columns
-            if any(k in c.lower() for k in ["date", "time", "day", "created"])
-        ]
-
-        for _, r in df_s.iterrows():
-            w_name = str(r.get(login_c, "Not Assigned")).strip()
-            if w_name == "" or w_name.lower() == "nan":
-                w_name = "Not Assigned"
-
-            v_type = (
-                str(r.get(visa_c, "Unspecified")).strip().upper()
-                if visa_c
-                else "Unspecified"
-            )
-            if v_type == "" or v_type == "NAN":
-                v_type = "Unspecified"
-
-            if w_name not in total_worker_stats:
-                total_worker_stats[w_name] = {
-                    "Total Cases": 0,
-                    "Visa_Breakdown": {},
-                    "Sheets": {target_sheet},
-                }
-            total_worker_stats[w_name]["Total Cases"] += 1
-            total_worker_stats[w_name]["Visa_Breakdown"][v_type] = (
-                total_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0) + 1
-            )
-
-            visa_type_stats[v_type] = visa_type_stats.get(v_type, 0) + 1
-
-            is_today = False
-            for dc in date_cols:
-                if today_str in str(r.get(dc, "")).strip():
-                    is_today = True
-                    break
-
-            if not is_today and today_str in str(r.get("Updated_At", "")):
-                is_today = True
-
-            if is_today:
-                if w_name not in today_worker_stats:
-                    today_worker_stats[w_name] = {
-                        "Today Cases": 0,
-                        "Visa_Breakdown": {},
-                        "Sheets": {target_sheet},
-                    }
-                today_worker_stats[w_name]["Today Cases"] += 1
-                today_worker_stats[w_name]["Visa_Breakdown"][v_type] = (
-                    today_worker_stats[w_name]["Visa_Breakdown"].get(v_type, 0)
-                    + 1
-                )
-
-    tab_today, tab_total, tab_visa = st.tabs([
-        "📅 Today's Booked Cases",
-        "📈 Total Booked Cases",
-        "✈️ Visa Type-wise Summary",
-    ])
-
-    with tab_today:
-        if not today_worker_stats:
-            st.warning(
-                f"No cases booked today ({today_str}) in '{target_sheet}'."
-            )
-        else:
-            today_list = []
-            for w, data in today_worker_stats.items():
-                breakdown_str = ", ".join(
-                    [f"{v}: {cnt}" for v, cnt in data["Visa_Breakdown"].items()]
-                )
-                today_list.append({
-                    "Case Worker": w,
-                    "Today Booked Cases": data["Today Cases"],
-                    "Visa Type Breakdown": breakdown_str,
-                    "Active Sheet": target_sheet,
-                })
-            df_today = pd.DataFrame(today_list)
-            df_today.index = range(1, len(df_today) + 1)
-            st.success(
-                f"Total Cases Booked Today in '{target_sheet}': {df_today['Today Booked Cases'].sum()}"
-            )
-            st.dataframe(df_today, use_container_width=True)
-
-    with tab_total:
-        if not total_worker_stats:
-            st.warning(f"No records found in '{target_sheet}'.")
-        else:
-            total_list = []
-            for w, data in total_worker_stats.items():
-                breakdown_str = ", ".join(
-                    [f"{v}: {cnt}" for v, cnt in data["Visa_Breakdown"].items()]
-                )
-                total_list.append({
-                    "Case Worker": w,
-                    "Total Booked Cases": data["Total Cases"],
-                    "Visa Type Breakdown": breakdown_str,
-                    "Active Sheet": target_sheet,
-                })
-            df_total = pd.DataFrame(total_list)
-            df_total.index = range(1, len(df_total) + 1)
-            st.success(
-                f"Total Booked Cases in '{target_sheet}': {df_total['Total Booked Cases'].sum()}"
-            )
-            st.dataframe(df_total, use_container_width=True)
-
-    with tab_visa:
-        if not visa_type_stats:
-            st.warning(f"No visa type data found in '{target_sheet}'.")
-        else:
-            visa_list = [
-                {"Visa Type / Category": v, "Total Booked Cases": count}
-                for v, count in visa_type_stats.items()
-            ]
-            df_visa = pd.DataFrame(visa_list).sort_values(
-                by="Total Booked Cases", ascending=False
-            )
-            df_visa.index = range(1, len(df_visa) + 1)
-            st.dataframe(df_visa, use_container_width=True)
-
-
-@st.dialog("📋 New / Updated Cases & Calendar", width="large")
-def admin_updated_cases_dialog():
-    st.info(
-        "💡 View newly added cases, updated cases, and date-wise calendar records:"
-    )
-    all_sheets = load_all_sheets_cached(_get_file_mtime())
-    all_rows = []
-
-    for s, df_s in all_sheets.items():
-        if (
-            df_s is not None
-            and not df_s.empty
-            and "Updated_By" in df_s.columns
-        ):
-            upd_rows = df_s[
-                df_s["Updated_By"].astype(str).str.strip() != ""
-            ]
-            if not upd_rows.empty:
-                upd_rows = upd_rows.copy()
-                upd_rows.insert(0, "Sheet_Name", s)
-                all_rows.append(upd_rows)
-
-    tab_new, tab_upd, tab_cal = st.tabs([
-        "➕ New Cases",
-        "✏️ Updated Cases",
-        "📅 Calendar View",
-    ])
-
-    with tab_new:
-        if not all_rows:
-            st.info("No new cases found.")
-        else:
-            combined_df = pd.concat(all_rows, ignore_index=True)
-            p_col = find_password_column(combined_df)
-            view_df = combined_df.drop(columns=[p_col], errors="ignore")
-            new_cases_df = view_df[
-                view_df["Action_Type"].astype(str).str.strip().str.lower()
-                == "new case"
-            ]
-            if new_cases_df.empty:
-                st.info("No new cases found.")
-            else:
-                st.success(f"Total New Cases: {len(new_cases_df)}")
-                render_clickable_table(
-                    new_cases_df,
-                    find_display_username_column(new_cases_df),
-                    p_col,
-                    table_key="dlg_new_cases",
-                )
-
-    with tab_upd:
-        if not all_rows:
-            st.info("No updated cases found.")
-        else:
-            combined_df = pd.concat(all_rows, ignore_index=True)
-            p_col = find_password_column(combined_df)
-            view_df = combined_df.drop(columns=[p_col], errors="ignore")
-            updated_cases_df = view_df[
-                view_df["Action_Type"].astype(str).str.strip().str.lower()
-                == "updated case"
-            ]
-            if updated_cases_df.empty:
-                st.info("No updated cases found.")
-            else:
-                st.success(f"Total Updated Cases: {len(updated_cases_df)}")
-                render_clickable_table(
-                    updated_cases_df,
-                    find_display_username_column(updated_cases_df),
-                    p_col,
-                    table_key="dlg_upd_cases",
-                )
-
-    with tab_cal:
-        sheets = list(all_sheets.keys())
-        selected_cal_sheet = st.selectbox(
-            "Select Sheet for Calendar View",
-            options=sheets,
-            key="cal_sheet_select_tab",
-        )
-        df_cal = all_sheets.get(selected_cal_sheet)
-        if df_cal is not None and not df_cal.empty:
-            date_cols = [
-                c
-                for c in df_cal.columns
-                if any(k in c.lower() for k in ["date", "time", "day"])
-                and "prefer" not in c.lower()
-            ]
-            if date_cols:
-                selected_date_col = st.selectbox(
-                    "Select Date Column:",
-                    options=date_cols,
-                    key="cal_date_col_tab",
-                )
-                selected_date = st.date_input(
-                    "Select Target Date:",
-                    value=datetime.date.today(),
-                    key="cal_target_date_tab",
-                )
-                date_str = selected_date.strftime("%Y-%m-%d")
-                matched_df = df_cal[
-                    df_cal[selected_date_col]
-                    .astype(str)
-                    .str.contains(date_str, na=False)
-                ]
-                if matched_df.empty:
-                    st.info(f"No records found for date ({date_str}).")
-                else:
-                    pc = find_password_column(matched_df)
-                    display_c = find_display_username_column(matched_df)
-                    render_clickable_table(
-                        matched_df,
-                        display_c,
-                        pc,
-                        table_key="dlg_cal_cases",
-                        sheet_for_link=selected_cal_sheet,
-                    )
-
-
-@st.dialog("🗑️ Pending Delete Requests", width="large")
-def admin_delete_requests_dialog():
-    st.info(
-        "💡 Delete requests submitted by case workers along with their reasons:"
-    )
-    all_sheets = load_all_sheets_cached(_get_file_mtime())
-    del_reqs_list = []
-
-    for s, df_s in all_sheets.items():
-        if (
-            df_s is not None
-            and not df_s.empty
-            and "Action_Type" in df_s.columns
-        ):
-            for idx, r in df_s.iterrows():
-                if (
-                    str(r.get("Action_Type", "")).strip().lower()
-                    == "delete request"
-                ):
-                    r_dict = r.to_dict()
-                    r_dict["Sheet_Name"] = s
-                    r_dict["Original_Index"] = idx
-                    del_reqs_list.append(r_dict)
-
-    if not del_reqs_list:
-        st.info("No pending delete requests.")
-    else:
-        for i, r_dict in enumerate(del_reqs_list):
-            s_name = r_dict["Sheet_Name"]
-            orig_idx = r_dict["Original_Index"]
-            worker_name = r_dict.get("Updated_By", "Unknown")
-            req_time = r_dict.get("Updated_At", "")
-            case_id_del = r_dict.get("Case_ID", "N/A")
-            df_temp = all_sheets.get(s_name)
-            disp_col = (
-                find_display_username_column(df_temp)
-                if df_temp is not None
-                else "USERNAME"
-            )
-            case_username = str(r_dict.get(disp_col, "N/A"))
-            delete_reason = str(
-                r_dict.get("Delete_Reason", "Reason not specified")
-            )
-
-            with st.expander(
-                f"🆔 {case_id_del} | 📁 Sheet: {s_name} | Case User: {case_username} | Worker: {worker_name}"
-            ):
-                st.markdown(
-                    f"🆔 **Case ID:** `{case_id_del}` &nbsp;|&nbsp; 👤 **Case Username:** `{case_username}`"
-                )
-                st.markdown(f"✍️ **Delete Reason:** `{delete_reason}`")
-                st.caption(f"Requested Time: {req_time}")
-                col_acc, col_rej = st.columns(2)
-                with col_acc:
-                    if st.button(
-                        "✅ Accept Delete (Permanent Delete)",
-                        key=f"accept_del_{s_name}_{orig_idx}_{i}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        df_target = load_data(sheet_name=s_name)
-                        if df_target is not None and orig_idx in df_target.index:
-                            df_target = df_target.drop(orig_idx)
-                            save_data(df_target, sheet_name=s_name)
-                            st.rerun()
-                with col_rej:
-                    if st.button(
-                        "❌ Reject Delete (Restore Case)",
-                        key=f"reject_del_{s_name}_{orig_idx}_{i}",
-                        use_container_width=True,
-                    ):
-                        df_target = load_data(sheet_name=s_name)
-                        if df_target is not None and orig_idx in df_target.index:
-                            df_target.at[orig_idx, "Action_Type"] = (
-                                "Delete Rejected"
-                            )
-                            save_data(df_target, sheet_name=s_name)
-                            st.rerun()
-
-
-@st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
-def permissions_dialog():
-    st.info(
-        "💡 Manage case worker status (Active / Blocked), passwords, and permissions."
-    )
-    all_blocked_now = are_all_workers_blocked()
-    if all_blocked_now:
-        if st.button(
-            "🔓 Activate All Workers (Currently: All Blocked)",
-            use_container_width=True,
-            key="dlg_toggle_all_btn",
-        ):
-            toggle_all_workers_block(False)
-            st.rerun()
-    else:
-        if st.button(
-            "🔒 Block All Workers (Currently: Active)",
-            use_container_width=True,
-            key="dlg_toggle_all_btn",
-        ):
-            toggle_all_workers_block(True)
-            st.rerun()
-
-    st.divider()
-    all_sheets = load_all_sheets_cached(_get_file_mtime())
-    all_users_dict = {}
-    for _, df_s in all_sheets.items():
-        if df_s is not None and not df_s.empty:
-            login_c = find_login_user_column(df_s)
-            p_col = find_password_column(df_s)
-            if login_c in df_s.columns and p_col in df_s.columns:
-                for _, r in df_s.iterrows():
-                    u_name = str(r[login_c]).strip()
-                    pwd = str(r[p_col]).strip()
-                    if u_name != "" and u_name.lower() != "admin":
-                        if u_name not in all_users_dict:
-                            all_users_dict[u_name] = pwd
-
-    current_perms = load_permissions()
-    for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
-        matched_key = next(
-            (k for k in current_perms if k.lower() == u_name.lower()), u_name
-        )
-        w_perm = current_perms.get(
-            matched_key,
+    st.markdown("### 🕒 Session-wise Login / Logout & Duration Log")
+    if att_filtered:
+        df_sessions_disp = pd.DataFrame([
             {
-                "can_update": True,
-                "can_add": True,
-                "can_search": True,
-                "can_download": False,
-                "can_sync": False,
-                "block_login": False,
-            },
-        )
-        is_blocked = w_perm.get("block_login", False)
-
-        with st.container(border=True):
-            hdr_c1, hdr_c2 = st.columns([2.5, 1.5], gap="small")
-            with hdr_c1:
-                status_badge = "🔴 BLOCKED" if is_blocked else "🟢 ACTIVE"
-                st.markdown(f"**👤 {u_name} | Status: {status_badge}**")
-            with hdr_c2:
-                if is_blocked:
-                    if st.button(
-                        "🔓 Activate Worker",
-                        key=f"dlg_toggle_status_{idx}",
-                        use_container_width=True,
-                    ):
-                        w_perm["block_login"] = False
-                        current_perms[matched_key] = w_perm
-                        save_permissions(current_perms)
-                        st.rerun()
-                else:
-                    if st.button(
-                        "🔒 Block Worker",
-                        key=f"dlg_toggle_status_{idx}",
-                        use_container_width=True,
-                    ):
-                        w_perm["block_login"] = True
-                        current_perms[matched_key] = w_perm
-                        save_permissions(current_perms)
-                        record_worker_logout(u_name)
-                        st.rerun()
-
-            c1, c2, c3, c4, c5, c6, c_btn = st.columns(
-                [2.1, 0.9, 0.9, 0.9, 0.9, 0.9, 1.4], gap="small"
-            )
-            with c1:
-                new_pwd_val = st.text_input(
-                    "Password", value=curr_pwd, key=f"dlg_p_{idx}"
-                )
-            with c2:
-                new_upd_val = st.checkbox(
-                    "Update",
-                    value=w_perm.get("can_update", True),
-                    key=f"dlg_upd_{idx}",
-                )
-            with c3:
-                new_add_val = st.checkbox(
-                    "Add",
-                    value=w_perm.get("can_add", True),
-                    key=f"dlg_add_{idx}",
-                )
-            with c4:
-                new_sch_val = st.checkbox(
-                    "Search",
-                    value=w_perm.get("can_search", True),
-                    key=f"dlg_sch_{idx}",
-                )
-            with c5:
-                new_dl_val = st.checkbox(
-                    "Download",
-                    value=w_perm.get("can_download", False),
-                    key=f"dlg_dl_{idx}",
-                )
-            with c6:
-                new_sync_val = st.checkbox(
-                    "Sync",
-                    value=w_perm.get("can_sync", False),
-                    key=f"dlg_sync_{idx}",
-                )
-            with c_btn:
-                if st.button(
-                    "💾 Save",
-                    key=f"dlg_btn_upd_{idx}",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    try:
-                        all_sheets_data = load_all_sheets_cached(_get_file_mtime())
-                        for s, df_s in all_sheets_data.items():
-                            df_copy = df_s.copy()
-                            lc = find_login_user_column(df_copy)
-                            pc = find_password_column(df_copy)
-                            if lc in df_copy.columns and pc in df_copy.columns:
-                                mask = (
-                                    df_copy[lc]
-                                    .astype(str)
-                                    .str.strip()
-                                    .str.lower()
-                                    == u_name.lower()
-                                )
-                                if mask.any():
-                                    df_copy.loc[mask, pc] = new_pwd_val.strip()
-                            all_sheets_data[s] = reorder_dataframe_columns(
-                                df_copy
-                            )
-
-                        with pd.ExcelWriter(
-                            EXCEL_FILE, engine="openpyxl"
-                        ) as writer:
-                            for s, df_val in all_sheets_data.items():
-                                df_val.to_excel(
-                                    writer, sheet_name=str(s), index=False
-                                )
-
-                        if all_sheets_data:
-                            first_key = list(all_sheets_data.keys())[0]
-                            _push_sheet_to_webapp(
-                                first_key, all_sheets_data[first_key], all_sheets_data
-                            )
-
-                        current_perms[matched_key] = {
-                            "can_update": new_upd_val,
-                            "can_add": new_add_val,
-                            "can_search": new_sch_val,
-                            "can_download": new_dl_val,
-                            "can_sync": new_sync_val,
-                            "block_login": is_blocked,
-                        }
-                        save_permissions(current_perms)
-                        st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-                        st.cache_data.clear()
-                        st.success(f"✅ Saved changes for '{u_name}'!")
-                    except Exception as e:
-                        st.error(f"❌ Error updating '{u_name}': {e}")
-
-
-@st.dialog("🔑 Change Admin Password", width="medium")
-def admin_password_dialog():
-    with st.form("dlg_admin_pass_form"):
-        curr_p = st.text_input("Current Password", type="password")
-        new_p = st.text_input("New Password", type="password")
-        conf_p = st.text_input("Confirm Password", type="password")
-        if st.form_submit_button(
-            "Update Admin Password", type="primary", use_container_width=True
-        ):
-            admin_u, admin_p = get_admin_creds()
-            if curr_p != admin_p:
-                st.error("❌ Incorrect current password!")
-            elif new_p.strip() == "":
-                st.warning("⚠️ New password cannot be empty.")
-            elif new_p != conf_p:
-                st.error("❌ New passwords do not match!")
-            else:
-                save_admin_creds(admin_u, new_p.strip())
-                st.success("✅ Admin password updated successfully!")
-
-
-@st.dialog("📤 Sync Local Excel File to Cloud", width="medium")
-def sync_excel_dialog():
-    st.info(
-        "💡 Upload your updated local Excel file here to instantly synchronize it with Google Sheets and Cloud."
-    )
-    uploaded_excel = st.file_uploader(
-        "Upload Updated Excel File (.xlsx)", type=["xlsx"]
-    )
-    if uploaded_excel is not None:
-        if st.button(
-            "🚀 Confirm & Sync to Cloud",
-            type="primary",
-            use_container_width=True,
-        ):
-            try:
-                with open(EXCEL_FILE, "wb") as f:
-                    f.write(uploaded_excel.getbuffer())
-                uploaded_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-                if uploaded_sheets:
-                    first_k = list(uploaded_sheets.keys())[0]
-                    _push_sheet_to_webapp(first_k, uploaded_sheets[first_k], uploaded_sheets)
-                st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-                st.cache_data.clear()
-                ensure_all_cases_have_unique_ids(force=True)
-                st.success("✅ Cloud & Google Sheet data updated successfully!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
-
-
-@st.dialog("🔑 Change Password", width="medium")
-def worker_password_dialog(worker_name):
-    all_sheets = load_all_sheets_cached(_get_file_mtime())
-    worker_current_pass = ""
-    for _, df_chk in all_sheets.items():
-        if df_chk is not None and not df_chk.empty:
-            lc = find_login_user_column(df_chk)
-            pc = find_password_column(df_chk)
-            matched_r = df_chk[
-                df_chk[lc].astype(str).str.strip().str.lower()
-                == worker_name.lower()
-            ]
-            if not matched_r.empty:
-                worker_current_pass = str(matched_r.iloc[0][pc]).strip()
-                break
-
-    with st.form("dlg_worker_pass_form"):
-        curr_wp = st.text_input("Current Password", type="password")
-        new_wp = st.text_input("New Password", type="password")
-        conf_wp = st.text_input("Confirm Password", type="password")
-        if st.form_submit_button(
-            "Update Password", type="primary", use_container_width=True
-        ):
-            if curr_wp.strip() != worker_current_pass:
-                st.error("❌ Incorrect current password!")
-            elif new_wp.strip() == "":
-                st.warning("⚠️ New password cannot be empty.")
-            elif new_wp != conf_wp:
-                st.error("❌ New passwords do not match!")
-            else:
-                try:
-                    all_sheets_data = load_all_sheets_cached(_get_file_mtime())
-                    for s, df_s in all_sheets_data.items():
-                        df_copy = df_s.copy()
-                        lc = find_login_user_column(df_copy)
-                        pc = find_password_column(df_copy)
-                        if lc in df_copy.columns and pc in df_copy.columns:
-                            mask = (
-                                df_copy[lc].astype(str).str.strip().str.lower()
-                                == worker_name.lower()
-                            )
-                            if mask.any():
-                                df_copy.loc[mask, pc] = new_wp.strip()
-                        all_sheets_data[s] = reorder_dataframe_columns(df_copy)
-                    with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-                        for s, df_val in all_sheets_data.items():
-                            df_val.to_excel(
-                                writer, sheet_name=str(s), index=False
-                            )
-                    if all_sheets_data:
-                        first_k = list(all_sheets_data.keys())[0]
-                        _push_sheet_to_webapp(first_k, all_sheets_data[first_k], all_sheets_data)
-                    st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-                    st.cache_data.clear()
-                    st.success("✅ Password updated successfully!")
-                except Exception as e:
-                    st.error(f"❌ Error: {e}")
-
-
-@st.dialog("➕ Add New Case", width="large")
-def add_case_dialog(worker_name):
-    sheets = get_sheet_names()
-    default_idx = 0
-    for idx_s, s_nm in enumerate(sheets):
-        if "booked" not in s_nm.lower() and "issue" not in s_nm.lower():
-            default_idx = idx_s
-            break
-
-    selected_target_sheet = st.selectbox(
-        "Select Target Sheet for New Case",
-        options=sheets,
-        index=default_idx,
-        key="dlg_target_sheet",
-    )
-    target_df = load_data(sheet_name=selected_target_sheet)
-    t_login_col = find_login_user_column(target_df)
-    t_pass_col = find_password_column(target_df)
-    preview_next_id = generate_next_case_id()
-
-    available_usernames = sorted(
-        list(set(target_df[t_login_col].astype(str).str.strip().tolist()))
-    )
-    available_usernames = [u for u in available_usernames if u != ""]
-    available_usernames.insert(0, "Not Assigned")
-    if worker_name not in available_usernames and worker_name != "":
-        available_usernames.insert(1, worker_name)
-
-    with st.form("dlg_new_case_form", clear_on_submit=True):
-        st.text_input(
-            "🆔 Auto-Generated Case ID (Locked)",
-            value=preview_next_id,
-            disabled=True,
-        )
-        assigned_username = st.selectbox(
-            "Assign Username",
-            options=available_usernames,
-            index=(
-                available_usernames.index(worker_name)
-                if worker_name in available_usernames
-                else 0
-            ),
-        )
-        form_data = {}
-        cols = [
-            c
-            for c in target_df.columns
-            if c
-            not in [
-                "Case_ID",
-                t_login_col,
-                t_pass_col,
-                "Updated_By",
-                "Updated_At",
-                "Action_Type",
-                "Delete_Reason",
-                "Booking_Status",
-                "Appointment_Entry",
-                "Appointment_PDF",
-                "Preferred_Location",
-                "Preferred_Dates",
-                "Prior_Notice",
-                "Issue_Remark",
-            ]
-        ]
-        for col_name in cols:
-            c_lower = col_name.lower()
-            if "date" in c_lower and "prefer" not in c_lower:
-                sel_date = st.date_input(
-                    f"{col_name}",
-                    value=datetime.date.today(),
-                    key=f"add_date_{col_name}",
-                )
-                form_data[col_name] = sel_date.strftime("%Y-%m-%d")
-            else:
-                form_data[col_name] = st.text_input(
-                    f"{col_name}", key=f"add_txt_{col_name}"
-                )
-
-        if st.form_submit_button(
-            "🚀 Submit New Case", type="primary", use_container_width=True
-        ):
-            try:
-                final_new_case_id = generate_next_case_id()
-                new_row = {col: "" for col in target_df.columns}
-                new_row["Case_ID"] = final_new_case_id
-                final_assigned_user = (
-                    ""
-                    if assigned_username == "Not Assigned"
-                    else assigned_username.strip()
-                )
-                new_row[t_login_col] = final_assigned_user
-
-                current_pass = "admin123"
-                matched_pass_rows = target_df[
-                    target_df[t_login_col].astype(str).str.strip().str.lower()
-                    == final_assigned_user.lower()
-                ]
-                if not matched_pass_rows.empty:
-                    current_pass = str(
-                        matched_pass_rows.iloc[0][t_pass_col]
-                    ).strip()
-
-                new_row[t_pass_col] = (
-                    current_pass if final_assigned_user != "" else "admin123"
-                )
-                new_row["Updated_By"] = worker_name
-                new_row["Updated_At"] = get_ist_now().strftime(
-                    "%Y-%m-%d %I:%M:%S %p"
-                )
-                new_row["Action_Type"] = "New Case"
-                new_row["Booking_Status"] = "Active"
-
-                for k, v in form_data.items():
-                    new_row[k] = v
-
-                updated_target_df = pd.concat(
-                    [target_df, pd.DataFrame([new_row])], ignore_index=True
-                )
-                save_data(updated_target_df, sheet_name=selected_target_sheet)
-                st.session_state["open_dialog"] = None
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
-
-
-@st.dialog("🔍 Search Records Across All Sheets", width="large")
-def search_data_dialog(current_user=None, allow_edit=True):
-    search_query = (
-        st.text_input(
-            "Search by Case Worker Name, Case Username, DS160, Case Password, or Case ID (All Sheets):",
-            placeholder="Type Case Worker, Case Username, DS160, Password, or Case ID...",
-            key="dlg_search_input",
-        )
-        .strip()
-    )
-    if search_query != "":
-        found_data = search_across_all_sheets_by_fields(search_query)
-        if found_data.empty:
-            st.warning(f"No matching records found across all sheets for '{search_query}'.")
-        else:
-            disp_c = find_display_username_column(found_data)
-            p_col = find_password_column(found_data)
-            render_clickable_table(
-                found_data,
-                disp_c,
-                p_col,
-                table_key="dlg_all_sheets_search",
-                allow_edit=allow_edit,
-                restrict_edit_to_user=current_user,
-            )
-
-
-dialog_map = {
-    "permissions": permissions_dialog,
-    "admin_password": admin_password_dialog,
-    "sync_excel": sync_excel_dialog,
-    "admin_updated_cases": admin_updated_cases_dialog,
-    "admin_delete_requests": admin_delete_requests_dialog,
-    "admin_notice": admin_notice_dialog,
-    "admin_login_status": admin_login_status_dialog,
-    "admin_attendance": admin_attendance_dialog,
-    "admin_worker_report": admin_worker_wise_report_dialog,
-    "admin_pdf_downloads": admin_pdf_download_dialog,
-    "worker_password": lambda: worker_password_dialog(
-        st.session_state.get("username", "")
-    ),
-    "add_case": lambda: add_case_dialog(st.session_state.get("username", "")),
-    "search_data": lambda: search_data_dialog(
-        current_user=st.session_state.get("username", ""),
-        allow_edit=load_permissions()
-        .get(st.session_state.get("username", ""), {})
-        .get("can_update", True),
-    ),
-}
-
-if st.session_state["open_dialog"] in dialog_map:
-    dialog_map[st.session_state["open_dialog"]]()
-    st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "admin_kpi_popup":
-    kpi_meta = st.session_state.get("admin_kpi_popup_meta", {})
-    admin_kpi_cases_dialog(
-        sheet_name=kpi_meta.get("sheet", default_s_init),
-        filter_mode=kpi_meta.get("mode", "not_assigned"),
-        lead_filter=kpi_meta.get("lead", "All"),
-    )
-    st.session_state["open_dialog"] = None
-elif st.session_state["open_dialog"] == "edit_case_popup":
-    r_idx = st.session_state.get("selected_row_idx")
-    if r_idx is not None:
-        curr_role = st.session_state.get("role", "worker")
-        curr_u = st.session_state.get("username", "")
-        perms = load_permissions()
-        c_upd = (
-            True
-            if curr_role == "admin"
-            else perms.get(curr_u, {}).get("can_update", True)
-        )
-        view_and_edit_case_dialog(
-            st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd
-        )
+                "S.No": idx_s,
+                "Worker": r.get("Worker", ""),
+                "Date": r.get("Date", ""),
+                "Login_Time": r.get("Login_Time", "-"),
+                "Logout_Time": r.get("Logout_Time", "-"),
+                "Duration": r.get("Duration", "0h 0m"),
+                "Status": r.get("Status", ""),
+            }
+            for idx_s, r in enumerate(att_filtered, start=1)
+        ])
+        st.dataframe(df_sessions_disp, use_container_width=True, hide_index=True)
     else:
-        close_case_popup_state()
+        st.info("No login/logout sessions recorded yet.")
 
-if not st.session_state["logged_in"]:
-    default_nav_idx = 5 if st.session_state.get("force_logged_out_msg") else 0
-    selected_page = st.radio(
-        "Navigation",
-        [
-            "🏠 Home",
-            "ℹ️ About Us",
-            "✈️ Services",
-            "⭐ Success Stories",
-            "📞 Contact Us",
-            "🔐 Portal Login",
-        ],
-        index=default_nav_idx,
-        horizontal=True,
-        label_visibility="collapsed",
-    )
+    st.markdown("### 📅 Daily Worker Duration Summary (All Sessions Combined)")
+    if not df_day_sum.empty:
+        st.dataframe(_reset_sno_df(df_day_sum), use_container_width=True, hide_index=True)
+    else:
+        st.info("No daily summary available.")
 
-    if selected_page == "🏠 Home":
-        st.markdown("""
-            <div class="hero-section">
-                <div class="hero-title">🌍 Welcome to HemanVisa Global Experts</div>
-                <div class="hero-subtitle">Your trusted partner for international study, work visas, permanent residency, and seamless global mobility.</div>
-            </div>
-        """, unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown(
-                '<div class="corporate-card"><h3>🎓 Study Abroad</h3><p>Secure admissions in top global universities with complete visa documentation and interview support.</p></div>',
-                unsafe_allow_html=True,
-            )
-        with c2:
-            st.markdown(
-                '<div class="corporate-card"><h3>💼 Work & Skilled Visas</h3><p>Expand your career internationally with employer-sponsored work visas and skilled migration pathways.</p></div>',
-                unsafe_allow_html=True,
-            )
-        with c3:
-            st.markdown(
-                '<div class="corporate-card"><h3>✈️ Permanent Residency</h3><p>Settle abroad permanently with hassle-free PR processing and legal consulting.</p></div>',
-                unsafe_allow_html=True,
-            )
+    if is_admin:
+        st.markdown("### 📊 Overall Worker Summary")
+        if not df_overall_sum.empty:
+            st.dataframe(df_overall_sum, use_container_width=True, hide_index=True)
 
-    elif selected_page == "ℹ️ About Us":
-        st.markdown(
-            "<div class='section-banner'>ℹ️ About HemanVisa & Immigration Services</div>",
-            unsafe_allow_html=True,
-        )
-        st.write(
-            "HemanVisa is a global immigration and visa consulting firm dedicated to turning international aspirations into reality."
-        )
-
-    elif selected_page == "✈️ Services":
-        st.markdown(
-            "<div class='section-banner'>✈️ Our Premium Global Services</div>",
-            unsafe_allow_html=True,
-        )
-        s1, s2 = st.columns(2)
-        with s1:
-            st.markdown(
-                '<div class="corporate-card"><h3>📋 DS-160 & Visa Filing</h3><p>Professional assistance with visa application forms, document verification, and appointment booking.</p></div>',
-                unsafe_allow_html=True,
-            )
-        with s2:
-            st.markdown(
-                '<div class="corporate-card"><h3>📚 Student Career Counseling</h3><p>Course selection, university applications, scholarship guidance, and financial support.</p></div>',
-                unsafe_allow_html=True,
-            )
-
-    elif selected_page == "⭐ Success Stories":
-        st.markdown(
-            "<div class='section-banner'>⭐ Client Success Stories</div>",
-            unsafe_allow_html=True,
-        )
-        st.info("Trusted by hundreds of applicants across USA, UK, Canada, and Europe.")
-
-    elif selected_page == "📞 Contact Us":
-        st.markdown(
-            "<div class='section-banner'>📞 Get in Touch with Our Experts</div>",
-            unsafe_allow_html=True,
-        )
-        with st.form("contact_form"):
-            st.text_input("Your Name")
-            st.text_input("Email / Phone")
-            st.text_area("Your Inquiry / Visa Requirement")
-            if st.form_submit_button(
-                "Submit Inquiry", type="primary", use_container_width=True
-            ):
-                st.success("✅ Thank you! Our expert will contact you shortly.")
-
-    elif selected_page == "🔐 Portal Login":
-        col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
-        with col_l2:
-            if st.session_state.get("force_logged_out_msg"):
-                st.error(
-                    "⚠️ Your session was terminated because Admin blocked your account."
-                )
-                st.session_state["force_logged_out_msg"] = False
-            with st.container(border=True):
-                st.markdown(
-                    "<h3 style='text-align:center; color:#1e293b;'>🔐 Portal Login</h3>",
-                    unsafe_allow_html=True,
-                )
-                sheets = get_sheet_names()
-                with st.form("login_form"):
-                    username_input = st.text_input(
-                        "👤 Username", placeholder="Type your username"
-                    )
-                    password_input = st.text_input(
-                        "🔑 Password",
-                        type="password",
-                        placeholder="Type your password",
-                    )
-                    submit_btn = st.form_submit_button(
-                        "🚀 Login to Portal",
-                        type="primary",
-                        use_container_width=True,
-                    )
-                    if submit_btn:
-                        u_in = username_input.strip()
-                        p_in = password_input.strip()
-                        admin_u, admin_p = get_admin_creds()
-                        default_act_sheet = get_default_active_sheet(sheets)
-
-                        if u_in.lower() == admin_u.lower() and p_in == admin_p:
-                            st.session_state["logged_in"] = True
-                            st.session_state["username"] = admin_u
-                            st.session_state["role"] = "admin"
-                            st.session_state["active_sheet"] = default_act_sheet
-                            st.session_state["dash_sheet"] = default_act_sheet
-                            st.session_state["records_sheet"] = default_act_sheet
-                            st.session_state["admin_active_view"] = "dashboard"
-                            st.query_params.clear()
-                            st.query_params["logged_in"] = "true"
-                            st.query_params["username"] = admin_u
-                            st.query_params["role"] = "admin"
-                            st.query_params["active_sheet"] = default_act_sheet
-                            st.rerun()
-                        elif is_worker_blocked(u_in):
-                            st.error(
-                                "❌ Your login access has been disabled by Admin."
-                            )
-                        else:
-                            logged_in_success = False
-                            actual_matched_username = ""
-                            all_sheets_chk = load_all_sheets_cached(
-                                _get_file_mtime()
-                            )
-                            for _, df_check in all_sheets_chk.items():
-                                if df_check is not None and not df_check.empty:
-                                    login_c = find_login_user_column(df_check)
-                                    p_col = find_password_column(df_check)
-                                    for _, r in df_check.iterrows():
-                                        db_user = str(r[login_c]).strip()
-                                        db_pass = str(r[p_col]).strip()
-                                        if (
-                                            db_user.lower() == u_in.lower()
-                                            and db_pass == p_in
-                                        ):
-                                            logged_in_success = True
-                                            actual_matched_username = db_user
-                                            break
-                                if logged_in_success:
-                                    break
-
-                            if logged_in_success:
-                                record_worker_login(actual_matched_username)
-                                st.session_state["logged_in"] = True
-                                st.session_state["username"] = (
-                                    actual_matched_username
-                                )
-                                st.session_state["role"] = "worker"
-                                st.session_state["active_sheet"] = (
-                                    default_act_sheet
-                                )
-                                st.session_state["dash_sheet"] = (
-                                    default_act_sheet
-                                )
-                                st.session_state["records_sheet"] = (
-                                    default_act_sheet
-                                )
-                                st.session_state["attendance_recorded"] = True
-                                st.query_params.clear()
-                                st.query_params["logged_in"] = "true"
-                                st.query_params["username"] = (
-                                    actual_matched_username
-                                )
-                                st.query_params["role"] = "worker"
-                                st.query_params["active_sheet"] = (
-                                    default_act_sheet
-                                )
-                                st.rerun()
-                            else:
-                                st.error("❌ Incorrect Username or Password!")
-
-elif st.session_state["role"] == "admin":
-    all_sheets_map = load_all_sheets_cached(_get_file_mtime())
-    sheets = list(all_sheets_map.keys()) if all_sheets_map else ["Sheet1"]
-    default_act_s = get_default_active_sheet(sheets)
-    current_sheet = st.session_state.get("active_sheet", default_act_s)
-    if current_sheet not in sheets:
-        current_sheet = default_act_s
-        st.session_state["active_sheet"] = current_sheet
-
-    active_admin_view = st.session_state.get("admin_active_view", "dashboard")
-    if active_admin_view not in ["dashboard", "records"]:
-        active_admin_view = "dashboard"
-        st.session_state["admin_active_view"] = "dashboard"
-
-    header_sheet_label = (
-        st.session_state.get("dash_sheet", current_sheet)
-        if active_admin_view == "dashboard"
-        else st.session_state.get("records_sheet", current_sheet)
-    )
-
-    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6.6, 1.2, 1.2], gap="small")
-    with top_col1:
-        st.markdown(
-            f"<div class='workspace-header-bar'><span>👑 Admin Control Panel</span><span class='workspace-sheet-pill'>📂 {header_sheet_label}</span></div>",
-            unsafe_allow_html=True,
-        )
-    with top_col2:
-        if st.button("🔄 Refresh", key="admin_refresh"):
-            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-            st.cache_data.clear()
-            st.session_state.pop("_last_id_sync_mtime", None)
-            act_s = get_default_active_sheet(get_sheet_names())
-            st.session_state["active_sheet"] = act_s
-            st.session_state["dash_sheet"] = act_s
-            st.session_state["records_sheet"] = act_s
-            st.session_state["selected_visa_filter"] = "All"
-            st.session_state["records_selected_lead"] = "All"
-            close_case_popup_state()
-            st.query_params["active_sheet"] = act_s
-            st.rerun()
-    with top_col3:
-        if st.button("🚪 Logout", key="admin_logout"):
-            st.query_params.clear()
-            st.session_state["logged_in"] = False
-            st.session_state["username"] = ""
-            st.session_state["role"] = ""
-            st.session_state["admin_active_view"] = "dashboard"
-            close_case_popup_state()
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    t_c1, t_c2 = st.columns([1.4, 1.4], gap="small")
-    with t_c1:
-        is_d_act = active_admin_view == "dashboard"
-        st.markdown(
-            f'<span class="{"admin-btn-0" if is_d_act else "admin-btn-6"}" style="display:none;"></span>',
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            "📊 Dashboard & Quick Actions",
-            key="admin_tab_dash_btn",
-            use_container_width=True,
-        ):
-            st.session_state["admin_active_view"] = "dashboard"
-            st.rerun()
-    with t_c2:
-        is_r_act = active_admin_view == "records"
-        st.markdown(
-            f'<span class="{"admin-btn-0" if is_r_act else "admin-btn-6"}" style="display:none;"></span>',
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            "📂 Case Records & Search",
-            key="admin_tab_rec_btn",
-            use_container_width=True,
-        ):
-            st.session_state["admin_active_view"] = "records"
-            st.rerun()
-
-    if "admin_selected_lead" not in st.session_state:
-        st.session_state["admin_selected_lead"] = "All"
-
-    if active_admin_view == "dashboard":
-        dash_top_l, dash_top_r = st.columns([6.2, 1.8], gap="small")
-        with dash_top_l:
-            st.markdown(
-                "<div class='section-banner'>📊 Admin Dashboard & Quick Actions</div>",
-                unsafe_allow_html=True,
-            )
-        with dash_top_r:
-            if os.path.exists(EXCEL_FILE):
-                with open(EXCEL_FILE, "rb") as f_dl_corner:
-                    st.download_button(
-                        label="📥 Download Excel",
-                        data=f_dl_corner.read(),
-                        file_name=EXCEL_FILE,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        key="admin_dash_corner_dl_btn",
-                    )
-
-        dash_s_name = st.session_state.get("dash_sheet", default_act_s)
-        if dash_s_name not in sheets:
-            dash_s_name = default_act_s
-        df_d_base = all_sheets_map.get(dash_s_name, pd.DataFrame()).copy()
-        df_d_base = reorder_dataframe_columns(df_d_base)
-        login_c_d = find_login_user_column(df_d_base)
-        lead_col_d = next(
-            (c for c in df_d_base.columns if "lead" in c.strip().lower()),
-            login_c_d,
-        )
-
-        dash_search_query = st.text_input(
-            "🔍 Search All Sheets (Case ID, Username, DS160, Password & Case Worker):",
-            placeholder="Type Case ID, Username, DS160, Case Password, or Case Worker...",
-            key="dash_overall_search_input",
-        ).strip()
-
-        st.markdown(
-            "<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>",
-            unsafe_allow_html=True,
-        )
-        lead_options = ["All", "Kiran", "Shanthi"]
-        l_btn_cols = st.columns([1.2, 1.2, 1.2, 4.4], gap="small")
-        for l_idx, l_name in enumerate(lead_options):
-            with l_btn_cols[l_idx]:
-                is_l_act = st.session_state["admin_selected_lead"] == l_name
-                l_cls = "admin-btn-0" if is_l_act else "admin-btn-6"
-                l_lbl = f"✅ {l_name}" if is_l_act else l_name
-                st.markdown(
-                    f'<span class="{l_cls}" style="display:none;"></span>',
-                    unsafe_allow_html=True,
-                )
-                if st.button(
-                    l_lbl,
-                    key=f"dash_lead_btn_{l_name}_{l_idx}",
-                    use_container_width=True,
-                ):
-                    st.session_state["admin_selected_lead"] = l_name
-                    st.rerun()
-
-        visible_dash_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
-        if visible_dash_sheets:
-            st.markdown(
-                "<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>",
-                unsafe_allow_html=True,
-            )
-            sw_cols = st.columns(len(visible_dash_sheets), gap="small")
-            for idx, s_name in enumerate(visible_dash_sheets):
-                with sw_cols[idx]:
-                    is_active = s_name == dash_s_name
-                    color_cls = "admin-btn-1" if is_active else "admin-btn-6"
-                    btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
-                    st.markdown(
-                        f'<span class="{color_cls}" style="display:none;"></span>',
-                        unsafe_allow_html=True,
-                    )
-                    if st.button(
-                        btn_txt,
-                        key=f"dash_only_switch_sheet_{s_name}_{idx}",
-                        use_container_width=True,
-                    ):
-                        st.session_state["dash_sheet"] = s_name
-                        st.rerun()
-
-        hidden_sys_sheets = [s for s in sheets if str(s).strip() in SYSTEM_SHEETS]
-        if hidden_sys_sheets:
-            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-            with st.expander(
-                "⚙️ Hidden System Sheets (App_Logins, App_Attendance, App_Permissions, App_Config)",
-                expanded=False,
-            ):
-                selected_sys_s = st.selectbox(
-                    "Select System Sheet to View",
-                    options=hidden_sys_sheets,
-                    key="admin_hidden_sys_sheet_picker",
-                )
-                if selected_sys_s == "App_Attendance":
-                    att_rows_view = load_attendance()
-                    df_sys_view = (
-                        pd.DataFrame([
-                            {k: v for k, v in r.items() if not str(k).startswith("_")}
-                            for r in att_rows_view
-                        ])
-                        if att_rows_view
-                        else pd.DataFrame()
-                    )
-                elif selected_sys_s == "App_Logins":
-                    log_map_view = load_login_tracking()
-                    log_rows_view = [
-                        {
-                            "Worker": k,
-                            "status": v.get("status", "Not Logged In"),
-                            "last_login": v.get("last_login", "-"),
-                        }
-                        for k, v in log_map_view.items()
-                    ]
-                    df_sys_view = pd.DataFrame(log_rows_view) if log_rows_view else pd.DataFrame()
-                else:
-                    df_sys_view = all_sheets_map.get(selected_sys_s, pd.DataFrame())
-                if df_sys_view is not None and not df_sys_view.empty:
-                    st.dataframe(df_sys_view, use_container_width=True)
-                else:
-                    st.info(f"'{selected_sys_s}' sheet currently has no rows.")
-
-        if (
-            st.session_state["admin_selected_lead"] != "All"
-            and not df_d_base.empty
-            and lead_col_d in df_d_base.columns
-        ):
-            sel_l = st.session_state["admin_selected_lead"].lower()
-            df_dash = df_d_base[
-                df_d_base[lead_col_d]
-                .astype(str)
-                .str.strip()
-                .str.lower()
-                .str.contains(sel_l, na=False)
-            ]
-        else:
-            df_dash = df_d_base
-
-        if dash_search_query != "":
-            all_matched = search_across_all_sheets_by_fields(
-                dash_search_query,
-                lead_filter=st.session_state["admin_selected_lead"],
-            )
-            if all_matched.empty:
-                st.warning(
-                    f"No matching records found across all sheets for '{dash_search_query}'."
-                )
-            else:
-                p_col_m = find_password_column(all_matched)
-                disp_m = find_display_username_column(all_matched)
-                render_clickable_table(
-                    all_matched,
-                    disp_m,
-                    p_col_m,
-                    table_key="dash_global_search",
-                    allow_edit=True,
-                )
-
-        total_cases_d = len(df_dash) if df_dash is not None else 0
-        today_str_d = get_ist_now().strftime("%Y-%m-%d")
-        today_count_d = 0
-        today_updated_count_d = 0
-        not_assigned_count_d = 0
-
-        if df_dash is not None and not df_dash.empty:
-            date_cols_d = [
-                c
-                for c in df_dash.columns
-                if any(k in c.lower() for k in ["date", "time", "day", "created"])
-            ]
-            for _, r in df_dash.iterrows():
-                if any(
-                    today_str_d in str(r.get(dc, "")).strip()
-                    for dc in date_cols_d
-                ) or today_str_d in str(r.get("Updated_At", "")):
-                    today_count_d += 1
-                if is_today_updated_row(r, today_str_d):
-                    today_updated_count_d += 1
-                if is_not_assigned_value(r.get(login_c_d, "")):
-                    not_assigned_count_d += 1
-
-        del_reqs_count_d = 0
-        for _, df_s in all_sheets_map.items():
-            if (
-                df_s is not None
-                and not df_s.empty
-                and "Action_Type" in df_s.columns
-            ):
-                del_reqs_count_d += int(
-                    (
-                        df_s["Action_Type"].astype(str).str.strip().str.lower()
-                        == "delete request"
-                    ).sum()
-                )
-
-        all_workers_d = get_all_workers_list()
-        login_recs_d = load_login_tracking()
-        norm_logins_d = {k.lower(): v for k, v in login_recs_d.items()}
-        logged_in_cnt_d = sum(
-            1
-            for w in all_workers_d
-            if norm_logins_d.get(w.lower(), {}).get("status") == "Logged In"
-        )
-
-        st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-        k_cols = st.columns(6, gap="small")
-        with k_cols[0]:
-            st.markdown(
-                f"<div class='kpi-card'><div class='kpi-title'>Total ({dash_s_name})</div><div class='kpi-value'>{total_cases_d}</div></div>",
-                unsafe_allow_html=True,
-            )
-        with k_cols[1]:
-            st.markdown(
-                f"<div class='kpi-card green'><div class='kpi-title'>Today's Cases</div><div class='kpi-value'>{today_count_d}</div></div>",
-                unsafe_allow_html=True,
-            )
-        with k_cols[2]:
-            st.markdown(
-                f"<div class='kpi-card teal'><div class='kpi-title'>Today Updated</div><div class='kpi-value'>{today_updated_count_d}</div></div>",
-                unsafe_allow_html=True,
-            )
-        with k_cols[3]:
-            st.markdown(
-                f"<div class='kpi-card rose'><div class='kpi-title'>Not Assigned</div><div class='kpi-value'>{not_assigned_count_d}</div></div>",
-                unsafe_allow_html=True,
-            )
-        with k_cols[4]:
-            st.markdown(
-                f"<div class='kpi-card purple'><div class='kpi-title'>Workers Online</div><div class='kpi-value'>{logged_in_cnt_d} / {len(all_workers_d)}</div></div>",
-                unsafe_allow_html=True,
-            )
-        with k_cols[5]:
-            st.markdown(
-                f"<div class='kpi-card gold'><div class='kpi-title'>Delete Reqs</div><div class='kpi-value'>{del_reqs_count_d}</div></div>",
-                unsafe_allow_html=True,
-            )
-
-        st.markdown(
-            "<div class='action-group-title'>⚡ QUICK ACTIONS & REPORTS:</div>",
-            unsafe_allow_html=True,
-        )
-        q_r1_1, q_r1_2, q_r1_3, q_r1_4 = st.columns(4, gap="small")
-        with q_r1_1:
-            st.markdown(
-                '<span class="admin-btn-0" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "👥 Users & Permissions",
-                key="q_btn_perms",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "permissions"
-                st.rerun()
-        with q_r1_2:
-            st.markdown(
-                '<span class="admin-btn-1" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "📊 Worker Booked Report",
-                key="q_btn_wrep",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_worker_report"
-                st.rerun()
-        with q_r1_3:
-            st.markdown(
-                '<span class="admin-btn-2" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "📋 New / Updated & Cal",
-                key="q_btn_upd",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_updated_cases"
-                st.rerun()
-        with q_r1_4:
-            st.markdown(
-                '<span class="admin-btn-3" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                f"🗑️ Delete Reqs ({del_reqs_count_d})",
-                key="q_btn_delreqs",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_delete_requests"
-                st.rerun()
-
-        q_r2_1, q_r2_2, q_r2_3, q_r2_4 = st.columns(4, gap="small")
-        with q_r2_1:
-            st.markdown(
-                '<span class="admin-btn-4" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "📥 Appointment PDFs",
-                key="q_btn_pdfs",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_pdf_downloads"
-                st.rerun()
-        with q_r2_2:
-            st.markdown(
-                '<span class="admin-btn-5" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "🟢 Login Status",
-                key="q_btn_lstatus",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_login_status"
-                st.rerun()
-        with q_r2_3:
-            st.markdown(
-                '<span class="admin-btn-6" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "🕒 Attendance Log",
-                key="q_btn_att",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_attendance"
-                st.rerun()
-        with q_r2_4:
-            st.markdown(
-                '<span class="admin-btn-7" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "📢 Notice Board",
-                key="q_btn_notice",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_notice"
-                st.rerun()
-
-        q_r3_1, q_r3_2, q_r3_3, q_r3_4 = st.columns(4, gap="small")
-        with q_r3_1:
-            st.markdown(
-                '<span class="admin-btn-7" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                f"👤 Not Assigned ({not_assigned_count_d})",
-                key="q_btn_not_assigned",
-                use_container_width=True,
-            ):
-                st.session_state["admin_kpi_popup_meta"] = {
-                    "sheet": dash_s_name,
-                    "mode": "not_assigned",
-                    "lead": st.session_state["admin_selected_lead"],
+        st.markdown("### 🟢 Current Live Login Status")
+        logins_map = load_login_tracking()
+        if logins_map:
+            live_rows = [
+                {
+                    "S.No": idx_l,
+                    "Worker": w_k,
+                    "Status": v_info.get("status", "Not Logged In"),
+                    "Last_Login": v_info.get("last_login", "-"),
                 }
-                st.session_state["open_dialog"] = "admin_kpi_popup"
-                st.rerun()
-        with q_r3_2:
-            st.markdown(
-                '<span class="admin-btn-1" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "📤 Sync Excel to Cloud",
-                key="q_btn_sync",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "sync_excel"
-                st.rerun()
-        with q_r3_3:
-            st.markdown(
-                '<span class="admin-btn-6" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "🔑 Change Admin Pass",
-                key="q_btn_apass",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "admin_password"
-                st.rerun()
-        with q_r3_4:
-            all_blk_d = are_all_workers_blocked()
-            st.markdown(
-                f'<span class="{"admin-btn-1" if all_blk_d else "admin-btn-7"}" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "🔓 Unblock All Workers"
-                if all_blk_d
-                else "🔒 Block All Workers",
-                key="q_btn_blkall",
-                use_container_width=True,
-            ):
-                toggle_all_workers_block(not all_blk_d)
-                st.rerun()
-
-    elif active_admin_view == "records":
-        rec_s_name = st.session_state.get("records_sheet", default_act_s)
-        if rec_s_name not in sheets:
-            rec_s_name = default_act_s
-        df_r = all_sheets_map.get(rec_s_name, pd.DataFrame()).copy()
-        df_r = reorder_dataframe_columns(df_r)
-        login_c_r = find_login_user_column(df_r)
-        display_c_r = find_display_username_column(df_r)
-        p_col_r = find_password_column(df_r)
-        visa_col_r = find_visa_type_column(df_r)
-        lead_col_r = next(
-            (c for c in df_r.columns if "lead" in c.strip().lower()),
-            login_c_r,
-        )
-
-        if "records_selected_lead" not in st.session_state:
-            st.session_state["records_selected_lead"] = "All"
-
-        visa_counts_r = {}
-        if visa_col_r and not df_r.empty:
-            v_series = df_r[visa_col_r].astype(str).str.strip().str.upper()
-            v_series = v_series[v_series != ""]
-            visa_counts_r = v_series.value_counts().to_dict()
-
-        st.markdown(
-            "<div class='section-banner'>📂 Case Records & Visa Type Management Hub</div>",
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(
-            "<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>",
-            unsafe_allow_html=True,
-        )
-        lead_options_r = ["All", "Kiran", "Shanthi"]
-        r_l_cols = st.columns([1.2, 1.2, 1.2, 4.4], gap="small")
-        for l_idx_r, l_name_r in enumerate(lead_options_r):
-            with r_l_cols[l_idx_r]:
-                is_rl_act = st.session_state["records_selected_lead"] == l_name_r
-                rl_cls = "admin-btn-0" if is_rl_act else "admin-btn-6"
-                rl_lbl = f"✅ {l_name_r}" if is_rl_act else l_name_r
-                st.markdown(
-                    f'<span class="{rl_cls}" style="display:none;"></span>',
-                    unsafe_allow_html=True,
-                )
-                if st.button(
-                    rl_lbl,
-                    key=f"records_lead_btn_{l_name_r}_{l_idx_r}",
-                    use_container_width=True,
-                ):
-                    st.session_state["records_selected_lead"] = l_name_r
-                    st.session_state[f"page_num_admin_{rec_s_name}"] = 1
-                    st.rerun()
-
-        if visa_counts_r:
-            visa_items = list(visa_counts_r.items())
-            w_cols = st.columns(min(len(visa_items), 6), gap="small")
-            for idx, (v_name, v_count) in enumerate(visa_items):
-                with w_cols[idx % len(w_cols)]:
-                    st.markdown(
-                        f'<span class="visa-color-{idx % 8}" style="display:none;"></span>',
-                        unsafe_allow_html=True,
-                    )
-                    if st.button(
-                        f"✈️ {v_name}: {v_count}",
-                        key=f"admin_visa_card_btn_{rec_s_name}_{v_name}_{idx}",
-                        use_container_width=True,
-                    ):
-                        st.session_state["selected_visa_filter"] = (
-                            "All"
-                            if st.session_state["selected_visa_filter"] == v_name
-                            else v_name
-                        )
-                        st.session_state[f"page_num_admin_{rec_s_name}"] = 1
-                        st.rerun()
-
-            if st.session_state["selected_visa_filter"] != "All":
-                if st.button(
-                    f"🔄 Active Filter: [{st.session_state['selected_visa_filter']}] — Click to Reset",
-                    use_container_width=True,
-                    key="reset_visa_filter",
-                ):
-                    st.session_state["selected_visa_filter"] = "All"
-                    st.session_state[f"page_num_admin_{rec_s_name}"] = 1
-                    st.rerun()
-
-        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
-        with col_search:
-            admin_search = st.text_input(
-                "Search main data (any field):",
-                placeholder="Type Case ID, Username, DS160, Visa Type, Lead...",
-                key="admin_search_input",
-            ).strip()
-        with col_sheets:
-            rec_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
-            if rec_visible_sheets:
-                st.markdown("📑 **Switch Sheet:**")
-                sw_cols_r = st.columns(len(rec_visible_sheets), gap="small")
-                for s_idx, s_name in enumerate(rec_visible_sheets):
-                    with sw_cols_r[s_idx]:
-                        is_act = s_name == rec_s_name
-                        color_c = "admin-btn-1" if is_act else "admin-btn-6"
-                        b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
-                        st.markdown(
-                            f'<span class="{color_c}" style="display:none;"></span>',
-                            unsafe_allow_html=True,
-                        )
-                        if st.button(
-                            b_txt,
-                            key=f"records_only_sheet_btn_{s_idx}",
-                            use_container_width=True,
-                        ):
-                            st.session_state["records_sheet"] = s_name
-                            st.session_state["active_sheet"] = s_name
-                            st.session_state["selected_visa_filter"] = "All"
-                            st.rerun()
-
-        display_df = df_r.copy()
-        if "__orig_idx__" not in display_df.columns:
-            display_df["__orig_idx__"] = display_df.index
-
-        if (
-            st.session_state["records_selected_lead"] != "All"
-            and not display_df.empty
-            and lead_col_r in display_df.columns
-        ):
-            sel_l_r = st.session_state["records_selected_lead"].lower()
-            display_df = display_df[
-                display_df[lead_col_r]
-                .astype(str)
-                .str.strip()
-                .str.lower()
-                .str.contains(sel_l_r, na=False)
+                for idx_l, (w_k, v_info) in enumerate(logins_map.items(), start=1)
             ]
+            st.dataframe(pd.DataFrame(live_rows), use_container_width=True, hide_index=True)
 
-        if admin_search != "":
-            display_df = display_df[
-                search_main_data_any(display_df, admin_search)
-            ]
+# --- TAB 4: ADMIN SETTINGS ---
+if is_admin:
+    with tabs[4]:
+        st.markdown("### ⚙️ Admin Settings")
 
-        if st.session_state["selected_visa_filter"] != "All" and visa_col_r:
-            target_visa = st.session_state["selected_visa_filter"]
-            display_df = display_df[
-                display_df[visa_col_r].astype(str).str.strip().str.upper()
-                == target_visa
-            ]
-
-        render_clickable_table(
-            display_df,
-            display_c_r,
-            p_col_r,
-            table_key=f"admin_{rec_s_name}",
-            sheet_for_link=rec_s_name,
-            allow_edit=True,
-        )
-
-        if os.path.exists(EXCEL_FILE):
-            with open(EXCEL_FILE, "rb") as f:
-                excel_bytes = f.read()
-            st.download_button(
-                label="📥 Download Complete Excel File (All Sheets)",
-                data=excel_bytes,
-                file_name=EXCEL_FILE,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="admin_dl_all_btn",
-            )
-
-else:
-    current_user = st.session_state["username"]
-    all_sheets_map_w = load_all_sheets_cached(_get_file_mtime())
-    sheets = (
-        list(all_sheets_map_w.keys()) if all_sheets_map_w else ["Sheet1"]
-    )
-    default_act_s_w = get_default_active_sheet(sheets)
-    current_sheet = st.session_state.get("active_sheet", default_act_s_w)
-    if current_sheet not in sheets:
-        current_sheet = default_act_s_w
-        st.session_state["active_sheet"] = current_sheet
-
-    perms = load_permissions()
-    user_perms = perms.get(current_user, {})
-    can_update = user_perms.get("can_update", True)
-    can_add = user_perms.get("can_add", True)
-    can_search = user_perms.get("can_search", True)
-    can_download = user_perms.get("can_download", False)
-
-    if "worker_selected_lead" not in st.session_state:
-        st.session_state["worker_selected_lead"] = "All"
-
-    st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    w_top1, w_top2, w_top3, w_top4 = st.columns([5.4, 1.2, 1.2, 1.2], gap="small")
-    with w_top1:
-        st.markdown(
-            f"<div class='worker-hero-banner'><span class='worker-hero-title'>👷 Case Worker: {current_user}</span><div class='worker-pill-group'><span class='worker-pill-gold'>📂 {current_sheet}</span><span class='worker-pill-cyan'>🎯 Lead: {st.session_state['worker_selected_lead']}</span></div></div>",
-            unsafe_allow_html=True,
-        )
-    with w_top2:
-        if can_download:
-            w_dl_bytes = get_worker_export_bytes(
-                _get_file_mtime(), current_user, current_sheet
-            )
-            st.download_button(
-                label="📥 Excel",
-                data=w_dl_bytes,
-                file_name=f"{current_user}_Cases.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="worker_top_excel_dl",
-            )
-        else:
-            st.button(
-                "📥 Excel",
-                key="worker_top_excel_dl_disabled",
-                disabled=True,
-                use_container_width=True,
-            )
-    with w_top3:
-        if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
-            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-            st.cache_data.clear()
-            st.session_state.pop("_last_id_sync_mtime", None)
-            act_s = get_default_active_sheet(get_sheet_names())
-            st.session_state["active_sheet"] = act_s
-            st.session_state["worker_selected_lead"] = "All"
-            close_case_popup_state()
-            st.query_params["active_sheet"] = act_s
+        st.markdown("#### 📢 Scrolling Announcement Notice")
+        curr_notice = get_admin_notice(all_sheets_root)
+        new_notice = st.text_input("Notice Text", value=curr_notice, key="admin_notice_input")
+        if st.button("Save Notice", key="save_notice_btn"):
+            save_admin_notice(new_notice)
+            st.success("✅ Notice updated!")
             st.rerun()
-    with w_top4:
-        if st.button("🚪 Logout", key="worker_logout", use_container_width=True):
-            record_worker_logout(current_user)
-            st.session_state["attendance_recorded"] = False
-            st.query_params.clear()
-            st.session_state["logged_in"] = False
-            st.session_state["username"] = ""
-            st.session_state["role"] = ""
-            close_case_popup_state()
+
+        st.markdown("#### 🔐 Admin Credentials")
+        curr_au, curr_ap = get_admin_creds(all_sheets_root)
+        new_au = st.text_input("New Admin Username", value=curr_au, key="new_admin_u")
+        new_ap = st.text_input("New Admin Password", value=curr_ap, type="password", key="new_admin_p")
+        if st.button("Update Admin Credentials", key="update_admin_creds_btn"):
+            save_admin_creds(new_au, new_ap)
+            st.success("✅ Admin credentials updated!")
             st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
-    notice_msg = get_admin_notice()
-    if notice_msg:
-        st.markdown(
-            f'<div class="marquee-container"><marquee behavior="scroll" direction="left" scrollamount="6">📢 ADMIN NOTICE: {notice_msg}</marquee></div>',
-            unsafe_allow_html=True,
-        )
-
-    w_c1, w_c2, w_c3, w_c4 = st.columns([1.3, 1.3, 1.4, 1.4], gap="small")
-    with w_c1:
-        if can_add:
-            st.markdown(
-                '<span class="admin-btn-1" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "➕ Add New Case",
-                key="w_btn_add",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "add_case"
+        st.markdown("#### 🛂 Worker Access & Login Block Control")
+        all_w_list = get_all_workers_list(all_sheets_root, perms_root)
+        b_c1, b_c2 = st.columns(2)
+        with b_c1:
+            if st.button("🔒 Block All Workers", key="block_all_w_btn", use_container_width=True):
+                toggle_all_workers_block(True)
+                st.success("✅ All workers blocked.")
                 st.rerun()
-        else:
-            st.button(
-                "➕ Add New Case",
-                key="w_btn_add_dis",
-                disabled=True,
-                use_container_width=True,
-            )
-    with w_c2:
-        if can_search:
-            st.markdown(
-                '<span class="admin-btn-0" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "🔍 Search Records",
-                key="w_btn_search",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "search_data"
-                st.rerun()
-        else:
-            st.button(
-                "🔍 Search Records",
-                key="w_btn_search_dis",
-                disabled=True,
-                use_container_width=True,
-            )
-    with w_c3:
-        st.markdown(
-            '<span class="admin-btn-2" style="display:none;"></span>',
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            "🔑 Change Password",
-            key="w_btn_pass",
-            use_container_width=True,
-        ):
-            st.session_state["open_dialog"] = "worker_password"
-            st.rerun()
-    with w_c4:
-        if can_download:
-            st.markdown(
-                '<span class="admin-btn-5" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            w_dl_bytes_bar = get_worker_export_bytes(
-                _get_file_mtime(), current_user, current_sheet
-            )
-            st.download_button(
-                label="📥 Download Excel",
-                data=w_dl_bytes_bar,
-                file_name=f"{current_user}_Cases.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="worker_bar_excel_dl",
-            )
-        else:
-            st.button(
-                "📥 Download Excel",
-                key="worker_bar_excel_dl_dis",
-                disabled=True,
-                use_container_width=True,
-            )
-
-    w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
-    if w_visible_sheets:
-        st.markdown(
-            "<div class='action-group-title'>📑 SWITCH SHEET:</div>",
-            unsafe_allow_html=True,
-        )
-        w_sw_cols = st.columns(len(w_visible_sheets), gap="small")
-        palette_w = ["admin-btn-0", "admin-btn-1", "admin-btn-2", "admin-btn-3", "admin-btn-4", "admin-btn-5"]
-        for s_idx_w, s_name_w in enumerate(w_visible_sheets):
-            with w_sw_cols[s_idx_w]:
-                is_act_w = s_name_w == current_sheet
-                c_cls_w = palette_w[s_idx_w % len(palette_w)] if is_act_w else "admin-btn-6"
-                b_txt_w = f"✅ {s_name_w}" if is_act_w else f"📄 {s_name_w}"
-                st.markdown(
-                    f'<span class="{c_cls_w}" style="display:none;"></span>',
-                    unsafe_allow_html=True,
-                )
-                if st.button(
-                    b_txt_w,
-                    key=f"worker_switch_sheet_{s_idx_w}",
-                    use_container_width=True,
-                ):
-                    st.session_state["active_sheet"] = s_name_w
-                    st.session_state[f"page_num_worker_{s_name_w}"] = 1
-                    st.query_params["active_sheet"] = s_name_w
-                    st.rerun()
-
-    df_w = all_sheets_map_w.get(current_sheet, pd.DataFrame()).copy()
-    df_w = reorder_dataframe_columns(df_w)
-    login_c_w = find_login_user_column(df_w)
-    display_c_w = find_display_username_column(df_w)
-    p_col_w = find_password_column(df_w)
-    lead_col_w = next(
-        (c for c in df_w.columns if "lead" in c.strip().lower()),
-        login_c_w,
-    )
-
-    user_rows_w = (
-        df_w[
-            df_w[login_c_w].astype(str).str.strip().str.lower()
-            == current_user.lower()
-        ].copy()
-        if not df_w.empty
-        else pd.DataFrame()
-    )
-    if not user_rows_w.empty:
-        user_rows_w["__orig_idx__"] = user_rows_w.index
-
-    st.markdown(
-        "<div class='action-group-title'>👥 FILTER BY LEAD NAME:</div>",
-        unsafe_allow_html=True,
-    )
-    lead_options_w = ["All", "Kiran", "Shanthi"]
-    wl_cols = st.columns([1.2, 1.2, 1.2, 4.4], gap="small")
-    for l_idx_w, l_name_w in enumerate(lead_options_w):
-        with wl_cols[l_idx_w]:
-            is_wl_act = st.session_state["worker_selected_lead"] == l_name_w
-            wl_cls = "admin-btn-0" if is_wl_act else "admin-btn-6"
-            wl_lbl = f"✅ {l_name_w}" if is_wl_act else l_name_w
-            st.markdown(
-                f'<span class="{wl_cls}" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                wl_lbl,
-                key=f"worker_lead_btn_{l_name_w}_{l_idx_w}",
-                use_container_width=True,
-            ):
-                st.session_state["worker_selected_lead"] = l_name_w
-                st.session_state[f"page_num_worker_{current_sheet}"] = 1
+        with b_c2:
+            if st.button("🔓 Unblock All Workers", key="unblock_all_w_btn", use_container_width=True):
+                toggle_all_workers_block(False)
+                st.success("✅ All workers unblocked.")
                 st.rerun()
 
-    worker_all_sheets_search_q = st.text_input(
-        "🔍 Search All Sheets (Case Worker Name, Case Username, DS160, Case Password, Case ID):",
-        placeholder="Type Case Worker Name, Case Username, DS160, Password, or Case ID...",
-        key="worker_all_sheets_search_input",
-    ).strip()
+        if all_w_list:
+            sel_w_perm = st.selectbox("Select Worker to Configure", all_w_list, key="perm_worker_select")
+            w_p = perms_root.get(sel_w_perm, {})
+            p_edit = st.checkbox("Can Edit", value=w_p.get("can_edit", True), key="p_edit_chk")
+            p_res = st.checkbox("Can Reschedule", value=w_p.get("can_reschedule", True), key="p_res_chk")
+            p_del = st.checkbox("Can Delete Request", value=w_p.get("can_delete_req", True), key="p_del_chk")
+            p_add = st.checkbox("Can Add Case", value=w_p.get("can_add", True), key="p_add_chk")
+            p_dl = st.checkbox("Can Download Excel", value=w_p.get("can_download", False), key="p_dl_chk")
+            p_blk = st.checkbox("Block Login", value=w_p.get("block_login", False), key="p_blk_chk")
 
-    if worker_all_sheets_search_q != "":
-        all_sheets_found = search_across_all_sheets_by_fields(
-            worker_all_sheets_search_q
-        )
-        st.markdown(
-            f"<div class='section-banner'>🔎 Search Results Across All Sheets ({len(all_sheets_found)} found) — Sheet Name First</div>",
-            unsafe_allow_html=True,
-        )
-        render_clickable_table(
-            all_sheets_found,
-            display_c_w,
-            p_col_w,
-            table_key="worker_all_sheets_search_tbl",
-            sheet_for_link=current_sheet,
-            allow_edit=can_update,
-            restrict_edit_to_user=current_user,
-        )
+            if st.button("💾 Save Worker Permissions", type="primary", key="save_worker_perms_btn"):
+                updated_perms = dict(perms_root)
+                updated_perms[sel_w_perm] = {
+                    "can_edit": p_edit,
+                    "can_update": p_edit,
+                    "can_reschedule": p_res,
+                    "can_delete_req": p_del,
+                    "can_add": p_add,
+                    "can_search": True,
+                    "can_download": p_dl,
+                    "can_sync": False,
+                    "block_login": p_blk,
+                }
+                if p_blk:
+                    record_worker_logout(sel_w_perm)
+                save_permissions(updated_perms)
+                st.success(f"✅ Permissions saved for {sel_w_perm}!")
+                st.rerun()
 
-    if (
-        st.session_state["worker_selected_lead"] != "All"
-        and not user_rows_w.empty
-        and lead_col_w in user_rows_w.columns
-    ):
-        sel_lw = st.session_state["worker_selected_lead"].lower()
-        user_rows_w = user_rows_w[
-            user_rows_w[lead_col_w]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-            .str.contains(sel_lw, na=False)
-        ]
+        if can_sync_w and st.button("🔄 Sync Case IDs Across All Sheets", key="sync_all_ids_btn"):
+            ensure_all_cases_have_unique_ids(force=True)
+            st.success("✅ Case IDs synced!")
+            st.rerun()
 
-    total_w_cases = len(user_rows_w) if not user_rows_w.empty else 0
-    today_str_w = get_ist_now().strftime("%Y-%m-%d")
-    today_w_cases = 0
-    booked_resched_w = 0
-
-    if not user_rows_w.empty:
-        date_cols_w = [
-            c
-            for c in user_rows_w.columns
-            if any(k in c.lower() for k in ["date", "time", "day", "created"])
-        ]
-        for _, r in user_rows_w.iterrows():
-            if any(
-                today_str_w in str(r.get(dc, "")).strip() for dc in date_cols_w
-            ) or today_str_w in str(r.get("Updated_At", "")):
-                today_w_cases += 1
-
-            bs_val = str(r.get("Booking_Status", "Active")).strip().lower()
-            if bs_val in ["booked", "rescheduled", "issues"]:
-                booked_resched_w += 1
-
-    st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-    wk1, wk2, wk3 = st.columns(3, gap="medium")
-    with wk1:
-        st.markdown(
-            f"<div class='kpi-card teal'><div class='kpi-title'>Total Cases ({current_sheet})</div><div class='kpi-value'>{total_w_cases}</div></div>",
-            unsafe_allow_html=True,
-        )
-    with wk2:
-        st.markdown(
-            f"<div class='kpi-card green'><div class='kpi-title'>Today's Cases</div><div class='kpi-value'>{today_w_cases}</div></div>",
-            unsafe_allow_html=True,
-        )
-    with wk3:
-        st.markdown(
-            f"<div class='kpi-card gold'><div class='kpi-title'>Booked / Rescheduled</div><div class='kpi-value'>{booked_resched_w}</div></div>",
-            unsafe_allow_html=True,
-        )
-
-    act_s_name_info = get_default_active_sheet(sheets)
-    resched_in_active_cnt = 0
-    if act_s_name_info in all_sheets_map_w and not all_sheets_map_w[act_s_name_info].empty:
-        df_act_info = all_sheets_map_w[act_s_name_info]
-        lc_act_info = find_login_user_column(df_act_info)
-        if "Booking_Status" in df_act_info.columns:
-            resched_in_active_cnt = int((
-                (df_act_info[lc_act_info].astype(str).str.strip().str.lower() == current_user.lower())
-                & (df_act_info["Booking_Status"].astype(str).str.strip().str.lower() == "rescheduled")
-            ).sum())
-
-    if "booked" in current_sheet.lower():
-        st.caption(
-            f"ℹ️ Booked Cases lo existing booked records ({len(user_rows_w)}) untayi. Reschedule chesinappudu kotha Case ID tho **{act_s_name_info}** sheet lo assign chesina Case Worker ki veltundi (Meeku {act_s_name_info} lo Rescheduled cases: **{resched_in_active_cnt}**)."
-        )
-
-    st.markdown(
-        f"<div class='section-banner'>📋 Your Assigned Cases — {current_sheet} ({len(user_rows_w)})</div>",
-        unsafe_allow_html=True,
-    )
-    render_clickable_table(
-        user_rows_w,
-        display_c_w,
-        p_col_w,
-        table_key=f"worker_{current_sheet}",
-        sheet_for_link=current_sheet,
-        allow_edit=can_update,
-    )
+st.markdown('<div class="footer">© HemanVisa Global Services. All Rights Reserved.</div>', unsafe_allow_html=True)
