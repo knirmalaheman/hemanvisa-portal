@@ -69,7 +69,7 @@ def _fetch_sheets_from_webapp():
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=(3, 10), allow_redirects=True)
+        resp = requests.get(url, timeout=45, allow_redirects=True)
         resp.raise_for_status()
         text_body = resp.text.strip()
         if not text_body:
@@ -109,7 +109,7 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
                 all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
             body["sheets"] = all_payload
 
-        resp = requests.post(url, json=body, timeout=(3, 10), allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=45, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
@@ -820,19 +820,11 @@ def _normalize_sheet_df(df):
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
-    # FAST START: use local Excel first. Google Sheets is contacted only
-    # on an explicit Admin Refresh, or when no local Excel file exists.
-    local_exists = os.path.exists(EXCEL_FILE)
-    force_remote = bool(st.session_state.get("_force_remote_refresh", False))
-
+    remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
-    remote_sheets = None
-
-    if force_remote or not local_exists:
-        remote_sheets = _fetch_sheets_from_webapp()
 
     if remote_sheets is not None:
-        if len(remote_sheets) == 1 and local_exists:
+        if len(remote_sheets) == 1 and os.path.exists(EXCEL_FILE):
             try:
                 local_raw = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
                 remote_key = list(remote_sheets.keys())[0]
@@ -848,7 +840,7 @@ def load_all_sheets_cached(file_mtime):
                 all_sheets = remote_sheets
         else:
             all_sheets = remote_sheets
-    elif local_exists:
+    elif os.path.exists(EXCEL_FILE):
         try:
             all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
         except Exception:
@@ -1478,9 +1470,7 @@ if st.session_state["logged_in"] and "edit_row" in qp:
 elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
 
-# Avoid loading Excel / Google Sheets on the public landing page.
-# Load the real sheet list only after login.
-sheets_init = get_sheet_names() if st.session_state.get("logged_in") else ["Sheet1"]
+sheets_init = get_sheet_names()
 default_s_init = get_default_active_sheet(sheets_init)
 
 if "active_sheet" not in st.session_state:
@@ -4252,12 +4242,9 @@ elif st.session_state["role"] == "admin":
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-            # Download the latest Google Sheets data only when Refresh is clicked.
-            st.session_state["_force_remote_refresh"] = True
             st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
-            st.session_state["_force_remote_refresh"] = False
             st.session_state["active_sheet"] = act_s
             st.session_state["dash_sheet"] = act_s
             st.session_state["records_sheet"] = act_s
