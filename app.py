@@ -1032,6 +1032,24 @@ def append_rescheduled_to_active_sheet(
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def get_admin_gsheet_export_bytes(file_mtime):
+    all_sheets = load_all_sheets_cached(file_mtime)
+    excel_buffer = io.BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+        has_data = False
+        for s_name, df_s in all_sheets.items():
+            if str(s_name).strip() in SYSTEM_SHEETS:
+                continue
+            if df_s is not None:
+                df_clean = reorder_dataframe_columns(df_s.copy())
+                df_clean.to_excel(writer, sheet_name=str(s_name)[:31], index=False)
+                has_data = True
+        if not has_data:
+            pd.DataFrame().to_excel(writer, sheet_name="Sheet1", index=False)
+    return excel_buffer.getvalue()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -4376,16 +4394,15 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
         with dash_top_r:
-            if os.path.exists(EXCEL_FILE):
-                with open(EXCEL_FILE, "rb") as f_dl_corner:
-                    st.download_button(
-                        label="📥 Download Excel",
-                        data=f_dl_corner.read(),
-                        file_name=EXCEL_FILE,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        key="admin_dash_corner_dl_btn",
-                    )
+            gsheet_excel_bytes = get_admin_gsheet_export_bytes(_get_file_mtime())
+            st.download_button(
+                label="📥 Download Excel",
+                data=gsheet_excel_bytes,
+                file_name=EXCEL_FILE,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="admin_dash_corner_dl_btn",
+            )
 
         dash_s_name = st.session_state.get("dash_sheet", default_act_s)
         if dash_s_name not in sheets:
@@ -4925,17 +4942,15 @@ elif st.session_state["role"] == "admin":
             allow_edit=True,
         )
 
-        if os.path.exists(EXCEL_FILE):
-            with open(EXCEL_FILE, "rb") as f:
-                excel_bytes = f.read()
-            st.download_button(
-                label="📥 Download Complete Excel File (All Sheets)",
-                data=excel_bytes,
-                file_name=EXCEL_FILE,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="admin_dl_all_btn",
-            )
+        gsheet_all_bytes = get_admin_gsheet_export_bytes(_get_file_mtime())
+        st.download_button(
+            label="📥 Download Complete Excel File (All Sheets)",
+            data=gsheet_all_bytes,
+            file_name=EXCEL_FILE,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="admin_dl_all_btn",
+        )
 
 else:
     current_user = st.session_state["username"]
