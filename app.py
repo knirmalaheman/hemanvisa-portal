@@ -34,6 +34,8 @@ def get_webapp_url():
         return str(url).strip() if url else ""
     except Exception:
         return ""
+
+
 def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list):
         return pd.DataFrame()
@@ -381,6 +383,17 @@ def _format_seconds_hhmm(total_seconds):
     return f"{hrs}h {mins}m"
 
 
+def with_serial_number(df):
+    """Adds 1-based 'S.No' column as the first column without altering underlying data."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+    out = df.copy().reset_index(drop=True)
+    if "S.No" in out.columns:
+        out = out.drop(columns=["S.No"])
+    out.insert(0, "S.No", range(1, len(out) + 1))
+    return out
+
+
 def load_attendance():
     rows = _read_sheet_rows("App_Attendance")
     cleaned = []
@@ -643,10 +656,12 @@ def build_attendance_summary_tables(attendance_data):
     df_day = pd.DataFrame(day_rows)
     df_overall = pd.DataFrame(overall_rows)
     if not df_day.empty:
-        df_day.index = range(1, len(df_day) + 1)
+        df_day = with_serial_number(df_day)
     if not df_overall.empty:
-        df_overall.index = range(1, len(df_overall) + 1)
+        df_overall = with_serial_number(df_overall)
     return df_day, df_overall
+
+
 def close_case_popup_state():
     st.session_state["is_editing_popup"] = False
     st.session_state["is_delete_request_mode"] = False
