@@ -49,10 +49,7 @@ def get_webapp_url():
 
 def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list) or len(raw_rows) == 0:
-        return pd.DataFrame(
-            columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"],
-            dtype=str,
-        )
+        return pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"], dtype=str)
     headers = [
         str(h).strip() if str(h).strip() != "" else f"Col_{i}"
         for i, h in enumerate(raw_rows[0])
@@ -83,7 +80,7 @@ def _fetch_sheets_from_webapp():
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=10, allow_redirects=True)
+        resp = requests.get(url, timeout=15, allow_redirects=True)
         resp.raise_for_status()
         text_body = resp.text.strip()
         if not text_body:
@@ -92,7 +89,9 @@ def _fetch_sheets_from_webapp():
         if isinstance(payload, dict) and isinstance(payload.get("sheets"), dict):
             sheets_dict = {}
             for s_name, s_rows in payload["sheets"].items():
-                sheets_dict[str(s_name).strip()] = _rows_to_df(s_rows)
+                clean_s_name = str(s_name).strip()
+                if clean_s_name:
+                    sheets_dict[clean_s_name] = _rows_to_df(s_rows)
             return sheets_dict if sheets_dict else None
         if isinstance(payload, list):
             df_main = _rows_to_df(payload)
@@ -123,7 +122,7 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
                 all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
             body["sheets"] = all_payload
 
-        resp = requests.post(url, json=body, timeout=15, allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=20, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
@@ -873,7 +872,7 @@ def _normalize_sheet_df(df):
     return reorder_dataframe_columns(df)
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
@@ -1032,7 +1031,7 @@ def append_rescheduled_to_active_sheet(
     return new_rescheduled_id, active_sheet_name
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -1048,7 +1047,7 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
                 if not u_rows_s.empty:
                     has_user_data = True
                     u_rows_s = reorder_dataframe_columns(u_rows_s)
-                    u_rows_s.to_excel(writer, sheet_name=s, index=False)
+                    u_rows_s.to_excel(writer, sheet_name=str(s)[:31], index=False)
         if not has_user_data and current_sheet in all_sheets:
             df_cur = all_sheets[current_sheet]
             login_cs = find_login_user_column(df_cur)
@@ -1057,7 +1056,7 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
                 == current_user.lower()
             ]
             u_rows_cur = reorder_dataframe_columns(u_rows_cur)
-            u_rows_cur.to_excel(writer, sheet_name=current_sheet, index=False)
+            u_rows_cur.to_excel(writer, sheet_name=str(current_sheet)[:31], index=False)
     return worker_buffer.getvalue()
 
 
@@ -1080,9 +1079,18 @@ def save_data(df_to_save, sheet_name=0):
         df_to_save = df_to_save.rename(columns={"Category": ""})
 
     sheets_data = {}
+    cached_sheets = load_all_sheets_cached(_get_file_mtime())
+    if cached_sheets:
+        for s_k, df_k in cached_sheets.items():
+            sheets_data[str(s_k)] = df_k.copy()
+
     if os.path.exists(EXCEL_FILE):
         try:
-            sheets_data = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+            disk_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+            if disk_sheets:
+                for s_d, df_d in disk_sheets.items():
+                    if str(s_d) not in sheets_data:
+                        sheets_data[str(s_d)] = df_d.copy()
         except Exception:
             pass
 
@@ -1095,10 +1103,13 @@ def save_data(df_to_save, sheet_name=0):
     df_to_save = reorder_dataframe_columns(df_to_save)
     sheets_data[target_sheet_key] = df_to_save
 
-    with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-        for s, df_val in sheets_data.items():
-            df_val = reorder_dataframe_columns(df_val)
-            df_val.to_excel(writer, sheet_name=str(s), index=False)
+    try:
+        with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
+            for s, df_val in sheets_data.items():
+                df_val = reorder_dataframe_columns(df_val)
+                df_val.to_excel(writer, sheet_name=str(s)[:31], index=False)
+    except Exception:
+        pass
 
     _push_sheet_to_webapp(target_sheet_key, df_to_save, sheets_data)
     st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
@@ -1201,6 +1212,8 @@ def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     matched_dfs = []
     for s_name, df_s in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS:
+            continue
         if df_s is None or df_s.empty:
             continue
         df_curr = reorder_dataframe_columns(df_s.copy())
@@ -1280,7 +1293,9 @@ def find_visa_type_column(df):
 def get_all_workers_list():
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     all_workers = set()
-    for _, df_s in all_sheets.items():
+    for s_name, df_s in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS:
+            continue
         if df_s is not None and not df_s.empty:
             lc = find_login_user_column(df_s)
             users = df_s[lc].astype(str).str.strip()
@@ -3378,6 +3393,8 @@ def admin_updated_cases_dialog():
     all_rows = []
 
     for s, df_s in all_sheets.items():
+        if str(s).strip() in SYSTEM_SHEETS:
+            continue
         if (
             df_s is not None
             and not df_s.empty
@@ -3442,7 +3459,9 @@ def admin_updated_cases_dialog():
                 )
 
     with tab_cal:
-        sheets = list(all_sheets.keys())
+        sheets = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
+        if not sheets:
+            sheets = list(all_sheets.keys())
         selected_cal_sheet = st.selectbox(
             "Select Sheet for Calendar View",
             options=sheets,
@@ -3496,6 +3515,8 @@ def admin_delete_requests_dialog():
     del_reqs_list = []
 
     for s, df_s in all_sheets.items():
+        if str(s).strip() in SYSTEM_SHEETS:
+            continue
         if (
             df_s is not None
             and not df_s.empty
@@ -3593,7 +3614,9 @@ def permissions_dialog():
     st.divider()
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     all_users_dict = {}
-    for _, df_s in all_sheets.items():
+    for s_name, df_s in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS:
+            continue
         if df_s is not None and not df_s.empty:
             login_c = find_login_user_column(df_s)
             p_col = find_password_column(df_s)
@@ -3698,6 +3721,8 @@ def permissions_dialog():
                     try:
                         all_sheets_data = load_all_sheets_cached(_get_file_mtime())
                         for s, df_s in all_sheets_data.items():
+                            if str(s).strip() in SYSTEM_SHEETS:
+                                continue
                             df_copy = df_s.copy()
                             lc = find_login_user_column(df_copy)
                             pc = find_password_column(df_copy)
@@ -3720,7 +3745,7 @@ def permissions_dialog():
                         ) as writer:
                             for s, df_val in all_sheets_data.items():
                                 df_val.to_excel(
-                                    writer, sheet_name=str(s), index=False
+                                    writer, sheet_name=str(s)[:31], index=False
                                 )
 
                         if all_sheets_data:
@@ -3800,7 +3825,9 @@ def sync_excel_dialog():
 def worker_password_dialog(worker_name):
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     worker_current_pass = ""
-    for _, df_chk in all_sheets.items():
+    for s_name, df_chk in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS:
+            continue
         if df_chk is not None and not df_chk.empty:
             lc = find_login_user_column(df_chk)
             pc = find_password_column(df_chk)
@@ -3829,6 +3856,8 @@ def worker_password_dialog(worker_name):
                 try:
                     all_sheets_data = load_all_sheets_cached(_get_file_mtime())
                     for s, df_s in all_sheets_data.items():
+                        if str(s).strip() in SYSTEM_SHEETS:
+                            continue
                         df_copy = df_s.copy()
                         lc = find_login_user_column(df_copy)
                         pc = find_password_column(df_copy)
@@ -3843,7 +3872,7 @@ def worker_password_dialog(worker_name):
                     with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
                         for s, df_val in all_sheets_data.items():
                             df_val.to_excel(
-                                writer, sheet_name=str(s), index=False
+                                writer, sheet_name=str(s)[:31], index=False
                             )
                     if all_sheets_data:
                         first_k = list(all_sheets_data.keys())[0]
@@ -3871,6 +3900,8 @@ def add_case_dialog(worker_name):
         key="dlg_target_sheet",
     )
     target_df = load_data(sheet_name=selected_target_sheet)
+    if target_df is None:
+        target_df = pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"])
     t_login_col = find_login_user_column(target_df)
     t_pass_col = find_password_column(target_df)
     preview_next_id = generate_next_case_id()
@@ -4205,7 +4236,9 @@ if not st.session_state["logged_in"]:
                             all_sheets_chk = load_all_sheets_cached(
                                 _get_file_mtime()
                             )
-                            for _, df_check in all_sheets_chk.items():
+                            for s_chk, df_check in all_sheets_chk.items():
+                                if str(s_chk).strip() in SYSTEM_SHEETS:
+                                    continue
                                 if df_check is not None and not df_check.empty:
                                     login_c = find_login_user_column(df_check)
                                     p_col = find_password_column(df_check)
@@ -4400,9 +4433,9 @@ elif st.session_state["role"] == "admin":
                 "<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>",
                 unsafe_allow_html=True,
             )
-            sw_cols = st.columns(len(visible_dash_sheets), gap="small")
+            sw_cols = st.columns(min(len(visible_dash_sheets), 6), gap="small")
             for idx, s_name in enumerate(visible_dash_sheets):
-                with sw_cols[idx]:
+                with sw_cols[idx % len(sw_cols)]:
                     is_active = s_name == dash_s_name
                     color_cls = "admin-btn-1" if is_active else "admin-btn-6"
                     btn_txt = f"✅ {s_name}" if is_active else f"📄 {s_name}"
@@ -4518,7 +4551,9 @@ elif st.session_state["role"] == "admin":
                     not_assigned_count_d += 1
 
         del_reqs_count_d = 0
-        for _, df_s in all_sheets_map.items():
+        for s_k, df_s in all_sheets_map.items():
+            if str(s_k).strip() in SYSTEM_SHEETS:
+                continue
             if (
                 df_s is not None
                 and not df_s.empty
@@ -4831,9 +4866,9 @@ elif st.session_state["role"] == "admin":
             rec_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
             if rec_visible_sheets:
                 st.markdown("📑 **Switch Sheet:**")
-                sw_cols_r = st.columns(len(rec_visible_sheets), gap="small")
+                sw_cols_r = st.columns(min(len(rec_visible_sheets), 6), gap="small")
                 for s_idx, s_name in enumerate(rec_visible_sheets):
-                    with sw_cols_r[s_idx]:
+                    with sw_cols_r[s_idx % len(sw_cols_r)]:
                         is_act = s_name == rec_s_name
                         color_c = "admin-btn-1" if is_act else "admin-btn-6"
                         b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
@@ -4995,6 +5030,19 @@ else:
             ):
                 st.session_state["open_dialog"] = "add_case"
                 st.rerun()
+    with w_c2:
+        if can_search:
+            st.markdown(
+                '<span class="admin-btn-0" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                "🔍 Search Records",
+                key="w_btn_search",
+                use_container_width=True,
+            ):
+                st.session_state["open_dialog"] = "search_data"
+                st.rerun()
         else:
             st.button(
                 "🔍 Search Records",
@@ -5045,10 +5093,10 @@ else:
             "<div class='action-group-title'>📑 SWITCH SHEET:</div>",
             unsafe_allow_html=True,
         )
-        w_sw_cols = st.columns(len(w_visible_sheets), gap="small")
+        w_sw_cols = st.columns(min(len(w_visible_sheets), 6), gap="small")
         palette_w = ["admin-btn-0", "admin-btn-1", "admin-btn-2", "admin-btn-3", "admin-btn-4", "admin-btn-5"]
         for s_idx_w, s_name_w in enumerate(w_visible_sheets):
-            with w_sw_cols[s_idx_w]:
+            with w_sw_cols[s_idx_w % len(w_sw_cols)]:
                 is_act_w = s_name_w == current_sheet
                 c_cls_w = palette_w[s_idx_w % len(palette_w)] if is_act_w else "admin-btn-6"
                 b_txt_w = f"✅ {s_name_w}" if is_act_w else f"📄 {s_name_w}"
