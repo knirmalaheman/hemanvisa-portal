@@ -4032,23 +4032,21 @@ for idx, s_name in enumerate(visible_sheets):
                     ):
                         st.session_state["dash_sheet"] = s_name
                         st.rerun()
-
-        if (
-            st.session_state["admin_selected_lead"] != "All"
-            and not df_d_base.empty
-            and lead_col_d in df_d_base.columns
-        ):
-            sel_l = st.session_state["admin_selected_lead"].lower()
-            df_dash = df_d_base[
-                df_d_base[lead_col_d]
-                .astype(str)
-                .str.strip()
-                .str.lower()
-                .str.contains(sel_l, na=False)
-            ]
-        else:
-            df_dash = df_d_base
-
+if (
+    st.session_state["admin_selected_lead"] != "All"
+    and not df_d_base.empty
+    and lead_col_d in df_d_base.columns
+):
+    sel_l = st.session_state["admin_selected_lead"].lower()
+    df_dash = df_d_base[
+        df_d_base[lead_col_d]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .str.contains(sel_l, na=False)
+    ]
+else:
+    df_dash = df_d_base
         if dash_search_query != "":
             all_matched = search_across_all_sheets_by_fields(
                 dash_search_query,
