@@ -11,6 +11,12 @@ import math
 import re
 import urllib.parse
 
+try:
+    from zoneinfo import ZoneInfo
+    IST_TZ = ZoneInfo("Asia/Kolkata")
+except Exception:
+    IST_TZ = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+
 EXCEL_FILE = "Heman_Report.xlsx"
 ADMIN_FILE = "admin_config.txt"
 PERMS_FILE = "worker_permissions.json"
@@ -34,6 +40,8 @@ def get_webapp_url():
         return str(url).strip() if url else ""
     except Exception:
         return ""
+
+
 def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list):
         return pd.DataFrame()
@@ -119,7 +127,11 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
 
 
 def get_ist_now():
-    return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
+    try:
+        now_aware = datetime.datetime.now(datetime.timezone.utc).astimezone(IST_TZ)
+        return now_aware.replace(tzinfo=None)
+    except Exception:
+        return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
 
 def _get_file_mtime():
@@ -238,26 +250,50 @@ def save_permissions(perms_dict):
     _write_sheet_records("App_Permissions", cols, records)
 
 
+def _parse_iso_to_ist_datetime(val_str):
+    s = str(val_str).strip()
+    if not s or s == "-":
+        return None
+    m = re.match(
+        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$",
+        s,
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    d_part, t_part, tz_part = m.groups()
+    try:
+        dt_naive = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
+        if tz_part:
+            tz_norm = tz_part.upper()
+            if tz_norm == "Z":
+                dt_aware = dt_naive.replace(tzinfo=datetime.timezone.utc)
+            else:
+                sign = 1 if tz_norm.startswith("+") else -1
+                digits = re.sub(r"[^0-9]", "", tz_norm[1:])
+                off_h = int(digits[:2]) if len(digits) >= 2 else 0
+                off_m = int(digits[2:4]) if len(digits) >= 4 else 0
+                offset = datetime.timezone(datetime.timedelta(hours=sign * off_h, minutes=sign * off_m))
+                dt_aware = dt_naive.replace(tzinfo=offset)
+            return dt_aware.astimezone(IST_TZ).replace(tzinfo=None), True
+        return dt_naive, False
+    except Exception:
+        return None
+
+
 def _normalize_iso_timestamp_to_ist(val_str):
     s = str(val_str).strip()
     if not s or s == "-":
         return ""
-    iso_match = re.match(
-        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
-        s,
-        re.IGNORECASE,
-    )
-    if iso_match:
-        d_part, t_part = iso_match.groups()
-        try:
-            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
-            if d_part == "1899-12-30":
-                dt_ist_time = dt_utc + datetime.timedelta(hours=5, minutes=30)
-                return dt_ist_time.strftime("%I:%M:%S %p")
-            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
-            return dt_ist.strftime("%Y-%m-%d %I:%M:%S %p")
-        except Exception:
-            pass
+    parsed = _parse_iso_to_ist_datetime(s)
+    if parsed:
+        dt_val, was_tz_aware = parsed
+        d_part = dt_val.strftime("%Y-%m-%d")
+        if d_part == "1899-12-30":
+            return dt_val.strftime("%I:%M:%S %p")
+        if was_tz_aware:
+            return dt_val.strftime("%Y-%m-%d %I:%M:%S %p")
+        return (dt_val + datetime.timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d %I:%M:%S %p")
     return s
 
 
@@ -265,19 +301,12 @@ def _normalize_date_ist(val_str):
     s = str(val_str).strip()
     if not s or s == "-":
         return ""
-    iso_match = re.match(
-        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
-        s,
-        re.IGNORECASE,
-    )
-    if iso_match:
-        d_part, t_part = iso_match.groups()
-        try:
-            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
-            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
-            return dt_ist.strftime("%Y-%m-%d")
-        except Exception:
-            pass
+    parsed = _parse_iso_to_ist_datetime(s)
+    if parsed:
+        dt_val, was_tz_aware = parsed
+        if was_tz_aware:
+            return dt_val.strftime("%Y-%m-%d")
+        return (dt_val + datetime.timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
     return s[:10] if len(s) >= 10 else s
 
 
@@ -647,6 +676,8 @@ def build_attendance_summary_tables(attendance_data):
     if not df_overall.empty:
         df_overall.index = range(1, len(df_overall) + 1)
     return df_day, df_overall
+
+
 def close_case_popup_state():
     st.session_state["is_editing_popup"] = False
     st.session_state["is_delete_request_mode"] = False
@@ -2550,7 +2581,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     "%Y-%m-%d",
                                 ).date()
                             except Exception:
-                                parsed_d = datetime.date.today()
+                                parsed_d = get_ist_now().date()
                             sel_d = st.date_input(
                                 f"{col_name}",
                                 value=parsed_d,
@@ -2697,7 +2728,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                                     .strip()
                                     .replace(" ", "_")
                                 )
-                                pdf_filename = f"Appointment_{active_case_id}_{safe_uname}_{int(datetime.datetime.now().timestamp())}.pdf"
+                                pdf_filename = f"Appointment_{active_case_id}_{safe_uname}_{int(current_time.timestamp())}.pdf"
                                 full_pdf_path = os.path.join(
                                     date_folder, pdf_filename
                                 )
@@ -3424,7 +3455,7 @@ def admin_updated_cases_dialog():
                 )
                 selected_date = st.date_input(
                     "Select Target Date:",
-                    value=datetime.date.today(),
+                    value=get_ist_now().date(),
                     key="cal_target_date_tab",
                 )
                 date_str = selected_date.strftime("%Y-%m-%d")
@@ -3885,7 +3916,7 @@ def add_case_dialog(worker_name):
             if "date" in c_lower and "prefer" not in c_lower:
                 sel_date = st.date_input(
                     f"{col_name}",
-                    value=datetime.date.today(),
+                    value=get_ist_now().date(),
                     key=f"add_date_{col_name}",
                 )
                 form_data[col_name] = sel_date.strftime("%Y-%m-%d")
@@ -4954,26 +4985,6 @@ else:
                 use_container_width=True,
             ):
                 st.session_state["open_dialog"] = "add_case"
-                st.rerun()
-        else:
-            st.button(
-                "➕ Add New Case",
-                key="w_btn_add_dis",
-                disabled=True,
-                use_container_width=True,
-            )
-    with w_c2:
-        if can_search:
-            st.markdown(
-                '<span class="admin-btn-0" style="display:none;"></span>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "🔍 Search Records",
-                key="w_btn_search",
-                use_container_width=True,
-            ):
-                st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
             st.button(
