@@ -1,7 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
-import requests
 import os
 import io
 import datetime
@@ -20,724 +19,87 @@ ATTENDANCE_FILE = "worker_attendance.json"
 PDF_BASE_DIR = "uploaded_appointment_pdfs"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
-SYSTEM_SHEETS = {"App_Logins", "App_Attendance", "App_Permissions", "App_Config"}
-
 if not os.path.exists(PDF_BASE_DIR):
     os.makedirs(PDF_BASE_DIR)
 
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
 
-def get_webapp_url():
-    try:
-        url = st.secrets.get("GSHEET_WEBAPP_URL", "")
-        return str(url).strip() if url else ""
-    except Exception:
-        return ""
-
-
-def _rows_to_df(raw_rows):
-    if not raw_rows or not isinstance(raw_rows, list):
-        return pd.DataFrame()
-    if len(raw_rows) == 0:
-        return pd.DataFrame()
-    headers = [
-        str(h).strip() if str(h).strip() != "" else f"Col_{i}"
-        for i, h in enumerate(raw_rows[0])
-    ]
-    seen = {}
-    unique_headers = []
-    for h in headers:
-        if h in seen:
-            seen[h] += 1
-            unique_headers.append(f"{h}_{seen[h]}")
-        else:
-            seen[h] = 0
-            unique_headers.append(h)
-    data_rows = raw_rows[1:] if len(raw_rows) > 1 else []
-    cleaned_rows = []
-    for r in data_rows:
-        row_list = list(r) if isinstance(r, list) else [r]
-        if len(row_list) < len(unique_headers):
-            row_list = row_list + [""] * (len(unique_headers) - len(row_list))
-        elif len(row_list) > len(unique_headers):
-            row_list = row_list[: len(unique_headers)]
-        cleaned_rows.append(["" if v is None else str(v) for v in row_list])
-    return pd.DataFrame(cleaned_rows, columns=unique_headers, dtype=str)
-
-
-def _fetch_sheets_from_webapp():
-    url = get_webapp_url()
-    if not url:
-        return None
-    try:
-        resp = requests.get(url, timeout=15, allow_redirects=True)
-        resp.raise_for_status()
-        text_body = resp.text.strip()
-        if not text_body:
-            return None
-        payload = json.loads(text_body)
-        if isinstance(payload, dict) and isinstance(payload.get("sheets"), dict):
-            sheets_dict = {}
-            for s_name, s_rows in payload["sheets"].items():
-                sheets_dict[str(s_name).strip()] = _rows_to_df(s_rows)
-            return sheets_dict if sheets_dict else None
-        if isinstance(payload, list):
-            df_main = _rows_to_df(payload)
-            return {"Active Cases": df_main}
-        return None
-    except Exception as e:
-        st.session_state["_last_webapp_fetch_error"] = str(e)
-        return None
-
-
-def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
-    url = get_webapp_url()
-    if not url:
-        st.error("GSHEET_WEBAPP_URL కనిపించడం లేదు!")
-        return
-    try:
-        df_clean = df_to_push.fillna("").astype(str)
-        rows_2d = [df_clean.columns.tolist()] + df_clean.values.tolist()
-        body = {
-            "action": "save_sheet",
-            "sheet_name": str(sheet_name),
-            "data": rows_2d,
-        }
-        if all_sheets_dict:
-            all_payload = {}
-            for s_k, df_k in all_sheets_dict.items():
-                df_kc = df_k.fillna("").astype(str)
-                all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
-            body["sheets"] = all_payload
-
-        resp = requests.post(url, json=body, timeout=15, allow_redirects=True)
-        resp.raise_for_status()
-        res_json = resp.json()
-        if isinstance(res_json, dict) and res_json.get("status") != "success":
-            st.error(f"Google Sheet Save Error ({sheet_name}): {res_json}")
-    except Exception as e:
-        st.error(f"Google Sheet Push Error ({sheet_name}): {e}")
-
-
-try:
-    from zoneinfo import ZoneInfo
-    _IST_TZ = ZoneInfo("Asia/Kolkata")
-except Exception:
-    _IST_TZ = None
-
-
 def get_ist_now():
-    if _IST_TZ is not None:
-        return datetime.datetime.now(_IST_TZ).replace(tzinfo=None)
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
 
 def _get_file_mtime():
-    sync_ver = st.session_state.get("_gsheet_sync_version", 0)
-    f_mtime = os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
-    return f"{f_mtime}_{sync_ver}"
+    return os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
 
 
-def _read_sheet_rows(sheet_name, sheets_cache=None):
-    sheets = sheets_cache if isinstance(sheets_cache, dict) else load_all_sheets_cached(_get_file_mtime())
-    df = sheets.get(sheet_name) if isinstance(sheets, dict) else None
-    if df is None or df.empty:
-        return []
-    return df.fillna("").astype(str).to_dict(orient="records")
-
-
-def _write_sheet_records(sheet_name, columns, records):
-    if records:
-        df_new = pd.DataFrame(records)
-        for col in columns:
-            if col not in df_new.columns:
-                df_new[col] = ""
-        df_new = df_new[columns].fillna("").astype(str)
-    else:
-        df_new = pd.DataFrame(columns=columns, dtype=str)
-
-    _push_sheet_to_webapp(sheet_name, df_new, all_sheets_dict=None)
-    st.session_state["_gsheet_sync_version"] = (
-        st.session_state.get("_gsheet_sync_version", 0) + 1
-    )
-    st.cache_data.clear()
-
-
-def get_admin_creds(sheets_cache=None):
-    rows = _read_sheet_rows("App_Config", sheets_cache)
-    for r in rows:
-        if r.get("Key", "").strip() == "admin_creds":
-            u = r.get("Value1", "").strip() or "admin"
-            p = r.get("Value2", "").strip() or "admin123"
-            return u, p
+def get_admin_creds():
+    if os.path.exists(ADMIN_FILE):
+        with open(ADMIN_FILE, "r") as f:
+            lines = f.read().splitlines()
+            if len(lines) >= 2:
+                return lines[0].strip(), lines[1].strip()
     return "admin", "admin123"
 
 
 def save_admin_creds(new_user, new_pass):
-    rows = _read_sheet_rows("App_Config")
-    updated = False
-    for r in rows:
-        if r.get("Key", "").strip() == "admin_creds":
-            r["Value1"] = str(new_user).strip()
-            r["Value2"] = str(new_pass).strip()
-            updated = True
-    if not updated:
-        rows.append({
-            "Key": "admin_creds",
-            "Value1": str(new_user).strip(),
-            "Value2": str(new_pass).strip(),
-        })
-    _write_sheet_records("App_Config", ["Key", "Value1", "Value2"], rows)
+    with open(ADMIN_FILE, "w") as f:
+        f.write(f"{new_user}\n{new_pass}")
 
 
-def get_admin_notice(sheets_cache=None):
-    rows = _read_sheet_rows("App_Config", sheets_cache)
-    for r in rows:
-        if r.get("Key", "").strip() == "admin_notice":
-            return r.get("Value1", "").strip()
+def load_permissions():
+    if os.path.exists(PERMS_FILE):
+        try:
+            with open(PERMS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_permissions(perms_dict):
+    with open(PERMS_FILE, "w") as f:
+        json.dump(perms_dict, f, indent=4)
+
+
+def get_admin_notice():
+    if os.path.exists(NOTICE_FILE):
+        try:
+            with open(NOTICE_FILE, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception:
+            return ""
     return ""
 
 
 def save_admin_notice(notice_text):
-    rows = _read_sheet_rows("App_Config")
-    updated = False
-    for r in rows:
-        if r.get("Key", "").strip() == "admin_notice":
-            r["Value1"] = str(notice_text).strip()
-            updated = True
-    if not updated:
-        rows.append({
-            "Key": "admin_notice",
-            "Value1": str(notice_text).strip(),
-            "Value2": "",
-        })
-    _write_sheet_records("App_Config", ["Key", "Value1", "Value2"], rows)
-
-
-def load_permissions(sheets_cache=None):
-    rows = _read_sheet_rows("App_Permissions", sheets_cache)
-    perms = {}
-    for r in rows:
-        w = r.get("Worker", "").strip()
-        if w:
-            perms[w] = {
-                "can_edit": str(r.get("can_edit", "True")).strip().lower()
-                in ["true", "1", "yes"],
-                "can_update": str(r.get("can_update", r.get("can_edit", "True"))).strip().lower()
-                in ["true", "1", "yes"],
-                "can_delete_req": str(r.get("can_delete_req", "True")).strip().lower()
-                in ["true", "1", "yes"],
-                "can_reschedule": str(r.get("can_reschedule", "True")).strip().lower()
-                in ["true", "1", "yes"],
-                "can_add": str(r.get("can_add", "True")).strip().lower()
-                in ["true", "1", "yes"],
-                "can_search": str(r.get("can_search", "True")).strip().lower()
-                in ["true", "1", "yes"],
-                "can_download": str(r.get("can_download", "False")).strip().lower()
-                in ["true", "1", "yes"],
-                "can_sync": str(r.get("can_sync", "False")).strip().lower()
-                in ["true", "1", "yes"],
-                "block_login": str(r.get("block_login", "False")).strip().lower()
-                in ["true", "1", "yes"],
-            }
-    return perms
-
-
-def save_permissions(perms_dict):
-    cols = [
-        "Worker",
-        "can_edit",
-        "can_update",
-        "can_delete_req",
-        "can_reschedule",
-        "can_add",
-        "can_search",
-        "can_download",
-        "can_sync",
-        "block_login",
-    ]
-    records = []
-    for w, p in (perms_dict or {}).items():
-        if str(w).strip():
-            records.append({
-                "Worker": str(w).strip(),
-                "can_edit": str(p.get("can_edit", p.get("can_update", True))),
-                "can_update": str(p.get("can_update", p.get("can_edit", True))),
-                "can_delete_req": str(p.get("can_delete_req", True)),
-                "can_reschedule": str(p.get("can_reschedule", True)),
-                "can_add": str(p.get("can_add", True)),
-                "can_search": str(p.get("can_search", True)),
-                "can_download": str(p.get("can_download", False)),
-                "can_sync": str(p.get("can_sync", False)),
-                "block_login": str(p.get("block_login", False)),
-            })
-    _write_sheet_records("App_Permissions", cols, records)
-
-
-def _normalize_iso_timestamp_to_ist(val_str):
-    s = str(val_str).strip()
-    if not s or s == "-":
-        return ""
-    iso_match = re.match(
-        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
-        s,
-        re.IGNORECASE,
-    )
-    if iso_match:
-        d_part, t_part = iso_match.groups()
-        try:
-            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
-            if d_part == "1899-12-30":
-                dt_ist_time = dt_utc + datetime.timedelta(hours=5, minutes=30)
-                return dt_ist_time.strftime("%I:%M:%S %p")
-            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
-            return dt_ist.strftime("%Y-%m-%d %I:%M:%S %p")
-        except Exception:
-            pass
-    return s
-
-
-def _normalize_date_ist(val_str):
-    s = str(val_str).strip()
-    if not s or s == "-":
-        return ""
-    iso_match = re.match(
-        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
-        s,
-        re.IGNORECASE,
-    )
-    if iso_match:
-        d_part, t_part = iso_match.groups()
-        try:
-            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
-            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
-            return dt_ist.strftime("%Y-%m-%d")
-        except Exception:
-            pass
-    return s[:10] if len(s) >= 10 else s
-
-
-def _normalize_time_ist(val_str):
-    s = str(val_str).strip()
-    if not s or s == "-":
-        return "-"
-    norm_full = _normalize_iso_timestamp_to_ist(s)
-    if " " in norm_full and re.match(r"^\d{4}-\d{2}-\d{2}\s+", norm_full):
-        return norm_full.split(" ", 1)[1]
-    return norm_full
-
-
-def load_login_tracking(all_sheets_map=None):
-    rows = []
-    if isinstance(all_sheets_map, dict) and "App_Logins" in all_sheets_map:
-        df_log = all_sheets_map.get("App_Logins")
-        if df_log is not None and not df_log.empty:
-            rows = df_log.fillna("").astype(str).to_dict(orient="records")
-    if not rows:
-        rows = _read_sheet_rows("App_Logins")
-
-    logins = {}
-    for r in rows:
-        w = r.get("Worker", "").strip()
-        if w:
-            raw_last = r.get("last_login", "-").strip() or "-"
-            clean_last = _normalize_iso_timestamp_to_ist(raw_last) if raw_last != "-" else "-"
-            logins[w] = {
-                "status": r.get("status", "Not Logged In").strip() or "Not Logged In",
-                "last_login": clean_last or "-",
-            }
-    return logins
-
-
-def _save_login_tracking(logins_dict):
-    cols = ["Worker", "status", "last_login"]
-    records = []
-    for w, info in (logins_dict or {}).items():
-        if str(w).strip():
-            raw_last = str(info.get("last_login", "-")).strip() or "-"
-            clean_last = _normalize_iso_timestamp_to_ist(raw_last) if raw_last != "-" else "-"
-            records.append({
-                "Worker": str(w).strip(),
-                "status": str(info.get("status", "Not Logged In")),
-                "last_login": clean_last or "-",
-            })
-    _write_sheet_records("App_Logins", cols, records)
-
-
-ATTENDANCE_COLS = ["S.No", "Worker", "Date", "Login_Time", "Logout_Time", "Duration", "Status"]
-
-
-def _parse_time_12_or_24(t_str):
-    s = str(t_str).strip()
-    if not s or s == "-":
-        return None
-    norm_t = _normalize_time_ist(s)
-    if not norm_t or norm_t == "-":
-        return None
-    for fmt in ("%I:%M:%S %p", "%I:%M %p", "%H:%M:%S", "%H:%M"):
-        try:
-            return datetime.datetime.strptime(norm_t, fmt).time()
-        except Exception:
-            continue
-    return None
-
-
-def _compute_duration_seconds(date_str, login_str, logout_str, is_active=False):
-    t_in = _parse_time_12_or_24(login_str)
-    if not t_in:
-        return 0
-    try:
-        d_clean = _normalize_date_ist(date_str)
-        d_base = (
-            datetime.datetime.strptime(d_clean, "%Y-%m-%d").date()
-            if d_clean
-            else get_ist_now().date()
-        )
-    except Exception:
-        d_base = get_ist_now().date()
-
-    dt_in = datetime.datetime.combine(d_base, t_in)
-
-    t_out = _parse_time_12_or_24(logout_str)
-    if t_out:
-        dt_out = datetime.datetime.combine(d_base, t_out)
-        if dt_out < dt_in:
-            dt_out = dt_out + datetime.timedelta(days=1)
-        return max(0, int((dt_out - dt_in).total_seconds()))
-
-    if is_active:
-        now_ist = get_ist_now()
-        dt_now = datetime.datetime.combine(d_base, now_ist.time())
-        if d_base < now_ist.date():
-            dt_now = now_ist
-        elif dt_now < dt_in:
-            dt_now = dt_now + datetime.timedelta(days=1)
-        return max(0, int((dt_now - dt_in).total_seconds()))
-
-    return 0
-
-
-def _format_seconds_hhmm(total_seconds):
-    sec = max(0, int(total_seconds))
-    hrs = sec // 3600
-    mins = (sec % 3600) // 60
-    return f"{hrs}h {mins}m"
-
-
-def load_attendance(all_sheets_map=None):
-    rows = []
-    if isinstance(all_sheets_map, dict) and "App_Attendance" in all_sheets_map:
-        df_att = all_sheets_map.get("App_Attendance")
-        if df_att is not None and not df_att.empty:
-            rows = df_att.fillna("").astype(str).to_dict(orient="records")
-    if not rows:
-        rows = _read_sheet_rows("App_Attendance")
-
-    cleaned = []
-    for r in rows:
-        w = str(r.get("Worker", "")).strip()
-        if w:
-            d_clean = _normalize_date_ist(r.get("Date", ""))
-            l_clean = _normalize_time_ist(r.get("Login_Time", "-"))
-            lo_clean = _normalize_time_ist(r.get("Logout_Time", "-"))
-            raw_st = str(r.get("Status", "")).strip()
-            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
-            is_act = st_clean.lower() in ["active", "logged in", "online"]
-            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
-            dur_str = _format_seconds_hhmm(dur_sec) if l_clean != "-" else "0h 0m"
-            cleaned.append({
-                "Worker": w,
-                "Date": d_clean,
-                "Login_Time": l_clean,
-                "Logout_Time": lo_clean,
-                "Duration": dur_str,
-                "Status": st_clean,
-                "_duration_sec": dur_sec,
-            })
-    return cleaned
-
-
-def save_attendance(att_list):
-    records = []
-    sno = 1
-    for item in (att_list or []):
-        w = str(item.get("Worker", "")).strip()
-        if w:
-            d_clean = _normalize_date_ist(item.get("Date", ""))
-            l_clean = _normalize_time_ist(item.get("Login_Time", "-"))
-            lo_clean = _normalize_time_ist(item.get("Logout_Time", "-"))
-            raw_st = str(item.get("Status", "")).strip()
-            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
-            is_act = st_clean.lower() in ["active", "logged in", "online"]
-            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
-            dur_str = _format_seconds_hhmm(dur_sec) if (l_clean != "-" and (lo_clean != "-" or is_act)) else "0h 0m"
-            records.append({
-                "S.No": sno,
-                "Worker": w,
-                "Date": d_clean,
-                "Login_Time": l_clean,
-                "Logout_Time": lo_clean,
-                "Duration": dur_str,
-                "Status": st_clean,
-            })
-            sno += 1
-    _write_sheet_records("App_Attendance", ATTENDANCE_COLS, records)
-
-
-def record_worker_login(worker_name):
-    if not worker_name:
-        return
-    now_dt = get_ist_now()
-    today_str = now_dt.strftime("%Y-%m-%d")
-    time_str = now_dt.strftime("%I:%M:%S %p")
-    full_timestamp = f"{today_str} {time_str}"
-
-    logins = load_login_tracking()
-    logins[worker_name.strip()] = {
-        "status": "Logged In",
-        "last_login": full_timestamp,
-    }
-    _save_login_tracking(logins)
-
-    # కొత్త login ఒక స్వతంత్ర session row గా యాడ్ అవుతుంది; మునుపటి closed sessions duration చెక్కుచెదరదు
-    attendance = load_attendance()
-    attendance.append({
-        "Worker": worker_name.strip(),
-        "Date": today_str,
-        "Login_Time": time_str,
-        "Logout_Time": "-",
-        "Duration": "0h 0m",
-        "Status": "Active",
-    })
-    save_attendance(attendance)
-
-
-def record_worker_logout(worker_name):
-    if not worker_name:
-        return
-    now_dt = get_ist_now()
-    today_str = now_dt.strftime("%Y-%m-%d")
-    time_str = now_dt.strftime("%I:%M:%S %p")
-
-    logins = load_login_tracking()
-    for k in list(logins.keys()):
-        if k.strip().lower() == worker_name.strip().lower():
-            logins[k]["status"] = "Not Logged In"
-    _save_login_tracking(logins)
-
-    attendance = load_attendance()
-    updated_any = False
-
-    # 1. నేటి open session (Logout_Time == "-") ని క్లోజ్ చేసి ఆ session duration లెక్కించడం
-    for entry in reversed(attendance):
-        entry_date = _normalize_date_ist(entry.get("Date", ""))
-        if (
-            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-            and entry_date == today_str
-            and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
-        ):
-            entry["Date"] = today_str
-            entry["Logout_Time"] = time_str
-            entry["Status"] = "Logged Out"
-            dur_sec = _compute_duration_seconds(today_str, entry.get("Login_Time", "-"), time_str, is_active=False)
-            entry["Duration"] = _format_seconds_hhmm(dur_sec)
-            updated_any = True
-            break
-
-    # 2. ఏదైనా open session (Logout_Time == "-") ఉంటే క్లోజ్ చేయడం
-    if not updated_any:
-        for entry in reversed(attendance):
-            if (
-                entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-                and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
-            ):
-                e_date = _normalize_date_ist(entry.get("Date", "")) or today_str
-                entry["Logout_Time"] = time_str
-                entry["Status"] = "Logged Out"
-                dur_sec = _compute_duration_seconds(e_date, entry.get("Login_Time", "-"), time_str, is_active=False)
-                entry["Duration"] = _format_seconds_hhmm(dur_sec)
-                updated_any = True
-                break
-
-    if not updated_any:
-        attendance.append({
-            "Worker": worker_name.strip(),
-            "Date": today_str,
-            "Login_Time": "-",
-            "Logout_Time": time_str,
-            "Duration": "0h 0m",
-            "Status": "Logged Out",
-        })
-    save_attendance(attendance)
-
-
-def _normalize_iso_timestamp_to_ist(val_str):
-    s = str(val_str).strip()
-    if not s or s == "-":
-        return ""
-    iso_match = re.match(
-        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
-        s,
-        re.IGNORECASE,
-    )
-    if iso_match:
-        d_part, t_part = iso_match.groups()
-        try:
-            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
-            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
-            if d_part == "1899-12-30":
-                return dt_ist.strftime("%I:%M:%S %p")
-            return dt_ist.strftime("%Y-%m-%d %I:%M:%S %p")
-        except Exception:
-            pass
-    return s
-
-
-def _normalize_date_ist(val_str):
-    s = str(val_str).strip()
-    if not s or s == "-":
-        return ""
-    iso_match = re.match(
-        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
-        s,
-        re.IGNORECASE,
-    )
-    if iso_match:
-        d_part, t_part = iso_match.groups()
-        try:
-            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
-            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
-            return dt_ist.strftime("%Y-%m-%d")
-        except Exception:
-            pass
-    return s[:10] if len(s) >= 10 else s
-
-
-def _normalize_time_ist(val_str):
-    s = str(val_str).strip()
-    if not s or s == "-":
-        return "-"
-    norm_full = _normalize_iso_timestamp_to_ist(s)
-    if not norm_full:
-        return "-"
-    if " " in norm_full and re.match(r"^\d{4}-\d{2}-\d{2}\s+", norm_full):
-        return norm_full.split(" ", 1)[1].strip()
-    return norm_full.strip()
+    with open(NOTICE_FILE, "w", encoding="utf-8") as f:
+        f.write(notice_text.strip())
 
 
 def load_login_tracking():
-    rows = _read_sheet_rows("App_Logins")
-    logins = {}
-    for r in rows:
-        w = r.get("Worker", "").strip()
-        if w:
-            raw_last = r.get("last_login", "-").strip() or "-"
-            clean_last = _normalize_iso_timestamp_to_ist(raw_last) if raw_last != "-" else "-"
-            logins[w] = {
-                "status": r.get("status", "Not Logged In").strip() or "Not Logged In",
-                "last_login": clean_last or "-",
-            }
-    return logins
-
-
-def _save_login_tracking(logins_dict):
-    cols = ["Worker", "status", "last_login"]
-    records = []
-    for w, info in (logins_dict or {}).items():
-        if str(w).strip():
-            raw_last = str(info.get("last_login", "-")).strip() or "-"
-            clean_last = _normalize_iso_timestamp_to_ist(raw_last) if raw_last != "-" else "-"
-            records.append({
-                "Worker": str(w).strip(),
-                "status": str(info.get("status", "Not Logged In")),
-                "last_login": clean_last or "-",
-            })
-    _write_sheet_records("App_Logins", cols, records)
-
-
-ATTENDANCE_COLS = ["Worker", "Date", "Login_Time", "Logout_Time", "Duration", "Status"]
-
-
-def _parse_time_12_or_24(t_str):
-    s = str(t_str).strip()
-    if not s or s == "-":
-        return None
-    norm_t = _normalize_time_ist(s)
-    if not norm_t or norm_t == "-":
-        return None
-    for fmt in ("%I:%M:%S %p", "%I:%M %p", "%H:%M:%S", "%H:%M"):
+    if os.path.exists(LOGINS_FILE):
         try:
-            return datetime.datetime.strptime(norm_t, fmt).time()
+            with open(LOGINS_FILE, "r") as f:
+                return json.load(f)
         except Exception:
-            continue
-    return None
+            return {}
+    return {}
 
 
-def _compute_duration_seconds(date_str, login_str, logout_str, is_active=False):
-    t_in = _parse_time_12_or_24(login_str)
-    if not t_in:
-        return 0
-    try:
-        d_clean = _normalize_date_ist(date_str)
-        d_base = (
-            datetime.datetime.strptime(d_clean, "%Y-%m-%d").date()
-            if d_clean
-            else get_ist_now().date()
-        )
-    except Exception:
-        d_base = get_ist_now().date()
-
-    dt_in = datetime.datetime.combine(d_base, t_in)
-
-    t_out = _parse_time_12_or_24(logout_str)
-    if t_out:
-        dt_out = datetime.datetime.combine(d_base, t_out)
-        if dt_out < dt_in:
-            dt_out = dt_out + datetime.timedelta(days=1)
-        return max(0, int((dt_out - dt_in).total_seconds()))
-
-    if is_active:
-        now_ist = get_ist_now()
-        if d_base == now_ist.date():
-            dt_end = datetime.datetime.combine(d_base, now_ist.time())
-            if dt_end < dt_in:
-                dt_end = dt_end + datetime.timedelta(days=1)
-            return max(0, int((dt_end - dt_in).total_seconds()))
-        return 0
-
-    return 0
-
-
-def _format_seconds_hhmm(total_seconds):
-    sec = max(0, int(total_seconds))
-    hrs = sec // 3600
-    mins = (sec % 3600) // 60
-    return f"{hrs}h {mins}m"
+def load_attendance():
+    if os.path.exists(ATTENDANCE_FILE):
+        try:
+            with open(ATTENDANCE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
 
 
 def save_attendance(att_list):
-    records = []
-    for item in (att_list or []):
-        w = str(item.get("Worker", "")).strip()
-        if w:
-            d_clean = _normalize_date_ist(item.get("Date", ""))
-            l_clean = _normalize_time_ist(item.get("Login_Time", "-"))
-            lo_clean = _normalize_time_ist(item.get("Logout_Time", "-"))
-            raw_st = str(item.get("Status", "")).strip()
-            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
-            is_act = st_clean.lower() in ["active", "logged in", "online"]
-            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
-            dur_str = _format_seconds_hhmm(dur_sec) if l_clean != "-" else "0h 0m"
-            records.append({
-                "Worker": w,
-                "Date": d_clean,
-                "Login_Time": l_clean,
-                "Logout_Time": lo_clean,
-                "Duration": dur_str,
-                "Status": st_clean,
-            })
-    _write_sheet_records("App_Attendance", ATTENDANCE_COLS, records)
+    with open(ATTENDANCE_FILE, "w") as f:
+        json.dump(att_list, f, indent=4)
 
 
 def record_worker_login(worker_name):
@@ -753,27 +115,29 @@ def record_worker_login(worker_name):
         "status": "Logged In",
         "last_login": full_timestamp,
     }
-    _save_login_tracking(logins)
+    with open(LOGINS_FILE, "w") as f:
+        json.dump(logins, f, indent=4)
 
     attendance = load_attendance()
-    for entry in reversed(attendance):
+    found = False
+    for entry in attendance:
         if (
-            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-            and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
-            and str(entry.get("Status", "")).strip().lower() in ["active", "logged in", ""]
+            entry.get("Worker", "").lower() == worker_name.strip().lower()
+            and entry.get("Date") == today_str
         ):
-            entry["Logout_Time"] = time_str
-            entry["Status"] = "Logged Out"
+            if not entry.get("Login_Time") or entry.get("Login_Time") == "-":
+                entry["Login_Time"] = time_str
+            entry["Status"] = "Active"
+            found = True
             break
-
-    attendance.append({
-        "Worker": worker_name.strip(),
-        "Date": today_str,
-        "Login_Time": time_str,
-        "Logout_Time": "-",
-        "Duration": "0h 0m",
-        "Status": "Active",
-    })
+    if not found:
+        attendance.append({
+            "Worker": worker_name.strip(),
+            "Date": today_str,
+            "Login_Time": time_str,
+            "Logout_Time": "-",
+            "Status": "Active",
+        })
     save_attendance(attendance)
 
 
@@ -786,177 +150,21 @@ def record_worker_logout(worker_name):
 
     logins = load_login_tracking()
     for k in list(logins.keys()):
-        if k.strip().lower() == worker_name.strip().lower():
+        if k.lower() == worker_name.strip().lower():
             logins[k]["status"] = "Not Logged In"
-    _save_login_tracking(logins)
+    with open(LOGINS_FILE, "w") as f:
+        json.dump(logins, f, indent=4)
 
     attendance = load_attendance()
-    updated_any = False
-
-    for entry in reversed(attendance):
-        entry_date = _normalize_date_ist(entry.get("Date", ""))
+    for entry in attendance:
         if (
-            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-            and entry_date == today_str
-            and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
+            entry.get("Worker", "").lower() == worker_name.strip().lower()
+            and entry.get("Date") == today_str
         ):
-            entry["Date"] = today_str
             entry["Logout_Time"] = time_str
             entry["Status"] = "Logged Out"
-            updated_any = True
             break
-
-    if not updated_any:
-        for entry in reversed(attendance):
-            if (
-                entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-                and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
-            ):
-                entry["Logout_Time"] = time_str
-                entry["Status"] = "Logged Out"
-                updated_any = True
-                break
-
-    if not updated_any:
-        for entry in reversed(attendance):
-            entry_date = _normalize_date_ist(entry.get("Date", ""))
-            if (
-                entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
-                and entry_date == today_str
-            ):
-                entry["Date"] = today_str
-                entry["Logout_Time"] = time_str
-                entry["Status"] = "Logged Out"
-                updated_any = True
-                break
-
-    if not updated_any:
-        for entry in reversed(attendance):
-            if entry.get("Worker", "").strip().lower() == worker_name.strip().lower():
-                entry["Logout_Time"] = time_str
-                entry["Status"] = "Logged Out"
-                updated_any = True
-                break
-
-    if not updated_any:
-        attendance.append({
-            "Worker": worker_name.strip(),
-            "Date": today_str,
-            "Login_Time": "-",
-            "Logout_Time": time_str,
-            "Duration": "0h 0m",
-            "Status": "Logged Out",
-        })
     save_attendance(attendance)
-
-
-def build_attendance_summary_tables(attendance_data):
-    if not attendance_data:
-        return pd.DataFrame(), pd.DataFrame()
-
-    worker_date_map = {}
-    worker_overall_map = {}
-
-    for row in attendance_data:
-        w = str(row.get("Worker", "")).strip() or "Unknown"
-        d = str(row.get("Date", "")).strip() or "Unknown"
-        l_t = str(row.get("Login_Time", "-")).strip() or "-"
-        lo_t = str(row.get("Logout_Time", "-")).strip() or "-"
-        st = str(row.get("Status", "")).strip() or ("Logged Out" if lo_t != "-" else "Active")
-        sec = int(row.get("_duration_sec", 0) or 0)
-
-        wd_key = (w, d)
-        if wd_key not in worker_date_map:
-            worker_date_map[wd_key] = {
-                "Worker": w,
-                "Date": d,
-                "Sessions": 0,
-                "First_Login": l_t if l_t != "-" else None,
-                "Last_Logout": lo_t if lo_t != "-" else None,
-                "Total_Seconds": 0,
-                "Current_Status": st,
-            }
-        wd = worker_date_map[wd_key]
-        wd["Sessions"] += 1
-        if l_t != "-" and wd["First_Login"] is None:
-            wd["First_Login"] = l_t
-        if lo_t != "-":
-            wd["Last_Logout"] = lo_t
-        wd["Total_Seconds"] += sec
-        wd["Current_Status"] = st
-
-        if w not in worker_overall_map:
-            worker_overall_map[w] = {
-                "Worker": w,
-                "Active_Days": set(),
-                "Total_Sessions": 0,
-                "Last_Login": l_t if l_t != "-" else "-",
-                "Last_Logout": lo_t if lo_t != "-" else "-",
-                "Total_Seconds": 0,
-                "Current_Status": st,
-            }
-        wo = worker_overall_map[w]
-        if d and d != "Unknown":
-            wo["Active_Days"].add(d)
-        wo["Total_Sessions"] += 1
-        if l_t != "-":
-            wo["Last_Login"] = l_t
-        if lo_t != "-":
-            wo["Last_Logout"] = lo_t
-        wo["Total_Seconds"] += sec
-        wo["Current_Status"] = st
-
-    day_rows = []
-    for _, wd in worker_date_map.items():
-        tot_sec = wd["Total_Seconds"]
-        day_rows.append({
-            "Worker": wd["Worker"],
-            "Date": wd["Date"],
-            "Sessions": wd["Sessions"],
-            "First_Login": wd["First_Login"] or "-",
-            "Last_Logout": wd["Last_Logout"] or "-",
-            "Total_Hours": round(tot_sec / 3600.0, 2),
-            "Total_Duration": _format_seconds_hhmm(tot_sec),
-            "Status": wd["Current_Status"],
-        })
-
-    overall_rows = []
-    grand_sec = 0
-    grand_sessions = 0
-    for _, wo in worker_overall_map.items():
-        tot_sec = wo["Total_Seconds"]
-        grand_sec += tot_sec
-        grand_sessions += wo["Total_Sessions"]
-        overall_rows.append({
-            "Worker": wo["Worker"],
-            "Days_Worked": len(wo["Active_Days"]),
-            "Total_Sessions": wo["Total_Sessions"],
-            "Last_Login": wo["Last_Login"],
-            "Last_Logout": wo["Last_Logout"],
-            "Total_Hours": round(tot_sec / 3600.0, 2),
-            "Total_Duration": _format_seconds_hhmm(tot_sec),
-            "Status": wo["Current_Status"],
-        })
-
-    if overall_rows:
-        overall_rows.append({
-            "Worker": "OVERALL TOTAL",
-            "Days_Worked": "-",
-            "Total_Sessions": grand_sessions,
-            "Last_Login": "-",
-            "Last_Logout": "-",
-            "Total_Hours": round(grand_sec / 3600.0, 2),
-            "Total_Duration": _format_seconds_hhmm(grand_sec),
-            "Status": "-",
-        })
-
-    df_day = pd.DataFrame(day_rows)
-    df_overall = pd.DataFrame(overall_rows)
-    if not df_day.empty:
-        df_day.index = range(1, len(df_day) + 1)
-    if not df_overall.empty:
-        df_overall.index = range(1, len(df_overall) + 1)
-    return df_day, df_overall
 
 
 def close_case_popup_state():
@@ -1035,7 +243,7 @@ def _assign_case_username_based_ids(all_sheets):
     modified = False
 
     for s_name, df in all_sheets.items():
-        if df is None or str(s_name).strip() in SYSTEM_SHEETS:
+        if df is None:
             continue
         df.columns = df.columns.str.strip()
         disp_col = _detect_case_username_col(df)
@@ -1056,7 +264,7 @@ def _assign_case_username_based_ids(all_sheets):
                                 username_to_id[u_key] = cid
 
     for s_name, df in all_sheets.items():
-        if df is None or str(s_name).strip() in SYSTEM_SHEETS:
+        if df is None:
             continue
         df.columns = df.columns.str.strip()
         df = df.fillna("")
@@ -1089,106 +297,71 @@ def _assign_case_username_based_ids(all_sheets):
     return all_sheets, modified
 
 
-def _normalize_sheet_df(df):
-    df.columns = df.columns.str.strip()
-    df = df.fillna("")
-
-    if "Unnamed: 5" in df.columns:
-        df = df.rename(columns={"Unnamed: 5": "Category"})
-    if "Updated_By" not in df.columns:
-        df["Updated_By"] = ""
-    if "Updated_At" not in df.columns:
-        df["Updated_At"] = ""
-    if "Action_Type" not in df.columns:
-        df["Action_Type"] = ""
-    if "Delete_Reason" not in df.columns:
-        df["Delete_Reason"] = ""
-    if "Booking_Status" not in df.columns:
-        df["Booking_Status"] = "Active"
-    if "Issue_Remark" not in df.columns:
-        df["Issue_Remark"] = ""
-
-    if (
-        "Appointment_Entry" not in df.columns
-        and "Current Appointment" in df.columns
-    ):
-        df = df.rename(
-            columns={"Current Appointment": "Appointment_Entry"}
-        )
-    elif "Appointment_Entry" not in df.columns:
-        df["Appointment_Entry"] = ""
-
-    if "Appointment_PDF" not in df.columns:
-        df["Appointment_PDF"] = ""
-    if "Preferred_Location" not in df.columns:
-        df["Preferred_Location"] = ""
-    if "Preferred_Dates" not in df.columns:
-        df["Preferred_Dates"] = ""
-    if "Prior_Notice" not in df.columns:
-        df["Prior_Notice"] = ""
-
-    return reorder_dataframe_columns(df)
-
-
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
-    remote_sheets = _fetch_sheets_from_webapp()
-    all_sheets = None
-
-    if remote_sheets is not None:
-        if len(remote_sheets) == 1 and os.path.exists(EXCEL_FILE):
-            try:
-                local_raw = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-                remote_key = list(remote_sheets.keys())[0]
-                remote_df = remote_sheets[remote_key]
-                merged = {}
-                if remote_df is not None and not remote_df.empty:
-                    merged[remote_key] = remote_df
-                for l_s, l_df in local_raw.items():
-                    if str(l_s) not in merged:
-                        merged[str(l_s)] = l_df
-                all_sheets = merged if merged else remote_sheets
-            except Exception:
-                all_sheets = remote_sheets
-        else:
-            all_sheets = remote_sheets
-    elif os.path.exists(EXCEL_FILE):
+    if os.path.exists(EXCEL_FILE):
         try:
             all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+            all_sheets, _ = _assign_case_username_based_ids(all_sheets)
+            processed = {}
+
+            for s_name, df in all_sheets.items():
+                df.columns = df.columns.str.strip()
+                df = df.fillna("")
+
+                if "Unnamed: 5" in df.columns:
+                    df = df.rename(columns={"Unnamed: 5": "Category"})
+                if "Updated_By" not in df.columns:
+                    df["Updated_By"] = ""
+                if "Updated_At" not in df.columns:
+                    df["Updated_At"] = ""
+                if "Action_Type" not in df.columns:
+                    df["Action_Type"] = ""
+                if "Delete_Reason" not in df.columns:
+                    df["Delete_Reason"] = ""
+                if "Booking_Status" not in df.columns:
+                    df["Booking_Status"] = "Active"
+                if "Issue_Remark" not in df.columns:
+                    df["Issue_Remark"] = ""
+
+                if (
+                    "Appointment_Entry" not in df.columns
+                    and "Current Appointment" in df.columns
+                ):
+                    df = df.rename(
+                        columns={"Current Appointment": "Appointment_Entry"}
+                    )
+                elif "Appointment_Entry" not in df.columns:
+                    df["Appointment_Entry"] = ""
+
+                if "Appointment_PDF" not in df.columns:
+                    df["Appointment_PDF"] = ""
+                if "Preferred_Location" not in df.columns:
+                    df["Preferred_Location"] = ""
+                if "Preferred_Dates" not in df.columns:
+                    df["Preferred_Dates"] = ""
+                if "Prior_Notice" not in df.columns:
+                    df["Prior_Notice"] = ""
+
+                df = reorder_dataframe_columns(df)
+                processed[s_name] = df
+            return processed
         except Exception:
             return {}
-
-    if not all_sheets:
-        return {}
-
-    try:
-        all_sheets, _ = _assign_case_username_based_ids(all_sheets)
-        processed = {}
-        for s_name, df in all_sheets.items():
-            if df is None:
-                continue
-            s_clean = str(s_name).strip()
-            if s_clean in SYSTEM_SHEETS:
-                df_sys = df.copy()
-                df_sys.columns = df_sys.columns.str.strip()
-                processed[s_clean] = df_sys.fillna("").astype(str)
-            else:
-                processed[s_clean] = _normalize_sheet_df(df)
-        return processed
-    except Exception:
-        return {}
+    return {}
 
 
 def ensure_all_cases_have_unique_ids(force=False):
+    if not os.path.exists(EXCEL_FILE):
+        return
     mtime = _get_file_mtime()
     last_checked_key = "_last_id_sync_mtime"
     if not force and st.session_state.get(last_checked_key) == mtime:
         return
     try:
-        all_sheets = load_all_sheets_cached(mtime)
-        if not all_sheets:
-            return
+        all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
         all_sheets, modified = _assign_case_username_based_ids(all_sheets)
+
         for s_name, df in all_sheets.items():
             all_sheets[s_name] = reorder_dataframe_columns(df)
 
@@ -1196,37 +369,31 @@ def ensure_all_cases_have_unique_ids(force=False):
             with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
                 for s, df_val in all_sheets.items():
                     df_val.to_excel(writer, sheet_name=str(s), index=False)
-            first_s = list(all_sheets.keys())[0]
-            _push_sheet_to_webapp(first_s, all_sheets[first_s], all_sheets)
-            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.cache_data.clear()
         st.session_state[last_checked_key] = _get_file_mtime()
     except Exception:
         pass
 
 
-def get_sheet_names(sheets_cache=None):
-    all_sheets = sheets_cache if isinstance(sheets_cache, dict) else load_all_sheets_cached(_get_file_mtime())
+def get_sheet_names():
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
     if all_sheets:
-        visible = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
-        return visible if visible else list(all_sheets.keys())
+        return list(all_sheets.keys())
     return ["Sheet1"]
 
 
 def get_default_active_sheet(sheets_list=None):
     if sheets_list is None:
         sheets_list = get_sheet_names()
-    filtered = [s for s in sheets_list if str(s).strip() not in SYSTEM_SHEETS]
-    pool = filtered if filtered else sheets_list
-    if not pool:
+    if not sheets_list:
         return "Sheet1"
     return next(
         (
             s
-            for s in pool
+            for s in sheets_list
             if "booked" not in s.lower() and "issue" not in s.lower()
         ),
-        pool[0],
+        sheets_list[0],
     )
 
 
@@ -1302,7 +469,7 @@ def append_rescheduled_to_active_sheet(
     return new_rescheduled_id, active_sheet_name
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -1356,27 +523,19 @@ def save_data(df_to_save, sheet_name=0):
         except Exception:
             pass
 
-    target_sheet_key = str(sheet_name)
-    if isinstance(sheet_name, int) and sheets_data:
-        keys = list(sheets_data.keys())
-        if 0 <= sheet_name < len(keys):
-            target_sheet_key = str(keys[sheet_name])
-
     df_to_save = reorder_dataframe_columns(df_to_save)
-    sheets_data[target_sheet_key] = df_to_save
+    sheets_data[sheet_name] = df_to_save
 
     with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
         for s, df_val in sheets_data.items():
             df_val = reorder_dataframe_columns(df_val)
             df_val.to_excel(writer, sheet_name=str(s), index=False)
 
-    _push_sheet_to_webapp(target_sheet_key, df_to_save, sheets_data)
-    st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
     st.cache_data.clear()
     st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(show_spinner=False)
 def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
@@ -1471,7 +630,7 @@ def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     matched_dfs = []
     for s_name, df_s in all_sheets.items():
-        if df_s is None or df_s.empty or str(s_name).strip() in SYSTEM_SHEETS:
+        if df_s is None or df_s.empty:
             continue
         df_curr = reorder_dataframe_columns(df_s.copy())
         if lead_filter and lead_filter != "All":
@@ -1547,17 +706,17 @@ def find_visa_type_column(df):
     return None
 
 
-def get_all_workers_list(sheets_cache=None, perms_cache=None):
-    all_sheets = sheets_cache if isinstance(sheets_cache, dict) else load_all_sheets_cached(_get_file_mtime())
+def get_all_workers_list():
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
     all_workers = set()
-    for s_n, df_s in all_sheets.items():
-        if df_s is not None and not df_s.empty and str(s_n).strip() not in SYSTEM_SHEETS:
+    for _, df_s in all_sheets.items():
+        if df_s is not None and not df_s.empty:
             lc = find_login_user_column(df_s)
             users = df_s[lc].astype(str).str.strip()
             for u in users.unique():
                 if u != "" and u.lower() not in ["", "admin", "not assigned", "nan", "none"]:
                     all_workers.add(u)
-    perms_map = perms_cache if isinstance(perms_cache, dict) else load_permissions(all_sheets)
+    perms_map = load_permissions()
     for p_user in perms_map.keys():
         u_clean = str(p_user).strip()
         if u_clean and u_clean.lower() not in ["admin", "not assigned"]:
@@ -1568,21 +727,21 @@ def get_all_workers_list(sheets_cache=None, perms_cache=None):
     return sorted(list(all_workers))
 
 
-def are_all_workers_blocked(sheets_cache=None, perms_cache=None):
-    workers = get_all_workers_list(sheets_cache, perms_cache)
+def are_all_workers_blocked():
+    workers = get_all_workers_list()
     if not workers:
         return False
-    perms = perms_cache if isinstance(perms_cache, dict) else load_permissions(sheets_cache)
+    perms = load_permissions()
     norm_perms = {k.lower(): v for k, v in perms.items()}
     return all(
         norm_perms.get(w.lower(), {}).get("block_login", False) for w in workers
     )
 
 
-def is_worker_blocked(worker_name, sheets_cache=None, perms_cache=None):
+def is_worker_blocked(worker_name):
     if not worker_name:
         return False
-    perms = perms_cache if isinstance(perms_cache, dict) else load_permissions(sheets_cache)
+    perms = load_permissions()
     for k, v in perms.items():
         if k.lower() == worker_name.strip().lower():
             return v.get("block_login", False)
@@ -1705,9 +864,6 @@ def enable_right_cursor_navigation_in_popup():
     )
 
 
-all_sheets_map_root = load_all_sheets_cached(_get_file_mtime())
-perms_root = load_permissions(all_sheets_map_root)
-
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -1736,7 +892,7 @@ if "is_reschedule_mode" not in st.session_state:
 if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
     qp_role = qp.get("role", "worker")
     qp_user = qp.get("username", "")
-    if qp_role == "worker" and is_worker_blocked(qp_user, all_sheets_map_root, perms_root):
+    if qp_role == "worker" and is_worker_blocked(qp_user):
         record_worker_logout(qp_user)
         qp.clear()
         st.session_state["force_logged_out_msg"] = True
@@ -1750,7 +906,7 @@ if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
 
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
     curr_w = st.session_state.get("username", "")
-    if is_worker_blocked(curr_w, all_sheets_map_root, perms_root):
+    if is_worker_blocked(curr_w):
         record_worker_logout(curr_w)
         st.query_params.clear()
         st.session_state["logged_in"] = False
@@ -1767,13 +923,10 @@ if "open_dialog" not in st.session_state:
 if "selected_row_idx" not in st.session_state:
     st.session_state["selected_row_idx"] = None
 
-sheets_init = get_sheet_names(all_sheets_map_root)
-default_s_init = get_default_active_sheet(sheets_init)
-
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
-        if "active_sheet" in qp and qp["active_sheet"] in sheets_init:
+        if "active_sheet" in qp and qp["active_sheet"] in get_sheet_names():
             st.session_state["active_sheet"] = qp["active_sheet"]
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
@@ -1787,6 +940,9 @@ if st.session_state["logged_in"] and "edit_row" in qp:
             del st.query_params["edit_row"]
 elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
+
+sheets_init = get_sheet_names()
+default_s_init = get_default_active_sheet(sheets_init)
 
 if "active_sheet" not in st.session_state:
     st.session_state["active_sheet"] = default_s_init
@@ -2348,7 +1504,7 @@ def render_clickable_table(
         '<div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 14px;">',
         '<table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">',
         '<thead><tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">',
-        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: center;">S.No</th>',
+        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: center;">#</th>',
     ]
     for col in display_cols:
         html_parts.append(
@@ -3443,66 +2599,25 @@ def admin_login_status_dialog():
                     st.text(item["time"])
 
 
-@st.dialog("📊 Case Worker Attendance & Hours Report", width="large")
+@st.dialog("📊 Case Worker Attendance Report", width="large")
 def admin_attendance_dialog():
-    st.info("💡 Case Worker-wise & Overall login/logout hours summary along with daily & session logs:")
+    st.info("💡 Daily login and logout attendance logs for case workers:")
     attendance_data = load_attendance()
     if not attendance_data:
         st.warning("No attendance records found.")
     else:
-        df_day, df_overall = build_attendance_summary_tables(attendance_data)
-        df_att = pd.DataFrame([
-            {
-                "S.No": idx_a,
-                "Worker": r.get("Worker", ""),
-                "Date": r.get("Date", ""),
-                "Login_Time": r.get("Login_Time", "-"),
-                "Logout_Time": r.get("Logout_Time", "-"),
-                "Duration": r.get("Duration", "0h 0m"),
-                "Status": r.get("Status", ""),
-            }
-            for idx_a, r in enumerate(attendance_data, start=1)
-        ])
-        if not df_att.empty:
-            df_att.index = range(1, len(df_att) + 1)
-
-        if not df_overall.empty and len(df_overall) > 1:
-            ov_last = df_overall.iloc[-1]
-            st.success(
-                f"⏱️ Overall Total Logged Hours: **{ov_last['Total_Duration']}** ({ov_last['Total_Hours']} hrs) | Total Sessions: **{ov_last['Total_Sessions']}**"
-            )
-
-        tab_ov, tab_dy, tab_lg = st.tabs([
-            "👷 Case Worker Wise & Overall Total",
-            "📅 Day-wise Worker Hours",
-            "🕒 All Session Logs",
-        ])
-
-        with tab_ov:
-            st.markdown("#### Case Worker Wise & Overall Hours Summary")
-            st.dataframe(df_overall, use_container_width=True, hide_index=True)
-
-        with tab_dy:
-            st.markdown("#### Day-wise Hours per Case Worker")
-            st.dataframe(df_day, use_container_width=True, hide_index=True)
-
-        with tab_lg:
-            st.markdown("#### Detailed Login / Logout Session Logs")
-            st.dataframe(df_att, use_container_width=True, hide_index=True)
+        df_att = pd.DataFrame(attendance_data)
+        df_att.index = range(1, len(df_att) + 1)
+        st.dataframe(df_att, use_container_width=True)
 
         att_buffer = io.BytesIO()
         with pd.ExcelWriter(att_buffer, engine="openpyxl") as writer:
-            if not df_overall.empty:
-                df_overall.to_excel(writer, sheet_name="Worker_Wise_Overall", index=False)
-            if not df_day.empty:
-                df_day.to_excel(writer, sheet_name="Day_Wise_Hours", index=False)
-            if not df_att.empty:
-                df_att.to_excel(writer, sheet_name="Session_Logs", index=False)
+            df_att.to_excel(writer, sheet_name="Attendance", index=False)
 
         st.download_button(
-            label="📥 Download Attendance & Hours Report (.xlsx)",
+            label="📥 Download Attendance Report (.xlsx)",
             data=att_buffer.getvalue(),
-            file_name="Case_Worker_Attendance_Hours.xlsx",
+            file_name="Case_Worker_Attendance.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
             key="download_attendance_excel",
@@ -3598,44 +2713,44 @@ def admin_worker_wise_report_dialog():
             )
         else:
             today_list = []
-            for idx_t, (w, data) in enumerate(today_worker_stats.items(), start=1):
+            for w, data in today_worker_stats.items():
                 breakdown_str = ", ".join(
                     [f"{v}: {cnt}" for v, cnt in data["Visa_Breakdown"].items()]
                 )
                 today_list.append({
-                    "S.No": idx_t,
                     "Case Worker": w,
                     "Today Booked Cases": data["Today Cases"],
                     "Visa Type Breakdown": breakdown_str,
                     "Active Sheet": target_sheet,
                 })
             df_today = pd.DataFrame(today_list)
+            df_today.index = range(1, len(df_today) + 1)
             st.success(
                 f"Total Cases Booked Today in '{target_sheet}': {df_today['Today Booked Cases'].sum()}"
             )
-            st.dataframe(df_today, use_container_width=True, hide_index=True)
+            st.dataframe(df_today, use_container_width=True)
 
     with tab_total:
         if not total_worker_stats:
             st.warning(f"No records found in '{target_sheet}'.")
         else:
             total_list = []
-            for idx_tot, (w, data) in enumerate(total_worker_stats.items(), start=1):
+            for w, data in total_worker_stats.items():
                 breakdown_str = ", ".join(
                     [f"{v}: {cnt}" for v, cnt in data["Visa_Breakdown"].items()]
                 )
                 total_list.append({
-                    "S.No": idx_tot,
                     "Case Worker": w,
                     "Total Booked Cases": data["Total Cases"],
                     "Visa Type Breakdown": breakdown_str,
                     "Active Sheet": target_sheet,
                 })
             df_total = pd.DataFrame(total_list)
+            df_total.index = range(1, len(df_total) + 1)
             st.success(
                 f"Total Booked Cases in '{target_sheet}': {df_total['Total Booked Cases'].sum()}"
             )
-            st.dataframe(df_total, use_container_width=True, hide_index=True)
+            st.dataframe(df_total, use_container_width=True)
 
     with tab_visa:
         if not visa_type_stats:
@@ -3647,9 +2762,9 @@ def admin_worker_wise_report_dialog():
             ]
             df_visa = pd.DataFrame(visa_list).sort_values(
                 by="Total Booked Cases", ascending=False
-            ).reset_index(drop=True)
-            df_visa.insert(0, "S.No", range(1, len(df_visa) + 1))
-            st.dataframe(df_visa, use_container_width=True, hide_index=True)
+            )
+            df_visa.index = range(1, len(df_visa) + 1)
+            st.dataframe(df_visa, use_container_width=True)
 
 
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
@@ -3979,23 +3094,24 @@ def permissions_dialog():
                     use_container_width=True,
                 ):
                     try:
-                        all_sheets_data = load_all_sheets_cached(_get_file_mtime())
+                        all_sheets_data = pd.read_excel(
+                            EXCEL_FILE, sheet_name=None, dtype=str
+                        )
                         for s, df_s in all_sheets_data.items():
-                            df_copy = df_s.copy()
-                            lc = find_login_user_column(df_copy)
-                            pc = find_password_column(df_copy)
-                            if lc in df_copy.columns and pc in df_copy.columns:
+                            lc = find_login_user_column(df_s)
+                            pc = find_password_column(df_s)
+                            if lc in df_s.columns and pc in df_s.columns:
                                 mask = (
-                                    df_copy[lc]
+                                    df_s[lc]
                                     .astype(str)
                                     .str.strip()
                                     .str.lower()
                                     == u_name.lower()
                                 )
                                 if mask.any():
-                                    df_copy.loc[mask, pc] = new_pwd_val.strip()
+                                    df_s.loc[mask, pc] = new_pwd_val.strip()
                             all_sheets_data[s] = reorder_dataframe_columns(
-                                df_copy
+                                df_s
                             )
 
                         with pd.ExcelWriter(
@@ -4006,12 +3122,6 @@ def permissions_dialog():
                                     writer, sheet_name=str(s), index=False
                                 )
 
-                        if all_sheets_data:
-                            first_key = list(all_sheets_data.keys())[0]
-                            _push_sheet_to_webapp(
-                                first_key, all_sheets_data[first_key], all_sheets_data
-                            )
-
                         current_perms[matched_key] = {
                             "can_update": new_upd_val,
                             "can_add": new_add_val,
@@ -4021,7 +3131,6 @@ def permissions_dialog():
                             "block_login": is_blocked,
                         }
                         save_permissions(current_perms)
-                        st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
                         st.cache_data.clear()
                         st.success(f"✅ Saved changes for '{u_name}'!")
                     except Exception as e:
@@ -4052,7 +3161,7 @@ def admin_password_dialog():
 @st.dialog("📤 Sync Local Excel File to Cloud", width="medium")
 def sync_excel_dialog():
     st.info(
-        "💡 Upload your updated local Excel file here to instantly synchronize it with Google Sheets and Cloud."
+        "💡 Upload your updated local Excel file here to instantly synchronize it with the cloud."
     )
     uploaded_excel = st.file_uploader(
         "Upload Updated Excel File (.xlsx)", type=["xlsx"]
@@ -4066,14 +3175,9 @@ def sync_excel_dialog():
             try:
                 with open(EXCEL_FILE, "wb") as f:
                     f.write(uploaded_excel.getbuffer())
-                uploaded_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-                if uploaded_sheets:
-                    first_k = list(uploaded_sheets.keys())[0]
-                    _push_sheet_to_webapp(first_k, uploaded_sheets[first_k], uploaded_sheets)
-                st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
                 st.cache_data.clear()
                 ensure_all_cases_have_unique_ids(force=True)
-                st.success("✅ Cloud & Google Sheet data updated successfully!")
+                st.success("✅ Cloud data updated successfully!")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {e}")
@@ -4110,28 +3214,25 @@ def worker_password_dialog(worker_name):
                 st.error("❌ New passwords do not match!")
             else:
                 try:
-                    all_sheets_data = load_all_sheets_cached(_get_file_mtime())
+                    all_sheets_data = pd.read_excel(
+                        EXCEL_FILE, sheet_name=None, dtype=str
+                    )
                     for s, df_s in all_sheets_data.items():
-                        df_copy = df_s.copy()
-                        lc = find_login_user_column(df_copy)
-                        pc = find_password_column(df_copy)
-                        if lc in df_copy.columns and pc in df_copy.columns:
+                        lc = find_login_user_column(df_s)
+                        pc = find_password_column(df_s)
+                        if lc in df_s.columns and pc in df_s.columns:
                             mask = (
-                                df_copy[lc].astype(str).str.strip().str.lower()
+                                df_s[lc].astype(str).str.strip().str.lower()
                                 == worker_name.lower()
                             )
                             if mask.any():
-                                df_copy.loc[mask, pc] = new_wp.strip()
-                        all_sheets_data[s] = reorder_dataframe_columns(df_copy)
+                                df_s.loc[mask, pc] = new_wp.strip()
+                        all_sheets_data[s] = reorder_dataframe_columns(df_s)
                     with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
                         for s, df_val in all_sheets_data.items():
                             df_val.to_excel(
                                 writer, sheet_name=str(s), index=False
                             )
-                    if all_sheets_data:
-                        first_k = list(all_sheets_data.keys())[0]
-                        _push_sheet_to_webapp(first_k, all_sheets_data[first_k], all_sheets_data)
-                    st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
                     st.cache_data.clear()
                     st.success("✅ Password updated successfully!")
                 except Exception as e:
@@ -4308,7 +3409,7 @@ dialog_map = {
     "add_case": lambda: add_case_dialog(st.session_state.get("username", "")),
     "search_data": lambda: search_data_dialog(
         current_user=st.session_state.get("username", ""),
-        allow_edit=perms_root
+        allow_edit=load_permissions()
         .get(st.session_state.get("username", ""), {})
         .get("can_update", True),
     ),
@@ -4330,10 +3431,11 @@ elif st.session_state["open_dialog"] == "edit_case_popup":
     if r_idx is not None:
         curr_role = st.session_state.get("role", "worker")
         curr_u = st.session_state.get("username", "")
+        perms = load_permissions()
         c_upd = (
             True
             if curr_role == "admin"
-            else perms_root.get(curr_u, {}).get("can_update", True)
+            else perms.get(curr_u, {}).get("can_update", True)
         )
         view_and_edit_case_dialog(
             st.session_state["active_sheet"], r_idx, curr_role, curr_u, c_upd
@@ -4442,7 +3544,7 @@ if not st.session_state["logged_in"]:
                     "<h3 style='text-align:center; color:#1e293b;'>🔐 Portal Login</h3>",
                     unsafe_allow_html=True,
                 )
-                sheets = sheets_init
+                sheets = get_sheet_names()
                 with st.form("login_form"):
                     username_input = st.text_input(
                         "👤 Username", placeholder="Type your username"
@@ -4460,7 +3562,7 @@ if not st.session_state["logged_in"]:
                     if submit_btn:
                         u_in = username_input.strip()
                         p_in = password_input.strip()
-                        admin_u, admin_p = get_admin_creds(all_sheets_map_root)
+                        admin_u, admin_p = get_admin_creds()
                         default_act_sheet = get_default_active_sheet(sheets)
 
                         if u_in.lower() == admin_u.lower() and p_in == admin_p:
@@ -4477,14 +3579,16 @@ if not st.session_state["logged_in"]:
                             st.query_params["role"] = "admin"
                             st.query_params["active_sheet"] = default_act_sheet
                             st.rerun()
-                        elif is_worker_blocked(u_in, all_sheets_map_root, perms_root):
+                        elif is_worker_blocked(u_in):
                             st.error(
                                 "❌ Your login access has been disabled by Admin."
                             )
                         else:
                             logged_in_success = False
                             actual_matched_username = ""
-                            all_sheets_chk = all_sheets_map_root
+                            all_sheets_chk = load_all_sheets_cached(
+                                _get_file_mtime()
+                            )
                             for _, df_check in all_sheets_chk.items():
                                 if df_check is not None and not df_check.empty:
                                     login_c = find_login_user_column(df_check)
@@ -4533,7 +3637,7 @@ if not st.session_state["logged_in"]:
                                 st.error("❌ Incorrect Username or Password!")
 
 elif st.session_state["role"] == "admin":
-    all_sheets_map = all_sheets_map_root
+    all_sheets_map = load_all_sheets_cached(_get_file_mtime())
     sheets = list(all_sheets_map.keys()) if all_sheets_map else ["Sheet1"]
     default_act_s = get_default_active_sheet(sheets)
     current_sheet = st.session_state.get("active_sheet", default_act_s)
@@ -4561,7 +3665,6 @@ elif st.session_state["role"] == "admin":
         )
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
-            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
@@ -4674,14 +3777,13 @@ elif st.session_state["role"] == "admin":
                     st.session_state["admin_selected_lead"] = l_name
                     st.rerun()
 
-        visible_dash_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
-        if visible_dash_sheets:
+        if sheets:
             st.markdown(
                 "<div class='action-group-title'>📑 SWITCH SHEET (DASHBOARD FILTER):</div>",
                 unsafe_allow_html=True,
             )
-            sw_cols = st.columns(len(visible_dash_sheets), gap="small")
-            for idx, s_name in enumerate(visible_dash_sheets):
+            sw_cols = st.columns(len(sheets), gap="small")
+            for idx, s_name in enumerate(sheets):
                 with sw_cols[idx]:
                     is_active = s_name == dash_s_name
                     color_cls = "admin-btn-1" if is_active else "admin-btn-6"
@@ -4697,47 +3799,6 @@ elif st.session_state["role"] == "admin":
                     ):
                         st.session_state["dash_sheet"] = s_name
                         st.rerun()
-
-        hidden_sys_sheets = [s for s in sheets if str(s).strip() in SYSTEM_SHEETS]
-        if hidden_sys_sheets:
-            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-            with st.expander(
-                "⚙️ Hidden System Sheets (App_Logins, App_Attendance, App_Permissions, App_Config)",
-                expanded=False,
-            ):
-                selected_sys_s = st.selectbox(
-                    "Select System Sheet to View",
-                    options=hidden_sys_sheets,
-                    key="admin_hidden_sys_sheet_picker",
-                )
-                if selected_sys_s == "App_Attendance":
-                    att_rows_view = load_attendance(all_sheets_map)
-                    df_sys_view = (
-                        pd.DataFrame([
-                            {k: v for k, v in r.items() if not str(k).startswith("_")}
-                            for r in att_rows_view
-                        ])
-                        if att_rows_view
-                        else pd.DataFrame()
-                    )
-                elif selected_sys_s == "App_Logins":
-                    log_map_view = load_login_tracking(all_sheets_map)
-                    log_rows_view = [
-                        {
-                            "S.No": idx_lv,
-                            "Worker": k,
-                            "status": v.get("status", "Not Logged In"),
-                            "last_login": v.get("last_login", "-"),
-                        }
-                        for idx_lv, (k, v) in enumerate(log_map_view.items(), start=1)
-                    ]
-                    df_sys_view = pd.DataFrame(log_rows_view) if log_rows_view else pd.DataFrame()
-                else:
-                    df_sys_view = all_sheets_map.get(selected_sys_s, pd.DataFrame())
-                if df_sys_view is not None and not df_sys_view.empty:
-                    st.dataframe(df_sys_view, use_container_width=True, hide_index=True)
-                else:
-                    st.info(f"'{selected_sys_s}' sheet currently has no rows.")
 
         if (
             st.session_state["admin_selected_lead"] != "All"
@@ -5109,11 +4170,10 @@ elif st.session_state["role"] == "admin":
                 key="admin_search_input",
             ).strip()
         with col_sheets:
-            rec_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
-            if rec_visible_sheets:
+            if sheets:
                 st.markdown("📑 **Switch Sheet:**")
-                sw_cols_r = st.columns(len(rec_visible_sheets), gap="small")
-                for s_idx, s_name in enumerate(rec_visible_sheets):
+                sw_cols_r = st.columns(len(sheets), gap="small")
+                for s_idx, s_name in enumerate(sheets):
                     with sw_cols_r[s_idx]:
                         is_act = s_name == rec_s_name
                         color_c = "admin-btn-1" if is_act else "admin-btn-6"
@@ -5234,7 +4294,6 @@ else:
             )
     with w_top3:
         if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
-            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
@@ -5251,7 +4310,6 @@ else:
             st.session_state["logged_in"] = False
             st.session_state["username"] = ""
             st.session_state["role"] = ""
-            close_case_popup_state()
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -5340,15 +4398,14 @@ else:
                 use_container_width=True,
             )
 
-    w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
-    if w_visible_sheets:
+    if sheets:
         st.markdown(
             "<div class='action-group-title'>📑 SWITCH SHEET:</div>",
             unsafe_allow_html=True,
         )
-        w_sw_cols = st.columns(len(w_visible_sheets), gap="small")
+        w_sw_cols = st.columns(len(sheets), gap="small")
         palette_w = ["admin-btn-0", "admin-btn-1", "admin-btn-2", "admin-btn-3", "admin-btn-4", "admin-btn-5"]
-        for s_idx_w, s_name_w in enumerate(w_visible_sheets):
+        for s_idx_w, s_name_w in enumerate(sheets):
             with w_sw_cols[s_idx_w]:
                 is_act_w = s_name_w == current_sheet
                 c_cls_w = palette_w[s_idx_w % len(palette_w)] if is_act_w else "admin-btn-6"
