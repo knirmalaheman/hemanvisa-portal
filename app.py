@@ -418,10 +418,16 @@ def _format_seconds_hhmm(total_seconds):
     return f"{hrs}h {mins}m"
 
 
-def load_attendance(sheets_cache=None):
-    rows = _read_sheet_rows("App_Attendance", sheets_cache)
+def load_attendance(all_sheets_map=None):
+    rows = []
+    if isinstance(all_sheets_map, dict) and "App_Attendance" in all_sheets_map:
+        df_att = all_sheets_map.get("App_Attendance")
+        if df_att is not None and not df_att.empty:
+            rows = df_att.fillna("").astype(str).to_dict(orient="records")
+    if not rows:
+        rows = _read_sheet_rows("App_Attendance")
+
     cleaned = []
-    sno = 1
     for r in rows:
         w = str(r.get("Worker", "")).strip()
         if w:
@@ -432,9 +438,8 @@ def load_attendance(sheets_cache=None):
             st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
             is_act = st_clean.lower() in ["active", "logged in", "online"]
             dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
-            dur_str = _format_seconds_hhmm(dur_sec) if (l_clean != "-" and (lo_clean != "-" or is_act)) else "0h 0m"
+            dur_str = _format_seconds_hhmm(dur_sec) if l_clean != "-" else "0h 0m"
             cleaned.append({
-                "S.No": sno,
                 "Worker": w,
                 "Date": d_clean,
                 "Login_Time": l_clean,
@@ -443,7 +448,6 @@ def load_attendance(sheets_cache=None):
                 "Status": st_clean,
                 "_duration_sec": dur_sec,
             })
-            sno += 1
     return cleaned
 
 
