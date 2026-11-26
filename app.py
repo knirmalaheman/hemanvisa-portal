@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
+import requests
 import os
 import io
 import datetime
@@ -25,12 +26,104 @@ if not os.path.exists(PDF_BASE_DIR):
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
 
+def get_webapp_url():
+    try:
+        url = st.secrets.get("GSHEET_WEBAPP_URL", "")
+        return str(url).strip() if url else ""
+    except Exception:
+        return ""
+
+
+def _rows_to_df(raw_rows):
+    if not raw_rows or not isinstance(raw_rows, list):
+        return pd.DataFrame()
+    if len(raw_rows) == 0:
+        return pd.DataFrame()
+    headers = [str(h).strip() if str(h).strip() != "" else f"Col_{i}" for i, h in enumerate(raw_rows[0])]
+    # Ensure unique column names
+    seen = {}
+    unique_headers = []
+    for h in headers:
+        if h in seen:
+            seen[h] += 1
+            unique_headers.append(f"{h}_{seen[h]}")
+        else:
+            seen[h] = 0
+            unique_headers.append(h)
+    data_rows = raw_rows[1:] if len(raw_rows) > 1 else []
+    cleaned_rows = []
+    for r in data_rows:
+        row_list = list(r) if isinstance(r, list) else [r]
+        if len(row_list) < len(unique_headers):
+            row_list = row_list + [""] * (len(unique_headers) - len(row_list))
+        elif len(row_list) > len(unique_headers):
+            row_list = row_list[: len(unique_headers)]
+        cleaned_rows.append(["" if v is None else str(v) for v in row_list])
+    return pd.DataFrame(cleaned_rows, columns=unique_headers, dtype=str)
+
+
+def _fetch_sheets_from_webapp():
+    url = get_webapp_url()
+    if not url:
+        return None
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        payload = resp.json()
+        if isinstance(payload, dict) and isinstance(payload.get("sheets"), dict):
+            sheets_dict = {}
+            for s_name, s_rows in payload["sheets"].items():
+                sheets_dict[str(s_name)] = _rows_to_df(s_rows)
+            return sheets_dict if sheets_dict else None
+        if isinstance(payload, list):
+            default_sheet_name = "Sheet1"
+            if os.path.exists(EXCEL_FILE):
+                try:
+                    xl = pd.ExcelFile(EXCEL_FILE)
+                    if xl.sheet_names:
+                        default_sheet_name = xl.sheet_names[0]
+                except Exception:
+                    pass
+            df_main = _rows_to_df(payload)
+            return {default_sheet_name: df_main}
+        return None
+    except Exception:
+        return None
+
+
+def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
+    url = get_webapp_url()
+    if not url:
+        return
+    try:
+        df_clean = df_to_push.fillna("").astype(str)
+        rows_2d = [df_clean.columns.tolist()] + df_clean.values.tolist()
+        body = {
+            "action": "save_sheet",
+            "sheet_name": str(sheet_name),
+            "data": rows_2d,
+        }
+        if all_sheets_dict:
+            all_payload = {}
+            for s_k, df_k in all_sheets_dict.items():
+                df_kc = df_k.fillna("").astype(str)
+                all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
+            body["sheets"] = all_payload
+
+        resp = requests.post(url, json=body, timeout=30)
+        resp.raise_for_status()
+    except Exception:
+        pass
+
+
 def get_ist_now():
     return datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)
 
 
 def _get_file_mtime():
-    return os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
+    sync_ver = st.session_state.get("_gsheet_sync_version", 0)
+    f_mtime = os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
+    return f"{f_mtime}_{sync_ver}"
 
 
 def get_admin_creds():
@@ -297,71 +390,101 @@ def _assign_case_username_based_ids(all_sheets):
     return all_sheets, modified
 
 
+def _normalize_sheet_df(df):
+    df.columns = df.columns.str.strip()
+    df = df.fillna("")
+
+    if "Unnamed: 5" in df.columns:
+        df = df.rename(columns={"Unnamed: 5": "Category"})
+    if "Updated_By" not in df.columns:
+        df["Updated_By"] = ""
+    if "Updated_At" not in df.columns:
+        df["Updated_At"] = ""
+    if "Action_Type" not in df.columns:
+        df["Action_Type"] = ""
+    if "Delete_Reason" not in df.columns:
+        df["Delete_Reason"] = ""
+    if "Booking_Status" not in df.columns:
+        df["Booking_Status"] = "Active"
+    if "Issue_Remark" not in df.columns:
+        df["Issue_Remark"] = ""
+
+    if (
+        "Appointment_Entry" not in df.columns
+        and "Current Appointment" in df.columns
+    ):
+        df = df.rename(
+            columns={"Current Appointment": "Appointment_Entry"}
+        )
+    elif "Appointment_Entry" not in df.columns:
+        df["Appointment_Entry"] = ""
+
+    if "Appointment_PDF" not in df.columns:
+        df["Appointment_PDF"] = ""
+    if "Preferred_Location" not in df.columns:
+        df["Preferred_Location"] = ""
+    if "Preferred_Dates" not in df.columns:
+        df["Preferred_Dates"] = ""
+    if "Prior_Notice" not in df.columns:
+        df["Prior_Notice"] = ""
+
+    return reorder_dataframe_columns(df)
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
-    if os.path.exists(EXCEL_FILE):
+    remote_sheets = _fetch_sheets_from_webapp()
+    all_sheets = None
+
+    if remote_sheets is not None:
+        # If local EXCEL_FILE has extra tabs not in remote single-sheet response, merge cleanly
+        if len(remote_sheets) == 1 and os.path.exists(EXCEL_FILE):
+            try:
+                local_raw = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+                remote_key = list(remote_sheets.keys())[0]
+                remote_df = remote_sheets[remote_key]
+                merged = {}
+                if remote_df is not None and not remote_df.empty:
+                    merged[remote_key] = remote_df
+                for l_s, l_df in local_raw.items():
+                    if str(l_s) not in merged:
+                        merged[str(l_s)] = l_df
+                all_sheets = merged if merged else remote_sheets
+            except Exception:
+                all_sheets = remote_sheets
+        else:
+            all_sheets = remote_sheets
+    elif os.path.exists(EXCEL_FILE):
         try:
             all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-            all_sheets, _ = _assign_case_username_based_ids(all_sheets)
-            processed = {}
-
-            for s_name, df in all_sheets.items():
-                df.columns = df.columns.str.strip()
-                df = df.fillna("")
-
-                if "Unnamed: 5" in df.columns:
-                    df = df.rename(columns={"Unnamed: 5": "Category"})
-                if "Updated_By" not in df.columns:
-                    df["Updated_By"] = ""
-                if "Updated_At" not in df.columns:
-                    df["Updated_At"] = ""
-                if "Action_Type" not in df.columns:
-                    df["Action_Type"] = ""
-                if "Delete_Reason" not in df.columns:
-                    df["Delete_Reason"] = ""
-                if "Booking_Status" not in df.columns:
-                    df["Booking_Status"] = "Active"
-                if "Issue_Remark" not in df.columns:
-                    df["Issue_Remark"] = ""
-
-                if (
-                    "Appointment_Entry" not in df.columns
-                    and "Current Appointment" in df.columns
-                ):
-                    df = df.rename(
-                        columns={"Current Appointment": "Appointment_Entry"}
-                    )
-                elif "Appointment_Entry" not in df.columns:
-                    df["Appointment_Entry"] = ""
-
-                if "Appointment_PDF" not in df.columns:
-                    df["Appointment_PDF"] = ""
-                if "Preferred_Location" not in df.columns:
-                    df["Preferred_Location"] = ""
-                if "Preferred_Dates" not in df.columns:
-                    df["Preferred_Dates"] = ""
-                if "Prior_Notice" not in df.columns:
-                    df["Prior_Notice"] = ""
-
-                df = reorder_dataframe_columns(df)
-                processed[s_name] = df
-            return processed
         except Exception:
             return {}
-    return {}
+
+    if not all_sheets:
+        return {}
+
+    try:
+        all_sheets, _ = _assign_case_username_based_ids(all_sheets)
+        processed = {}
+        for s_name, df in all_sheets.items():
+            if df is None:
+                continue
+            processed[str(s_name)] = _normalize_sheet_df(df)
+        return processed
+    except Exception:
+        return {}
 
 
 def ensure_all_cases_have_unique_ids(force=False):
-    if not os.path.exists(EXCEL_FILE):
-        return
     mtime = _get_file_mtime()
     last_checked_key = "_last_id_sync_mtime"
     if not force and st.session_state.get(last_checked_key) == mtime:
         return
     try:
-        all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+        all_sheets = load_all_sheets_cached(mtime)
+        if not all_sheets:
+            return
         all_sheets, modified = _assign_case_username_based_ids(all_sheets)
-
         for s_name, df in all_sheets.items():
             all_sheets[s_name] = reorder_dataframe_columns(df)
 
@@ -369,6 +492,9 @@ def ensure_all_cases_have_unique_ids(force=False):
             with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
                 for s, df_val in all_sheets.items():
                     df_val.to_excel(writer, sheet_name=str(s), index=False)
+            first_s = list(all_sheets.keys())[0]
+            _push_sheet_to_webapp(first_s, all_sheets[first_s], all_sheets)
+            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.cache_data.clear()
         st.session_state[last_checked_key] = _get_file_mtime()
     except Exception:
@@ -523,14 +649,22 @@ def save_data(df_to_save, sheet_name=0):
         except Exception:
             pass
 
+    target_sheet_key = str(sheet_name)
+    if isinstance(sheet_name, int) and sheets_data:
+        keys = list(sheets_data.keys())
+        if 0 <= sheet_name < len(keys):
+            target_sheet_key = str(keys[sheet_name])
+
     df_to_save = reorder_dataframe_columns(df_to_save)
-    sheets_data[sheet_name] = df_to_save
+    sheets_data[target_sheet_key] = df_to_save
 
     with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
         for s, df_val in sheets_data.items():
             df_val = reorder_dataframe_columns(df_val)
             df_val.to_excel(writer, sheet_name=str(s), index=False)
 
+    _push_sheet_to_webapp(target_sheet_key, df_to_save, sheets_data)
+    st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
     st.cache_data.clear()
     st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
 
@@ -3094,24 +3228,23 @@ def permissions_dialog():
                     use_container_width=True,
                 ):
                     try:
-                        all_sheets_data = pd.read_excel(
-                            EXCEL_FILE, sheet_name=None, dtype=str
-                        )
+                        all_sheets_data = load_all_sheets_cached(_get_file_mtime())
                         for s, df_s in all_sheets_data.items():
-                            lc = find_login_user_column(df_s)
-                            pc = find_password_column(df_s)
-                            if lc in df_s.columns and pc in df_s.columns:
+                            df_copy = df_s.copy()
+                            lc = find_login_user_column(df_copy)
+                            pc = find_password_column(df_copy)
+                            if lc in df_copy.columns and pc in df_copy.columns:
                                 mask = (
-                                    df_s[lc]
+                                    df_copy[lc]
                                     .astype(str)
                                     .str.strip()
                                     .str.lower()
                                     == u_name.lower()
                                 )
                                 if mask.any():
-                                    df_s.loc[mask, pc] = new_pwd_val.strip()
+                                    df_copy.loc[mask, pc] = new_pwd_val.strip()
                             all_sheets_data[s] = reorder_dataframe_columns(
-                                df_s
+                                df_copy
                             )
 
                         with pd.ExcelWriter(
@@ -3122,6 +3255,12 @@ def permissions_dialog():
                                     writer, sheet_name=str(s), index=False
                                 )
 
+                        if all_sheets_data:
+                            first_key = list(all_sheets_data.keys())[0]
+                            _push_sheet_to_webapp(
+                                first_key, all_sheets_data[first_key], all_sheets_data
+                            )
+
                         current_perms[matched_key] = {
                             "can_update": new_upd_val,
                             "can_add": new_add_val,
@@ -3131,6 +3270,7 @@ def permissions_dialog():
                             "block_login": is_blocked,
                         }
                         save_permissions(current_perms)
+                        st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
                         st.cache_data.clear()
                         st.success(f"✅ Saved changes for '{u_name}'!")
                     except Exception as e:
@@ -3161,7 +3301,7 @@ def admin_password_dialog():
 @st.dialog("📤 Sync Local Excel File to Cloud", width="medium")
 def sync_excel_dialog():
     st.info(
-        "💡 Upload your updated local Excel file here to instantly synchronize it with the cloud."
+        "💡 Upload your updated local Excel file here to instantly synchronize it with Google Sheets and Cloud."
     )
     uploaded_excel = st.file_uploader(
         "Upload Updated Excel File (.xlsx)", type=["xlsx"]
@@ -3175,9 +3315,14 @@ def sync_excel_dialog():
             try:
                 with open(EXCEL_FILE, "wb") as f:
                     f.write(uploaded_excel.getbuffer())
+                uploaded_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+                if uploaded_sheets:
+                    first_k = list(uploaded_sheets.keys())[0]
+                    _push_sheet_to_webapp(first_k, uploaded_sheets[first_k], uploaded_sheets)
+                st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
                 st.cache_data.clear()
                 ensure_all_cases_have_unique_ids(force=True)
-                st.success("✅ Cloud data updated successfully!")
+                st.success("✅ Cloud & Google Sheet data updated successfully!")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {e}")
@@ -3214,25 +3359,28 @@ def worker_password_dialog(worker_name):
                 st.error("❌ New passwords do not match!")
             else:
                 try:
-                    all_sheets_data = pd.read_excel(
-                        EXCEL_FILE, sheet_name=None, dtype=str
-                    )
+                    all_sheets_data = load_all_sheets_cached(_get_file_mtime())
                     for s, df_s in all_sheets_data.items():
-                        lc = find_login_user_column(df_s)
-                        pc = find_password_column(df_s)
-                        if lc in df_s.columns and pc in df_s.columns:
+                        df_copy = df_s.copy()
+                        lc = find_login_user_column(df_copy)
+                        pc = find_password_column(df_copy)
+                        if lc in df_copy.columns and pc in df_copy.columns:
                             mask = (
-                                df_s[lc].astype(str).str.strip().str.lower()
+                                df_copy[lc].astype(str).str.strip().str.lower()
                                 == worker_name.lower()
                             )
                             if mask.any():
-                                df_s.loc[mask, pc] = new_wp.strip()
-                        all_sheets_data[s] = reorder_dataframe_columns(df_s)
+                                df_copy.loc[mask, pc] = new_wp.strip()
+                        all_sheets_data[s] = reorder_dataframe_columns(df_copy)
                     with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
                         for s, df_val in all_sheets_data.items():
                             df_val.to_excel(
                                 writer, sheet_name=str(s), index=False
                             )
+                    if all_sheets_data:
+                        first_k = list(all_sheets_data.keys())[0]
+                        _push_sheet_to_webapp(first_k, all_sheets_data[first_k], all_sheets_data)
+                    st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
                     st.cache_data.clear()
                     st.success("✅ Password updated successfully!")
                 except Exception as e:
@@ -3665,6 +3813,7 @@ elif st.session_state["role"] == "admin":
         )
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
+            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
@@ -4294,6 +4443,7 @@ else:
             )
     with w_top3:
         if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
+            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
