@@ -561,6 +561,310 @@ def record_worker_logout(worker_name):
     save_attendance(attendance)
 
 
+def _normalize_iso_timestamp_to_ist(val_str):
+    s = str(val_str).strip()
+    if not s or s == "-":
+        return ""
+    iso_match = re.match(
+        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
+        s,
+        re.IGNORECASE,
+    )
+    if iso_match:
+        d_part, t_part = iso_match.groups()
+        try:
+            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
+            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
+            if d_part == "1899-12-30":
+                return dt_ist.strftime("%I:%M:%S %p")
+            return dt_ist.strftime("%Y-%m-%d %I:%M:%S %p")
+        except Exception:
+            pass
+    return s
+
+
+def _normalize_date_ist(val_str):
+    s = str(val_str).strip()
+    if not s or s == "-":
+        return ""
+    iso_match = re.match(
+        r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$",
+        s,
+        re.IGNORECASE,
+    )
+    if iso_match:
+        d_part, t_part = iso_match.groups()
+        try:
+            dt_utc = datetime.datetime.strptime(f"{d_part} {t_part}", "%Y-%m-%d %H:%M:%S")
+            dt_ist = dt_utc + datetime.timedelta(hours=5, minutes=30)
+            return dt_ist.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    return s[:10] if len(s) >= 10 else s
+
+
+def _normalize_time_ist(val_str):
+    s = str(val_str).strip()
+    if not s or s == "-":
+        return "-"
+    norm_full = _normalize_iso_timestamp_to_ist(s)
+    if not norm_full:
+        return "-"
+    if " " in norm_full and re.match(r"^\d{4}-\d{2}-\d{2}\s+", norm_full):
+        return norm_full.split(" ", 1)[1].strip()
+    return norm_full.strip()
+
+
+def load_login_tracking():
+    rows = _read_sheet_rows("App_Logins")
+    logins = {}
+    for r in rows:
+        w = r.get("Worker", "").strip()
+        if w:
+            raw_last = r.get("last_login", "-").strip() or "-"
+            clean_last = _normalize_iso_timestamp_to_ist(raw_last) if raw_last != "-" else "-"
+            logins[w] = {
+                "status": r.get("status", "Not Logged In").strip() or "Not Logged In",
+                "last_login": clean_last or "-",
+            }
+    return logins
+
+
+def _save_login_tracking(logins_dict):
+    cols = ["Worker", "status", "last_login"]
+    records = []
+    for w, info in (logins_dict or {}).items():
+        if str(w).strip():
+            raw_last = str(info.get("last_login", "-")).strip() or "-"
+            clean_last = _normalize_iso_timestamp_to_ist(raw_last) if raw_last != "-" else "-"
+            records.append({
+                "Worker": str(w).strip(),
+                "status": str(info.get("status", "Not Logged In")),
+                "last_login": clean_last or "-",
+            })
+    _write_sheet_records("App_Logins", cols, records)
+
+
+ATTENDANCE_COLS = ["Worker", "Date", "Login_Time", "Logout_Time", "Duration", "Status"]
+
+
+def _parse_time_12_or_24(t_str):
+    s = str(t_str).strip()
+    if not s or s == "-":
+        return None
+    norm_t = _normalize_time_ist(s)
+    if not norm_t or norm_t == "-":
+        return None
+    for fmt in ("%I:%M:%S %p", "%I:%M %p", "%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.datetime.strptime(norm_t, fmt).time()
+        except Exception:
+            continue
+    return None
+
+
+def _compute_duration_seconds(date_str, login_str, logout_str, is_active=False):
+    t_in = _parse_time_12_or_24(login_str)
+    if not t_in:
+        return 0
+    try:
+        d_clean = _normalize_date_ist(date_str)
+        d_base = (
+            datetime.datetime.strptime(d_clean, "%Y-%m-%d").date()
+            if d_clean
+            else get_ist_now().date()
+        )
+    except Exception:
+        d_base = get_ist_now().date()
+
+    dt_in = datetime.datetime.combine(d_base, t_in)
+
+    t_out = _parse_time_12_or_24(logout_str)
+    if t_out:
+        dt_out = datetime.datetime.combine(d_base, t_out)
+        if dt_out < dt_in:
+            dt_out = dt_out + datetime.timedelta(days=1)
+        return max(0, int((dt_out - dt_in).total_seconds()))
+
+    if is_active:
+        now_ist = get_ist_now()
+        if d_base == now_ist.date():
+            dt_end = datetime.datetime.combine(d_base, now_ist.time())
+            if dt_end < dt_in:
+                dt_end = dt_end + datetime.timedelta(days=1)
+            return max(0, int((dt_end - dt_in).total_seconds()))
+        return 0
+
+    return 0
+
+
+def _format_seconds_hhmm(total_seconds):
+    sec = max(0, int(total_seconds))
+    hrs = sec // 3600
+    mins = (sec % 3600) // 60
+    return f"{hrs}h {mins}m"
+
+
+def load_attendance():
+    rows = _read_sheet_rows("App_Attendance")
+    cleaned = []
+    for r in rows:
+        w = str(r.get("Worker", "")).strip()
+        if w:
+            d_clean = _normalize_date_ist(r.get("Date", ""))
+            l_clean = _normalize_time_ist(r.get("Login_Time", "-"))
+            lo_clean = _normalize_time_ist(r.get("Logout_Time", "-"))
+            raw_st = str(r.get("Status", "")).strip()
+            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
+            is_act = st_clean.lower() in ["active", "logged in", "online"]
+            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
+            dur_str = _format_seconds_hhmm(dur_sec) if l_clean != "-" else "0h 0m"
+            cleaned.append({
+                "Worker": w,
+                "Date": d_clean,
+                "Login_Time": l_clean,
+                "Logout_Time": lo_clean,
+                "Duration": dur_str,
+                "Status": st_clean,
+                "_duration_sec": dur_sec,
+            })
+    return cleaned
+
+
+def save_attendance(att_list):
+    records = []
+    for item in (att_list or []):
+        w = str(item.get("Worker", "")).strip()
+        if w:
+            d_clean = _normalize_date_ist(item.get("Date", ""))
+            l_clean = _normalize_time_ist(item.get("Login_Time", "-"))
+            lo_clean = _normalize_time_ist(item.get("Logout_Time", "-"))
+            raw_st = str(item.get("Status", "")).strip()
+            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
+            is_act = st_clean.lower() in ["active", "logged in", "online"]
+            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
+            dur_str = _format_seconds_hhmm(dur_sec) if l_clean != "-" else "0h 0m"
+            records.append({
+                "Worker": w,
+                "Date": d_clean,
+                "Login_Time": l_clean,
+                "Logout_Time": lo_clean,
+                "Duration": dur_str,
+                "Status": st_clean,
+            })
+    _write_sheet_records("App_Attendance", ATTENDANCE_COLS, records)
+
+
+def record_worker_login(worker_name):
+    if not worker_name:
+        return
+    now_dt = get_ist_now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+    full_timestamp = f"{today_str} {time_str}"
+
+    logins = load_login_tracking()
+    logins[worker_name.strip()] = {
+        "status": "Logged In",
+        "last_login": full_timestamp,
+    }
+    _save_login_tracking(logins)
+
+    attendance = load_attendance()
+    for entry in reversed(attendance):
+        if (
+            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
+            and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
+            and str(entry.get("Status", "")).strip().lower() in ["active", "logged in", ""]
+        ):
+            entry["Logout_Time"] = time_str
+            entry["Status"] = "Logged Out"
+            break
+
+    attendance.append({
+        "Worker": worker_name.strip(),
+        "Date": today_str,
+        "Login_Time": time_str,
+        "Logout_Time": "-",
+        "Duration": "0h 0m",
+        "Status": "Active",
+    })
+    save_attendance(attendance)
+
+
+def record_worker_logout(worker_name):
+    if not worker_name:
+        return
+    now_dt = get_ist_now()
+    today_str = now_dt.strftime("%Y-%m-%d")
+    time_str = now_dt.strftime("%I:%M:%S %p")
+
+    logins = load_login_tracking()
+    for k in list(logins.keys()):
+        if k.strip().lower() == worker_name.strip().lower():
+            logins[k]["status"] = "Not Logged In"
+    _save_login_tracking(logins)
+
+    attendance = load_attendance()
+    updated_any = False
+
+    for entry in reversed(attendance):
+        entry_date = _normalize_date_ist(entry.get("Date", ""))
+        if (
+            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
+            and entry_date == today_str
+            and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
+        ):
+            entry["Date"] = today_str
+            entry["Logout_Time"] = time_str
+            entry["Status"] = "Logged Out"
+            updated_any = True
+            break
+
+    if not updated_any:
+        for entry in reversed(attendance):
+            if (
+                entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
+                and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
+            ):
+                entry["Logout_Time"] = time_str
+                entry["Status"] = "Logged Out"
+                updated_any = True
+                break
+
+    if not updated_any:
+        for entry in reversed(attendance):
+            entry_date = _normalize_date_ist(entry.get("Date", ""))
+            if (
+                entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
+                and entry_date == today_str
+            ):
+                entry["Date"] = today_str
+                entry["Logout_Time"] = time_str
+                entry["Status"] = "Logged Out"
+                updated_any = True
+                break
+
+    if not updated_any:
+        for entry in reversed(attendance):
+            if entry.get("Worker", "").strip().lower() == worker_name.strip().lower():
+                entry["Logout_Time"] = time_str
+                entry["Status"] = "Logged Out"
+                updated_any = True
+                break
+
+    if not updated_any:
+        attendance.append({
+            "Worker": worker_name.strip(),
+            "Date": today_str,
+            "Login_Time": "-",
+            "Logout_Time": time_str,
+            "Duration": "0h 0m",
+            "Status": "Logged Out",
+        })
+    save_attendance(attendance)
+
+
 def build_attendance_summary_tables(attendance_data):
     if not attendance_data:
         return pd.DataFrame(), pd.DataFrame()
@@ -576,9 +880,6 @@ def build_attendance_summary_tables(attendance_data):
         st = str(row.get("Status", "")).strip() or ("Logged Out" if lo_t != "-" else "Active")
         sec = int(row.get("_duration_sec", 0) or 0)
 
-        t_in = _parse_time_12_or_24(l_t)
-        t_out = _parse_time_12_or_24(lo_t)
-
         wd_key = (w, d)
         if wd_key not in worker_date_map:
             worker_date_map[wd_key] = {
@@ -586,22 +887,16 @@ def build_attendance_summary_tables(attendance_data):
                 "Date": d,
                 "Sessions": 0,
                 "First_Login": l_t if l_t != "-" else None,
-                "_first_login_t": t_in,
                 "Last_Logout": lo_t if lo_t != "-" else None,
-                "_last_logout_t": t_out,
                 "Total_Seconds": 0,
                 "Current_Status": st,
             }
         wd = worker_date_map[wd_key]
         wd["Sessions"] += 1
-        if t_in is not None:
-            if wd["_first_login_t"] is None or t_in < wd["_first_login_t"]:
-                wd["_first_login_t"] = t_in
-                wd["First_Login"] = l_t
-        if t_out is not None:
-            if wd["_last_logout_t"] is None or t_out >= wd["_last_logout_t"]:
-                wd["_last_logout_t"] = t_out
-                wd["Last_Logout"] = lo_t
+        if l_t != "-" and wd["First_Login"] is None:
+            wd["First_Login"] = l_t
+        if lo_t != "-":
+            wd["Last_Logout"] = lo_t
         wd["Total_Seconds"] += sec
         wd["Current_Status"] = st
 
@@ -627,10 +922,9 @@ def build_attendance_summary_tables(attendance_data):
         wo["Current_Status"] = st
 
     day_rows = []
-    for idx_d, (_, wd) in enumerate(worker_date_map.items(), start=1):
+    for _, wd in worker_date_map.items():
         tot_sec = wd["Total_Seconds"]
         day_rows.append({
-            "S.No": idx_d,
             "Worker": wd["Worker"],
             "Date": wd["Date"],
             "Sessions": wd["Sessions"],
@@ -644,12 +938,11 @@ def build_attendance_summary_tables(attendance_data):
     overall_rows = []
     grand_sec = 0
     grand_sessions = 0
-    for idx_o, (_, wo) in enumerate(worker_overall_map.items(), start=1):
+    for _, wo in worker_overall_map.items():
         tot_sec = wo["Total_Seconds"]
         grand_sec += tot_sec
         grand_sessions += wo["Total_Sessions"]
         overall_rows.append({
-            "S.No": idx_o,
             "Worker": wo["Worker"],
             "Days_Worked": len(wo["Active_Days"]),
             "Total_Sessions": wo["Total_Sessions"],
@@ -662,7 +955,6 @@ def build_attendance_summary_tables(attendance_data):
 
     if overall_rows:
         overall_rows.append({
-            "S.No": len(overall_rows) + 1,
             "Worker": "OVERALL TOTAL",
             "Days_Worked": "-",
             "Total_Sessions": grand_sessions,
