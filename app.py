@@ -328,8 +328,15 @@ def _normalize_time_ist(val_str):
     return norm_full
 
 
-def load_login_tracking(sheets_cache=None):
-    rows = _read_sheet_rows("App_Logins", sheets_cache)
+def load_login_tracking(all_sheets_map=None):
+    rows = []
+    if isinstance(all_sheets_map, dict) and "App_Logins" in all_sheets_map:
+        df_log = all_sheets_map.get("App_Logins")
+        if df_log is not None and not df_log.empty:
+            rows = df_log.fillna("").astype(str).to_dict(orient="records")
+    if not rows:
+        rows = _read_sheet_rows("App_Logins")
+
     logins = {}
     for r in rows:
         w = r.get("Worker", "").strip()
