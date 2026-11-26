@@ -34,12 +34,17 @@ if not os.path.exists(PDF_BASE_DIR):
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
 
-def get_webapp_url():
+@st.cache_data(ttl=3600, show_spinner=False)
+def _cached_webapp_url():
     try:
         url = st.secrets.get("GSHEET_WEBAPP_URL", "")
         return str(url).strip() if url else ""
     except Exception:
         return ""
+
+
+def get_webapp_url():
+    return _cached_webapp_url()
 
 
 def _rows_to_df(raw_rows):
@@ -77,7 +82,7 @@ def _fetch_sheets_from_webapp():
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=45, allow_redirects=True)
+        resp = requests.get(url, timeout=10, allow_redirects=True)
         resp.raise_for_status()
         text_body = resp.text.strip()
         if not text_body:
@@ -117,7 +122,7 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
                 all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
             body["sheets"] = all_payload
 
-        resp = requests.post(url, json=body, timeout=45, allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=15, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
@@ -231,12 +236,25 @@ def load_permissions():
                 in ["true", "1", "yes"],
                 "can_add": str(r.get("can_add", "True")).strip().lower()
                 in ["true", "1", "yes"],
+                "can_update": str(r.get("can_update", r.get("can_edit", "True"))).strip().lower()
+                in ["true", "1", "yes"],
+                "can_search": str(r.get("can_search", "True")).strip().lower()
+                in ["true", "1", "yes"],
+                "can_download": str(r.get("can_download", "False")).strip().lower()
+                in ["true", "1", "yes"],
+                "can_sync": str(r.get("can_sync", "False")).strip().lower()
+                in ["true", "1", "yes"],
+                "block_login": str(r.get("block_login", "False")).strip().lower()
+                in ["true", "1", "yes"],
             }
     return perms
 
 
 def save_permissions(perms_dict):
-    cols = ["Worker", "can_edit", "can_delete_req", "can_reschedule", "can_add"]
+    cols = [
+        "Worker", "can_edit", "can_delete_req", "can_reschedule", "can_add",
+        "can_update", "can_search", "can_download", "can_sync", "block_login",
+    ]
     records = []
     for w, p in (perms_dict or {}).items():
         if str(w).strip():
@@ -246,6 +264,11 @@ def save_permissions(perms_dict):
                 "can_delete_req": str(p.get("can_delete_req", True)),
                 "can_reschedule": str(p.get("can_reschedule", True)),
                 "can_add": str(p.get("can_add", True)),
+                "can_update": str(p.get("can_update", p.get("can_edit", True))),
+                "can_search": str(p.get("can_search", True)),
+                "can_download": str(p.get("can_download", False)),
+                "can_sync": str(p.get("can_sync", False)),
+                "block_login": str(p.get("block_login", False)),
             })
     _write_sheet_records("App_Permissions", cols, records)
 
@@ -849,7 +872,7 @@ def _normalize_sheet_df(df):
     return reorder_dataframe_columns(df)
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
@@ -1021,7 +1044,7 @@ def append_rescheduled_to_active_sheet(
     return new_rescheduled_id, active_sheet_name
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -1501,19 +1524,17 @@ if st.session_state["logged_in"] and "edit_row" in qp:
 elif not st.session_state["logged_in"] and "edit_row" in qp:
     qp.clear()
 
-sheets_init = get_sheet_names()
-default_s_init = get_default_active_sheet(sheets_init)
-
-if "active_sheet" not in st.session_state:
-    st.session_state["active_sheet"] = default_s_init
-    if st.session_state.get("logged_in"):
+default_s_init = st.session_state.get("active_sheet", "Sheet1")
+if st.session_state.get("logged_in") or st.session_state.get("open_dialog"):
+    sheets_init = get_sheet_names()
+    default_s_init = get_default_active_sheet(sheets_init)
+    if "active_sheet" not in st.session_state:
+        st.session_state["active_sheet"] = default_s_init
         st.query_params["active_sheet"] = default_s_init
-
-if "dash_sheet" not in st.session_state:
-    st.session_state["dash_sheet"] = default_s_init
-
-if "records_sheet" not in st.session_state:
-    st.session_state["records_sheet"] = default_s_init
+    if "dash_sheet" not in st.session_state:
+        st.session_state["dash_sheet"] = default_s_init
+    if "records_sheet" not in st.session_state:
+        st.session_state["records_sheet"] = default_s_init
 
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
     if not st.session_state.get("attendance_recorded", False):
@@ -4151,7 +4172,6 @@ if not st.session_state["logged_in"]:
                     "<h3 style='text-align:center; color:#1e293b;'>🔐 Portal Login</h3>",
                     unsafe_allow_html=True,
                 )
-                sheets = get_sheet_names()
                 with st.form("login_form"):
                     username_input = st.text_input(
                         "👤 Username", placeholder="Type your username"
@@ -4170,6 +4190,7 @@ if not st.session_state["logged_in"]:
                         u_in = username_input.strip()
                         p_in = password_input.strip()
                         admin_u, admin_p = get_admin_creds()
+                        sheets = get_sheet_names()
                         default_act_sheet = get_default_active_sheet(sheets)
 
                         if u_in.lower() == admin_u.lower() and p_in == admin_p:
@@ -4497,16 +4518,22 @@ elif st.session_state["role"] == "admin":
                 for c in df_dash.columns
                 if any(k in c.lower() for k in ["date", "time", "day", "created"])
             ]
-            for _, r in df_dash.iterrows():
-                if any(
-                    today_str_d in str(r.get(dc, "")).strip()
-                    for dc in date_cols_d
-                ) or today_str_d in str(r.get("Updated_At", "")):
-                    today_count_d += 1
-                if is_today_updated_row(r, today_str_d):
-                    today_updated_count_d += 1
-                if is_not_assigned_value(r.get(login_c_d, "")):
-                    not_assigned_count_d += 1
+            date_mask = pd.Series([False] * len(df_dash), index=df_dash.index)
+            for dc in date_cols_d:
+                date_mask = date_mask | df_dash[dc].astype(str).str.contains(today_str_d, na=False)
+            if "Updated_At" in df_dash.columns:
+                date_mask = date_mask | df_dash["Updated_At"].astype(str).str.contains(today_str_d, na=False)
+            today_count_d = int(date_mask.sum())
+
+            if "Updated_At" in df_dash.columns and "Updated_By" in df_dash.columns:
+                upd_mask = (
+                    df_dash["Updated_At"].astype(str).str.contains(today_str_d, na=False)
+                    & (df_dash["Updated_By"].astype(str).str.strip() != "")
+                )
+                today_updated_count_d = int(upd_mask.sum())
+
+            if login_c_d in df_dash.columns:
+                not_assigned_count_d = int(df_dash[login_c_d].apply(is_not_assigned_value).sum())
 
         del_reqs_count_d = 0
         for _, df_s in all_sheets_map.items():
@@ -4985,6 +5012,26 @@ else:
                 use_container_width=True,
             ):
                 st.session_state["open_dialog"] = "add_case"
+                st.rerun()
+        else:
+            st.button(
+                "➕ Add New Case",
+                key="w_btn_add_dis",
+                disabled=True,
+                use_container_width=True,
+            )
+    with w_c2:
+        if can_search:
+            st.markdown(
+                '<span class="admin-btn-0" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                "🔍 Search Records",
+                key="w_btn_search",
+                use_container_width=True,
+            ):
+                st.session_state["open_dialog"] = "search_data"
                 st.rerun()
         else:
             st.button(
