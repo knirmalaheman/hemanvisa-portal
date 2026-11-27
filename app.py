@@ -86,7 +86,7 @@ def _fetch_sheets_from_webapp():
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=10, allow_redirects=True)
+        resp = requests.get(url, timeout=15, allow_redirects=True)
         resp.raise_for_status()
         text_body = resp.text.strip()
         if not text_body:
@@ -128,7 +128,7 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
                 all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
             body["sheets"] = all_payload
 
-        resp = requests.post(url, json=body, timeout=12, allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=20, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
@@ -151,26 +151,15 @@ def _get_file_mtime():
     return f"{f_mtime}_{sync_ver}"
 
 
-def _update_in_memory_sheet_cache(sheet_name, df_new):
-    mem_cache = st.session_state.get("_mem_sheets_cache")
-    if isinstance(mem_cache, dict):
-        mem_cache[str(sheet_name)] = df_new.copy()
-        st.session_state["_mem_sheets_cache"] = mem_cache
-
-
 def _read_sheet_rows(sheet_name):
-    mem_cache = st.session_state.get("_mem_sheets_cache")
-    if isinstance(mem_cache, dict) and str(sheet_name) in mem_cache:
-        df = mem_cache[str(sheet_name)]
-    else:
-        sheets = load_all_sheets_cached(_get_file_mtime())
-        df = sheets.get(sheet_name) if isinstance(sheets, dict) else None
+    sheets = load_all_sheets_cached(_get_file_mtime())
+    df = sheets.get(sheet_name) if isinstance(sheets, dict) else None
     if df is None or df.empty:
         return []
     return df.fillna("").astype(str).to_dict(orient="records")
 
 
-def _write_sheet_records(sheet_name, columns, records, push_remote=True):
+def _write_sheet_records(sheet_name, columns, records):
     if records:
         df_new = pd.DataFrame(records)
         for col in columns:
@@ -180,13 +169,11 @@ def _write_sheet_records(sheet_name, columns, records, push_remote=True):
     else:
         df_new = pd.DataFrame(columns=columns, dtype=str)
 
-    _update_in_memory_sheet_cache(sheet_name, df_new)
-    if push_remote:
-        _push_sheet_to_webapp(sheet_name, df_new, all_sheets_dict=None)
+    _push_sheet_to_webapp(sheet_name, df_new, all_sheets_dict=None)
     st.session_state["_gsheet_sync_version"] = (
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
-    _update_in_memory_sheet_cache(sheet_name, df_new)
+    st.cache_data.clear()
 
 
 EDIT_REQ_COLS = [
@@ -990,7 +977,7 @@ def _normalize_sheet_df(df):
     return reorder_dataframe_columns(df)
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_all_sheets_cached(file_mtime):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
@@ -1026,23 +1013,13 @@ def load_all_sheets_cached(file_mtime):
         return {}
 
 
-def get_all_sheets_fast():
-    mem_cache = st.session_state.get("_mem_sheets_cache")
-    if isinstance(mem_cache, dict) and len(mem_cache) > 0:
-        return {k: v.copy() for k, v in mem_cache.items()}
-    loaded = load_all_sheets_cached(_get_file_mtime())
-    if loaded:
-        st.session_state["_mem_sheets_cache"] = {k: v.copy() for k, v in loaded.items()}
-    return loaded or {}
-
-
 def ensure_all_cases_have_unique_ids(force=False):
     mtime = _get_file_mtime()
     last_checked_key = "_last_id_sync_mtime"
     if not force and st.session_state.get(last_checked_key) == mtime:
         return
     try:
-        all_sheets = get_all_sheets_fast()
+        all_sheets = load_all_sheets_cached(mtime)
         if not all_sheets:
             return
         all_sheets, modified = _assign_case_username_based_ids(all_sheets)
@@ -1055,15 +1032,15 @@ def ensure_all_cases_have_unique_ids(force=False):
                     df_val.to_excel(writer, sheet_name=str(s), index=False)
             first_s = list(all_sheets.keys())[0]
             _push_sheet_to_webapp(first_s, all_sheets[first_s], all_sheets)
-            st.session_state["_mem_sheets_cache"] = {k: v.copy() for k, v in all_sheets.items()}
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
+            st.cache_data.clear()
         st.session_state[last_checked_key] = _get_file_mtime()
     except Exception:
         pass
 
 
 def get_sheet_names():
-    all_sheets = get_all_sheets_fast()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
     if all_sheets:
         visible = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
         return visible if visible else list(all_sheets.keys())
@@ -1088,7 +1065,7 @@ def get_default_active_sheet(sheets_list=None):
 
 
 def generate_next_case_id(extra_reserved_ids=None):
-    all_sheets_dict = get_all_sheets_fast()
+    all_sheets_dict = load_all_sheets_cached(_get_file_mtime())
     max_num = 1000
     for s_name, df_s in all_sheets_dict.items():
         if df_s is not None and not df_s.empty and "Case_ID" in df_s.columns:
@@ -1159,7 +1136,7 @@ def append_rescheduled_to_active_sheet(
     return new_rescheduled_id, active_sheet_name
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def get_admin_gsheet_export_bytes(file_mtime):
     all_sheets = load_all_sheets_cached(file_mtime)
     excel_buffer = io.BytesIO()
@@ -1177,7 +1154,7 @@ def get_admin_gsheet_export_bytes(file_mtime):
     return excel_buffer.getvalue()
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     all_sheets = load_all_sheets_cached(file_mtime)
     worker_buffer = io.BytesIO()
@@ -1207,7 +1184,7 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
 
 
 def load_data(sheet_name=0):
-    all_sheets = get_all_sheets_fast()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
     if not all_sheets:
         return None
     if isinstance(sheet_name, int):
@@ -1225,10 +1202,20 @@ def save_data(df_to_save, sheet_name=0):
         df_to_save = df_to_save.rename(columns={"Category": ""})
 
     sheets_data = {}
-    cached_sheets = get_all_sheets_fast()
+    cached_sheets = load_all_sheets_cached(_get_file_mtime())
     if cached_sheets:
         for s_k, df_k in cached_sheets.items():
             sheets_data[str(s_k)] = df_k.copy()
+
+    if os.path.exists(EXCEL_FILE):
+        try:
+            disk_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+            if disk_sheets:
+                for s_d, df_d in disk_sheets.items():
+                    if str(s_d) not in sheets_data:
+                        sheets_data[str(s_d)] = df_d.copy()
+        except Exception:
+            pass
 
     target_sheet_key = str(sheet_name)
     if isinstance(sheet_name, int) and sheets_data:
@@ -1247,9 +1234,9 @@ def save_data(df_to_save, sheet_name=0):
     except Exception:
         pass
 
-    st.session_state["_mem_sheets_cache"] = {k: v.copy() for k, v in sheets_data.items()}
     _push_sheet_to_webapp(target_sheet_key, df_to_save, sheets_data)
     st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
+    st.cache_data.clear()
     st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
 
 
@@ -1345,7 +1332,7 @@ def search_username_ds160_password_worker(df, query_text):
 def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
     if not query_text:
         return pd.DataFrame()
-    all_sheets = get_all_sheets_fast()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
     matched_dfs = []
     for s_name, df_s in all_sheets.items():
         if str(s_name).strip() in SYSTEM_SHEETS:
@@ -1427,7 +1414,7 @@ def find_visa_type_column(df):
 
 
 def get_all_workers_list():
-    all_sheets = get_all_sheets_fast()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
     all_workers = set()
     for s_name, df_s in all_sheets.items():
         if str(s_name).strip() in SYSTEM_SHEETS:
