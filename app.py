@@ -1954,3 +1954,710 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
     if not st.session_state.get("attendance_recorded", False):
         record_worker_login(st.session_state["username"])
         st.session_state["attendance_recorded"] = True
+
+# --- Step 5: CSS Styling, Sticky Banner & Clickable Table Renderer ---
+
+st.markdown("""
+<style>
+    [data-testid="stHeader"] {
+        display: none !important;
+    }
+    [data-testid="stDialog"] {
+        z-index: 100005 !important;
+    }
+    .sticky-top-banner {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 99999;
+        background: linear-gradient(135deg, #070f24 0%, #0f1c3f 50%, #172554 100%);
+        padding: 8px 24px;
+        border-bottom: 3px solid #d4af37;
+        box-shadow: 0 8px 25px rgba(7, 15, 36, 0.55);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        box-sizing: border-box;
+    }
+    .logo-container {
+        margin-left: 20px;
+    }
+    .sticky-top-banner img {
+        max-height: 54px;
+        width: auto;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 3px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .banner-middle {
+        text-align: center;
+        flex: 1;
+        padding: 0 12px;
+    }
+    .world-map-title {
+        font-size: 18px;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+    .world-map-subtitle {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #fde047;
+        letter-spacing: 1.5px;
+    }
+    .banner-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        font-weight: 600;
+        color: #e2e8f0;
+    }
+    .banner-badge {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 5px 12px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .banner-info a {
+        color: #ffffff;
+        text-decoration: none;
+    }
+    .social-icons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 5px 10px;
+        border-radius: 8px;
+    }
+    .social-icons img {
+        height: 18px;
+        width: 18px;
+        border-radius: 4px;
+        max-height: 18px !important;
+        background: transparent !important;
+        padding: 0 !important;
+    }
+    .block-container {
+        padding-top: 95px !important;
+        padding-bottom: 2rem;
+        max-width: 1400px !important;
+    }
+    .hero-section {
+        background: linear-gradient(135deg, #0f1c3f 0%, #172554 50%, #0a1128 100%);
+        color: white;
+        padding: 48px 30px;
+        border-radius: 16px;
+        text-align: center;
+        margin-bottom: 24px;
+        box-shadow: 0 12px 35px rgba(15, 28, 63, 0.35);
+    }
+    .hero-title {
+        font-size: 34px;
+        font-weight: 800;
+        margin-bottom: 12px;
+    }
+    .hero-subtitle {
+        font-size: 15.5px;
+        opacity: 0.95;
+        line-height: 1.6;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .corporate-card {
+        background: #ffffff;
+        padding: 22px;
+        border-radius: 14px;
+        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+        border: 1px solid #e2e8f0;
+        border-top: 4px solid #172554;
+        height: 100%;
+        margin-bottom: 12px;
+    }
+    .corporate-card h3 {
+        color: #172554;
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+    .corporate-card p {
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.6;
+        margin: 0;
+    }
+    .marquee-container {
+        background: linear-gradient(90deg, #1e293b 0%, #334155 100%);
+        color: white;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 13.5px;
+        margin-bottom: 14px !important;
+        overflow: hidden;
+        white-space: nowrap;
+        border-left: 5px solid #d4af37;
+    }
+    .sticky-control-panel {
+        position: sticky;
+        top: 78px;
+        z-index: 99990;
+        background-color: #ffffff;
+        padding: 6px 0 8px 0;
+        border-bottom: 2px solid #e2e8f0;
+        margin-bottom: 10px;
+    }
+    .workspace-header-bar {
+        background: linear-gradient(135deg, #0f1c3f 0%, #1e293b 100%);
+        color: #ffffff;
+        padding: 11px 18px;
+        border-radius: 11px;
+        border-left: 5px solid #d4af37;
+        font-size: 15.5px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .workspace-sheet-pill {
+        background: rgba(212, 175, 55, 0.18);
+        border: 1px solid #d4af37;
+        color: #fde047;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .kpi-card {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: white;
+        padding: 14px 10px;
+        border-radius: 13px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+        text-align: center;
+        border-bottom: 4px solid #64748b;
+        margin-bottom: 6px;
+        height: 92px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    .kpi-card.gold {
+        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+        border-bottom: 4px solid #d97706;
+    }
+    .kpi-card.green {
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        border-bottom: 4px solid #059669;
+    }
+    .kpi-card.purple {
+        background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+        border-bottom: 4px solid #6366f1;
+    }
+    .kpi-card.teal {
+        background: linear-gradient(135deg, #115e59 0%, #0f766e 100%);
+        border-bottom: 4px solid #14b8a6;
+    }
+    .kpi-card.rose {
+        background: linear-gradient(135deg, #881337 0%, #be123c 100%);
+        border-bottom: 4px solid #fb7185;
+    }
+    .kpi-title {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.9px;
+        opacity: 0.92;
+        margin-bottom: 5px;
+        font-weight: 700;
+        color: #f1f5f9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+    .kpi-value {
+        font-size: 24px;
+        font-weight: 800;
+        margin: 0;
+        line-height: 1.1;
+    }
+
+    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+        border-bottom: 3px solid #60a5fa !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #065f46 0%, #059669 100%) !important;
+        border-bottom: 3px solid #34d399 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #92400e 0%, #d97706 100%) !important;
+        border-bottom: 3px solid #fbbf24 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%) !important;
+        border-bottom: 3px solid #818cf8 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #831843 0%, #db2777 100%) !important;
+        border-bottom: 3px solid #f472b6 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #115e59 0%, #0d9488 100%) !important;
+        border-bottom: 3px solid #2dd4bf !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #334155 0%, #475569 100%) !important;
+        border-bottom: 3px solid #94a3b8 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button,
+    div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #7f1d1d 0%, #b91c1c 100%) !important;
+        border-bottom: 3px solid #f87171 !important;
+        color: #ffffff !important;
+    }
+
+    .section-banner {
+        background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
+        border-left: 5px solid #1e293b;
+        padding: 11px 16px;
+        border-radius: 8px;
+        margin: 8px 0px;
+        font-weight: 800;
+        color: #1e293b;
+        font-size: 15.5px;
+        border: 1px solid #e2e8f0;
+    }
+    .action-group-title {
+        font-size: 12.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #334155;
+        margin: 8px 0 4px 2px;
+    }
+    .stButton > button, [data-testid="stDownloadButton"] > button {
+        width: 100% !important;
+        min-height: 40px !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        padding: 6px 10px !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.1);
+        margin-top: 2px !important;
+        margin-bottom: 6px !important;
+        white-space: nowrap !important;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    }
+    .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
+        opacity: 0.94;
+    }
+    .username-hyperlink {
+        color: #1e293b !important;
+        text-decoration: underline !important;
+        font-weight: 700 !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        background: #f1f5f9 !important;
+        padding: 6px !important;
+        border-radius: 12px !important;
+        border: 1px solid #cbd5e1 !important;
+        width: fit-content !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label {
+        background: transparent !important;
+        padding: 7px 16px !important;
+        border-radius: 9px !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label > div:first-child,
+    div[data-testid="stRadio"] > div[role="radiogroup"] label > span:first-child,
+    div[data-testid="stRadio"] > div[role="radiogroup"] label input[type="radio"] {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label p {
+        font-size: 13.5px !important;
+        font-weight: 700 !important;
+        color: #475569 !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
+        background: linear-gradient(135deg, #0f1c3f 0%, #1e3a8a 100%) !important;
+        border-bottom: 2.5px solid #d4af37 !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) p {
+        color: #ffffff !important;
+    }
+    .worker-hero-banner {
+        background: linear-gradient(135deg, #0f1c3f 0%, #1e3a8a 45%, #065f46 100%);
+        color: #ffffff;
+        padding: 13px 18px;
+        border-radius: 12px;
+        border-left: 5px solid #fbbf24;
+        border-bottom: 2px solid rgba(251, 191, 36, 0.45);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+    .worker-hero-title {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+    }
+    .worker-pill-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .worker-pill-gold {
+        background: rgba(251, 191, 36, 0.2);
+        border: 1px solid #fbbf24;
+        color: #fef08a;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .worker-pill-cyan {
+        background: rgba(56, 189, 248, 0.2);
+        border: 1px solid #38bdf8;
+        color: #bae6fd;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    [data-testid="stVerticalBlock"] {
+        gap: 0.35rem !important;
+    }
+    hr {
+        margin-top: 0.75rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+found_logo = next((f for f in LOGO_FILES if os.path.exists(f)), None)
+if found_logo:
+    ext = found_logo.split(".")[-1].lower()
+    mime_type = "image/png" if ext == "png" else "image/jpeg"
+    img_b64 = get_base64_image(found_logo)
+    logo_html = f'<div class="logo-container"><img src="data:{mime_type};base64,{img_b64}" alt="HemanVisa Logo"></div>'
+else:
+    logo_html = '<div class="logo-container"><h2 style="margin:0; color:#ffffff;">HemanVisa</h2></div>'
+
+st.markdown(f"""
+    <div class="sticky-top-banner">
+        <div>{logo_html}</div>
+        <div class="banner-middle">
+            <div class="world-map-title">🌐 GLOBAL VISA & IMMIGRATION EXPERTS</div>
+            <div class="world-map-subtitle">✈️ Your Gateway to Study, Work & Travel Worldwide</div>
+        </div>
+        <div class="banner-info">
+            <div class="banner-badge">✉️ <a href="mailto:services@hemanvisa.com">services@hemanvisa.com</a></div>
+            <div class="banner-badge">📞 <a href="tel:+919533840632">+91 95338 40632</a></div>
+            <div class="social-icons">
+                <a href="https://facebook.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="FB"></a>
+                <a href="https://instagram.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/733/733558.png" alt="IG"></a>
+                <a href="https://youtube.com" target="_blank"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YT"></a>
+            </div>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
+
+def render_clickable_table(
+    df,
+    display_c,
+    p_col,
+    table_key="main",
+    sheet_for_link="",
+    page_size=100,
+    allow_edit=True,
+    restrict_edit_to_user=None,
+):
+    if df.empty:
+        st.info("No cases found.")
+        return
+
+    df = reorder_dataframe_columns(df)
+    total_rows = len(df)
+    total_pages = max(1, math.ceil(total_rows / page_size))
+    page_state_key = f"page_num_{table_key}"
+
+    if page_state_key not in st.session_state:
+        st.session_state[page_state_key] = 1
+    if st.session_state[page_state_key] > total_pages:
+        st.session_state[page_state_key] = total_pages
+    if st.session_state[page_state_key] < 1:
+        st.session_state[page_state_key] = 1
+
+    curr_page = st.session_state[page_state_key]
+    start_idx = (curr_page - 1) * page_size
+    end_idx = min(start_idx + page_size, total_rows)
+    page_df = df.iloc[start_idx:end_idx]
+
+    if total_pages > 1:
+        p_c1, p_c2, p_c3, p_c4 = st.columns([1.2, 2.6, 1.2, 1.2], gap="small")
+        with p_c1:
+            if st.button(
+                "⬅️ Previous",
+                key=f"prev_{table_key}",
+                disabled=(curr_page <= 1),
+                use_container_width=True,
+            ):
+                st.session_state[page_state_key] = curr_page - 1
+                st.rerun()
+        with p_c2:
+            st.markdown(
+                f"<div style='text-align:center; padding-top:10px; font-weight:700; color:#1e293b; font-size:13.5px;'>"
+                f"Page {curr_page} of {total_pages} &nbsp;|&nbsp; Showing {start_idx + 1}–{end_idx} of {total_rows} cases</div>",
+                unsafe_allow_html=True,
+            )
+        with p_c3:
+            if st.button(
+                "Next ➡️",
+                key=f"next_{table_key}",
+                disabled=(curr_page >= total_pages),
+                use_container_width=True,
+            ):
+                st.session_state[page_state_key] = curr_page + 1
+                st.rerun()
+        with p_c4:
+            jump_page = st.number_input(
+                "Page",
+                min_value=1,
+                max_value=total_pages,
+                value=curr_page,
+                label_visibility="collapsed",
+                key=f"jump_{table_key}",
+            )
+            if jump_page != curr_page:
+                st.session_state[page_state_key] = int(jump_page)
+                st.rerun()
+
+    cols_to_hide = (
+        ["Appointment_PDF", "__orig_idx__"]
+        if allow_edit
+        else [p_col, "Appointment_PDF", "__orig_idx__"]
+    )
+    display_cols = [c for c in page_df.columns if c not in cols_to_hide]
+
+    if "Sheet_Name" in display_cols:
+        display_cols = ["Sheet_Name"] + [
+            c for c in display_cols if c != "Sheet_Name"
+        ]
+
+    curr_logged = qp.get(
+        "logged_in", "true" if st.session_state.get("logged_in") else "false"
+    )
+    curr_user = qp.get("username", st.session_state.get("username", ""))
+    curr_role = qp.get("role", st.session_state.get("role", ""))
+    curr_sheet = (
+        sheet_for_link
+        or qp.get("active_sheet", st.session_state.get("active_sheet", ""))
+    )
+
+    html_parts = [
+        '<div style="max-height: 500px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 14px;">',
+        '<table style="width:100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">',
+        '<thead><tr style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; position: sticky; top: 0; z-index: 1;">',
+        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: center;">#</th>',
+    ]
+    for col in display_cols:
+        html_parts.append(
+            f'<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">{col}</th>'
+        )
+    html_parts.append(
+        '<th style="padding: 11px 10px; border: 1px solid #334155; text-align: left; white-space: nowrap;">Status</th>'
+    )
+    html_parts.append("</tr></thead><tbody>")
+
+    q_logged = urllib.parse.quote(str(curr_logged))
+    q_user = urllib.parse.quote(str(curr_user))
+    q_role = urllib.parse.quote(str(curr_role))
+
+    indices = page_df.index.tolist()
+    orig_indices = (
+        page_df["__orig_idx__"].tolist()
+        if "__orig_idx__" in page_df.columns
+        else indices
+    )
+    row_sheets = (
+        page_df["Sheet_Name"].astype(str).tolist()
+        if "Sheet_Name" in page_df.columns
+        else [curr_sheet] * len(page_df)
+    )
+    login_c_tbl = find_login_user_column(page_df)
+    row_workers = (
+        page_df[login_c_tbl].astype(str).str.strip().tolist()
+        if login_c_tbl in page_df.columns
+        else [""] * len(page_df)
+    )
+    row_case_ids = (
+        page_df["Case_ID"].astype(str).str.strip().tolist()
+        if "Case_ID" in page_df.columns
+        else [""] * len(page_df)
+    )
+
+    act_col_vals = (
+        page_df["Action_Type"].astype(str).str.strip().str.lower().tolist()
+        if "Action_Type" in page_df.columns
+        else [""] * len(page_df)
+    )
+    booking_status_vals = (
+        page_df["Booking_Status"].astype(str).str.strip().tolist()
+        if "Booking_Status" in page_df.columns
+        else ["Active"] * len(page_df)
+    )
+    col_data = {col: page_df[col].astype(str).tolist() for col in display_cols}
+
+    all_edit_reqs = (
+        load_edit_requests()
+        if (curr_role == "worker" and allow_edit)
+        else []
+    )
+    worker_edit_req_lookup = {}
+    if all_edit_reqs and curr_role == "worker":
+        u_low_k = curr_user.strip().lower()
+        for er in all_edit_reqs:
+            if er.get("Worker", "").strip().lower() == u_low_k:
+                s_k = er.get("Sheet_Name", "").strip().lower()
+                cid_k = er.get("Case_ID", "").strip().lower()
+                cu_k = er.get("Case_Username", "").strip().lower()
+                worker_edit_req_lookup[(s_k, cid_k, cu_k)] = er
+
+    for i, idx in enumerate(indices):
+        serial_no = start_idx + i + 1
+        act_t = act_col_vals[i]
+        b_status = booking_status_vals[i]
+        target_row_id = orig_indices[i]
+        target_sheet_name = row_sheets[i] if row_sheets[i] else curr_sheet
+        q_sheet_row = urllib.parse.quote(str(target_sheet_name))
+        row_link = f"?logged_in={q_logged}&username={q_user}&role={q_role}&active_sheet={q_sheet_row}&edit_row={target_row_id}"
+
+        row_can_edit = allow_edit
+        is_other_worker_case = False
+        req_badge = ""
+
+        if row_can_edit and curr_role == "worker":
+            r_worker = row_workers[i].strip().lower()
+            r_cid = row_case_ids[i].strip().lower()
+            r_cu = col_data[display_c][i].strip().lower() if display_c in col_data else ""
+            if r_worker != curr_user.strip().lower():
+                is_other_worker_case = True
+                matched_req = worker_edit_req_lookup.get(
+                    (target_sheet_name.strip().lower(), r_cid, r_cu)
+                )
+                if matched_req is None:
+                    for (s_k, cid_k, cu_k), er_val in worker_edit_req_lookup.items():
+                        if s_k == target_sheet_name.strip().lower() and (
+                            (r_cid and cid_k == r_cid) or (not r_cid and r_cu and cu_k == r_cu)
+                        ):
+                            matched_req = er_val
+                            break
+                if matched_req and matched_req.get("Status", "").strip().lower() == "approved":
+                    req_badge = ' <span style="font-size:10.5px; color:#047857; background:#d1fae5; padding:1px 6px; border-radius:5px; font-weight:700;">Approved Edit</span>'
+                elif matched_req and matched_req.get("Status", "").strip().lower() == "pending":
+                    req_badge = ' <span style="font-size:10.5px; color:#b45309; background:#fef3c7; padding:1px 6px; border-radius:5px; font-weight:700;">Edit Pending</span>'
+                elif matched_req and matched_req.get("Status", "").strip().lower() == "rejected":
+                    req_badge = ' <span style="font-size:10.5px; color:#b91c1c; background:#fee2e2; padding:1px 6px; border-radius:5px; font-weight:700;">Edit Rejected</span>'
+                else:
+                    req_badge = ' <span style="font-size:10.5px; color:#4338ca; background:#e0e7ff; padding:1px 6px; border-radius:5px; font-weight:700;">Request Edit</span>'
+
+        if row_can_edit and restrict_edit_to_user and not is_other_worker_case:
+            if row_workers[i].lower() != restrict_edit_to_user.strip().lower():
+                row_can_edit = False
+
+        row_bg = (
+            "#fee2e2"
+            if act_t == "delete rejected"
+            else ("#f8fafc" if i % 2 == 0 else "#ffffff")
+        )
+        html_parts.append(f'<tr style="background-color: {row_bg};">')
+        html_parts.append(
+            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; text-align: center; color: #64748b; font-weight: 700;">{serial_no}</td>'
+        )
+
+        for col in display_cols:
+            val = col_data[col][i]
+            if col == "Sheet_Name":
+                cell_content = f'<span style="font-weight:700; color:#0f766e; background:#f0fdfa; padding:2px 8px; border-radius:6px; border:1px solid #99f6e4;">{val if val != "" else "-"}</span>'
+            elif col == "Case_ID":
+                cell_content = f'<span style="font-weight:800; color:#1e3a8a; background:#eff6ff; padding:2px 8px; border-radius:6px; border:1px solid #bfdbfe;">{val if val != "" else "-"}</span>'
+            elif col == display_c:
+                display_val = (
+                    val.strip() if val.strip() != "" else "Not Assigned"
+                )
+                if row_can_edit:
+                    cell_content = f'<a href="{row_link}" target="_self" class="username-hyperlink">{display_val}</a>{req_badge}'
+                else:
+                    cell_content = f'<span style="font-weight:700; color:#1e293b;">{display_val}</span>'
+            else:
+                cell_content = val if val != "" else "-"
+            html_parts.append(
+                f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: #1e293b; white-space: nowrap;">{cell_content}</td>'
+            )
+
+        if act_t == "delete rejected":
+            status_display = "Rejected"
+            status_color = "#b91c1c"
+        elif b_status.lower() == "rescheduled":
+            status_display = "Rescheduled"
+            status_color = "#d97706"
+        elif b_status.lower() == "booked":
+            status_display = "Booked"
+            status_color = "#059669"
+        elif b_status.lower() == "issues":
+            status_display = "Issues"
+            status_color = "#7c3aed"
+        else:
+            status_display = "Active"
+            status_color = "#1e293b"
+
+        html_parts.append(
+            f'<td style="padding: 9px 10px; border: 1px solid #e2e8f0; color: {status_color}; font-weight: 700; white-space: nowrap;">{status_display}</td>'
+        )
+        html_parts.append("</tr>")
+
+    html_parts.append("</tbody></table></div>")
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
