@@ -2487,6 +2487,47 @@ def render_clickable_table(
     st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 
+def build_case_share_message(row_data, df_full, sheet_name, p_col):
+    lines = ["📌 *CASE DETAILS*"]
+    for col in df_full.columns:
+        if col not in [p_col, "Appointment_PDF"]:
+            val_str = str(row_data.get(col, "")).strip()
+            clean_v = val_str if val_str != "" else "-"
+            lines.append(f"{col}: {clean_v}")
+    lines.append(f"Sheet: {sheet_name}")
+    curr_b_status = str(row_data.get("Booking_Status", "Active")).strip()
+    lines.append(f"Status: {curr_b_status}")
+
+    issue_rem_val = str(row_data.get("Issue_Remark", "")).strip()
+    if issue_rem_val:
+        lines.append(f"Issue Remark: {issue_rem_val}")
+
+    app_entry_val = str(row_data.get("Appointment_Entry", "")).strip()
+    if app_entry_val:
+        lines.append(f"Current Appointment Entry: {app_entry_val}")
+
+    pref_loc_val = str(row_data.get("Preferred_Location", "")).strip()
+    pref_dates_val = str(row_data.get("Preferred_Dates", "")).strip()
+    prior_notice_val = str(row_data.get("Prior_Notice", "")).strip()
+    if pref_loc_val or pref_dates_val or prior_notice_val:
+        lines.append(
+            f"Reschedule Info: Location: {pref_loc_val} | Dates: {pref_dates_val} | Prior Notice: {prior_notice_val}"
+        )
+
+    lines.extend([
+        "",
+        "🔐 *CGI Portal Login Credentials*",
+        "Username: kondalaraogogineni",
+        "Password: Visa@2026",
+        "",
+        "Security questions and answers",
+        "First car - amaze",
+        "Favorite food - roti",
+        "Childhood Hero - father",
+    ])
+    return "\n".join(lines)
+
+
 @st.dialog("📋 Case Details, Edit & Appointment PDF", width="large", on_dismiss=close_case_popup_state)
 def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_update=True):
     enable_right_cursor_navigation_in_popup()
@@ -2577,6 +2618,18 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             )
         else:
             st.info("ℹ️ No Appointment PDF uploaded yet.")
+
+        st.markdown("---")
+        share_msg_text = build_case_share_message(row_data, df_full, sheet_name, p_col)
+        with st.expander("✉️ Share / Copy Case Message (With CGI Credentials)", expanded=False):
+            st.caption("ఈ మెసేజ్‌ని కాపీ చేసి WhatsApp / చాట్‌లో నేరుగా పంపించవచ్చు:")
+            st.text_area(
+                "Case & CGI Credentials Message",
+                value=share_msg_text,
+                height=300,
+                key=f"case_share_msg_{sheet_name}_{row_idx}",
+            )
+            st.code(share_msg_text, language="text")
 
         st.markdown("---")
         if role == "worker" and not can_update:
