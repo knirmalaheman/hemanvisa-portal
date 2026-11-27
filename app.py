@@ -26,12 +26,19 @@ ATTENDANCE_FILE = "worker_attendance.json"
 PDF_BASE_DIR = "uploaded_appointment_pdfs"
 LOGO_FILES = ["pngTShirtPrintCricket.jpg", "logo.jpg", "logo.png", "logo.jpeg"]
 
+DELETED_CASES_SHEET = "Delete Cases"
+
 SYSTEM_SHEETS = {
     "App_Logins",
     "App_Attendance",
     "App_Permissions",
     "App_Config",
     "App_Edit_Requests",
+}
+
+ADMIN_ONLY_SHEETS = {
+    DELETED_CASES_SHEET,
+    "Deleted Cases",
 }
 
 if not os.path.exists(PDF_BASE_DIR):
@@ -1363,18 +1370,37 @@ def ensure_all_cases_have_unique_ids(force=False):
         pass
 
 
-def get_sheet_names():
+def get_sheet_names(for_role=None):
     all_sheets = load_all_sheets_cached(_get_file_mtime())
+    role_eff = for_role if for_role is not None else st.session_state.get("role", "")
     if all_sheets:
-        visible = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
+        visible = []
+        for s in all_sheets.keys():
+            s_clean = str(s).strip()
+            if s_clean in SYSTEM_SHEETS:
+                continue
+            if role_eff != "admin" and (
+                s_clean in ADMIN_ONLY_SHEETS or "delete" in s_clean.lower()
+            ):
+                continue
+            visible.append(s)
         return visible if visible else list(all_sheets.keys())
     return ["Sheet1"]
 
 
-def get_default_active_sheet(sheets_list=None):
+def get_default_active_sheet(sheets_list=None, for_role=None):
     if sheets_list is None:
-        sheets_list = get_sheet_names()
-    filtered = [s for s in sheets_list if str(s).strip() not in SYSTEM_SHEETS]
+        sheets_list = get_sheet_names(for_role=for_role)
+    role_eff = for_role if for_role is not None else st.session_state.get("role", "")
+    filtered = [
+        s
+        for s in sheets_list
+        if str(s).strip() not in SYSTEM_SHEETS
+        and not (
+            role_eff != "admin"
+            and (str(s).strip() in ADMIN_ONLY_SHEETS or "delete" in str(s).strip().lower())
+        )
+    ]
     pool = filtered if filtered else sheets_list
     if not pool:
         return "Sheet1"
@@ -1382,10 +1408,73 @@ def get_default_active_sheet(sheets_list=None):
         (
             s
             for s in pool
-            if "booked" not in s.lower() and "issue" not in s.lower()
+            if "booked" not in s.lower()
+            and "issue" not in s.lower()
+            and "delete" not in s.lower()
         ),
         pool[0],
     )
+
+
+def get_deleted_cases_sheet_name(sheets_list=None):
+    all_sheets_dict = load_all_sheets_cached(_get_file_mtime())
+    candidate_names = list(all_sheets_dict.keys()) if all_sheets_dict else (sheets_list or [])
+    for s in candidate_names:
+        s_clean = str(s).strip()
+        if s_clean in ADMIN_ONLY_SHEETS or "delete" in s_clean.lower():
+            return s_clean
+    return DELETED_CASES_SHEET
+
+
+def append_deleted_case_to_sheet(
+    source_row,
+    source_sheet_name,
+    delete_reason,
+    deleted_by,
+    deleted_at,
+):
+    target_del_sheet = get_deleted_cases_sheet_name()
+    df_del = load_data(sheet_name=target_del_sheet)
+
+    base_cols = list(source_row.index) if source_row is not None else []
+    if df_del is None:
+        df_del = pd.DataFrame(columns=base_cols, dtype=str)
+    else:
+        df_del = df_del.copy()
+
+    for col in base_cols:
+        if col not in df_del.columns:
+            df_del[col] = ""
+
+    if "Deleted_From_Sheet" not in df_del.columns:
+        df_del["Deleted_From_Sheet"] = ""
+    if "Deleted_By" not in df_del.columns:
+        df_del["Deleted_By"] = ""
+    if "Deleted_At" not in df_del.columns:
+        df_del["Deleted_At"] = ""
+
+    row_to_del = {col: "" for col in df_del.columns}
+    if source_row is not None:
+        for col in df_del.columns:
+            if col in source_row.index:
+                row_to_del[col] = str(source_row[col])
+
+    if "Case_ID" in row_to_del and not str(row_to_del["Case_ID"]).strip():
+        row_to_del["Case_ID"] = generate_next_case_id()
+
+    row_to_del["Booking_Status"] = "Deleted"
+    row_to_del["Action_Type"] = "Delete Accepted"
+    if "Delete_Reason" in row_to_del:
+        row_to_del["Delete_Reason"] = str(delete_reason).strip()
+    row_to_del["Deleted_From_Sheet"] = str(source_sheet_name).strip()
+    row_to_del["Deleted_By"] = str(deleted_by).strip()
+    row_to_del["Deleted_At"] = str(deleted_at).strip()
+
+    df_del_updated = pd.concat(
+        [df_del, pd.DataFrame([row_to_del])], ignore_index=True
+    )
+    save_data(df_del_updated, sheet_name=target_del_sheet)
+    return target_del_sheet
 
 
 def generate_next_case_id(extra_reserved_ids=None):
@@ -1485,6 +1574,9 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
     with pd.ExcelWriter(worker_buffer, engine="openpyxl") as writer:
         has_user_data = False
         for s, df_s in all_sheets.items():
+            s_clean = str(s).strip()
+            if s_clean in SYSTEM_SHEETS or s_clean in ADMIN_ONLY_SHEETS or "delete" in s_clean.lower():
+                continue
             if df_s is not None and not df_s.empty:
                 login_cs = find_login_user_column(df_s)
                 u_rows_s = df_s[
@@ -1495,7 +1587,12 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
                     has_user_data = True
                     u_rows_s = reorder_dataframe_columns(u_rows_s)
                     u_rows_s.to_excel(writer, sheet_name=str(s)[:31], index=False)
-        if not has_user_data and current_sheet in all_sheets:
+        if (
+            not has_user_data
+            and current_sheet in all_sheets
+            and str(current_sheet).strip() not in ADMIN_ONLY_SHEETS
+            and "delete" not in str(current_sheet).strip().lower()
+        ):
             df_cur = all_sheets[current_sheet]
             login_cs = find_login_user_column(df_cur)
             u_rows_cur = df_cur[
@@ -1636,13 +1733,19 @@ def search_username_ds160_password_worker(df, query_text):
     return mask
 
 
-def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
+def search_across_all_sheets_by_fields(query_text, lead_filter="All", for_role=None):
     if not query_text:
         return pd.DataFrame()
     all_sheets = load_all_sheets_cached(_get_file_mtime())
+    role_eff = for_role if for_role is not None else st.session_state.get("role", "")
     matched_dfs = []
     for s_name, df_s in all_sheets.items():
-        if str(s_name).strip() in SYSTEM_SHEETS:
+        s_clean = str(s_name).strip()
+        if s_clean in SYSTEM_SHEETS:
+            continue
+        if role_eff != "admin" and (
+            s_clean in ADMIN_ONLY_SHEETS or "delete" in s_clean.lower()
+        ):
             continue
         if df_s is None or df_s.empty:
             continue
@@ -1945,7 +2048,8 @@ if "selected_row_idx" not in st.session_state:
 if st.session_state["logged_in"] and "edit_row" in qp:
     try:
         r_val = int(qp["edit_row"])
-        if "active_sheet" in qp and qp["active_sheet"] in get_sheet_names():
+        role_qp_eff = st.session_state.get("role", qp.get("role", "worker"))
+        if "active_sheet" in qp and qp["active_sheet"] in get_sheet_names(for_role=role_qp_eff):
             st.session_state["active_sheet"] = qp["active_sheet"]
         st.session_state["selected_row_idx"] = r_val
         st.session_state["open_dialog"] = "edit_case_popup"
@@ -1962,9 +2066,13 @@ elif not st.session_state["logged_in"] and "edit_row" in qp:
 
 default_s_init = st.session_state.get("active_sheet", "Sheet1")
 if st.session_state.get("logged_in") or st.session_state.get("open_dialog"):
-    sheets_init = get_sheet_names()
-    default_s_init = get_default_active_sheet(sheets_init)
-    if "active_sheet" not in st.session_state:
+    role_init_eff = st.session_state.get("role", "worker")
+    sheets_init = get_sheet_names(for_role=role_init_eff)
+    default_s_init = get_default_active_sheet(sheets_init, for_role=role_init_eff)
+    if (
+        "active_sheet" not in st.session_state
+        or st.session_state["active_sheet"] not in sheets_init
+    ):
         st.session_state["active_sheet"] = default_s_init
         st.query_params["active_sheet"] = default_s_init
     if "dash_sheet" not in st.session_state:
@@ -2661,6 +2769,9 @@ def render_clickable_table(
         if act_t == "delete rejected":
             status_display = "Rejected"
             status_color = "#b91c1c"
+        elif b_status.lower() == "deleted":
+            status_display = "Deleted"
+            status_color = "#991b1b"
         elif b_status.lower() == "rescheduled":
             status_display = "Rescheduled"
             status_color = "#d97706"
@@ -2863,6 +2974,15 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             key="btn_trigger_delete",
                         ):
                             try:
+                                row_snap = df_full.loc[row_idx].copy()
+                                ts_del = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                                append_deleted_case_to_sheet(
+                                    source_row=row_snap,
+                                    source_sheet_name=sheet_name,
+                                    delete_reason=str(row_snap.get("Delete_Reason", "")).strip(),
+                                    deleted_by=current_user,
+                                    deleted_at=ts_del,
+                                )
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
                                 close_case_popup_state()
@@ -2898,6 +3018,15 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
                             key="btn_trigger_delete",
                         ):
                             try:
+                                row_snap = df_full.loc[row_idx].copy()
+                                ts_del = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                                append_deleted_case_to_sheet(
+                                    source_row=row_snap,
+                                    source_sheet_name=sheet_name,
+                                    delete_reason=str(row_snap.get("Delete_Reason", "")).strip(),
+                                    deleted_by=current_user,
+                                    deleted_at=ts_del,
+                                )
                                 df_full = df_full.drop(row_idx)
                                 save_data(df_full, sheet_name=sheet_name)
                                 close_case_popup_state()
@@ -3867,7 +3996,7 @@ def admin_worker_wise_report_dialog():
     st.info(
         "💡 Booked cases report broken down by Case Worker, Today's activity, Total cases, and Visa Types:"
     )
-    sheets = get_sheet_names()
+    sheets = get_sheet_names(for_role="admin")
     target_sheet = next(
         (s for s in sheets if "booked" in s.lower()),
         sheets[0] if sheets else "Sheet1",
@@ -4189,6 +4318,15 @@ def admin_delete_requests_dialog():
                     ):
                         df_target = load_data(sheet_name=s_name)
                         if df_target is not None and orig_idx in df_target.index:
+                            row_snapshot = df_target.loc[orig_idx].copy()
+                            ts_accepted = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                            append_deleted_case_to_sheet(
+                                source_row=row_snapshot,
+                                source_sheet_name=s_name,
+                                delete_reason=delete_reason,
+                                deleted_by=st.session_state.get("username", "admin"),
+                                deleted_at=ts_accepted,
+                            )
                             df_target = df_target.drop(orig_idx)
                             save_data(df_target, sheet_name=s_name)
                             st.rerun()
@@ -4508,10 +4646,10 @@ def worker_password_dialog(worker_name):
 
 @st.dialog("➕ Add New Case", width="large")
 def add_case_dialog(worker_name):
-    sheets = get_sheet_names()
+    sheets = get_sheet_names(for_role="worker")
     default_idx = 0
     for idx_s, s_nm in enumerate(sheets):
-        if "booked" not in s_nm.lower() and "issue" not in s_nm.lower():
+        if "booked" not in s_nm.lower() and "issue" not in s_nm.lower() and "delete" not in s_nm.lower():
             default_idx = idx_s
             break
 
@@ -4635,7 +4773,7 @@ def add_case_dialog(worker_name):
 
 
 @st.dialog("🔍 Search Records Across All Sheets", width="large")
-def search_data_dialog(current_user=None, allow_edit=True):
+def search_data_dialog(current_user=None, allow_edit=True, for_role=None):
     search_query = (
         st.text_input(
             "Search by Case Worker Name, Case Username, DS160, Case Password, or Case ID (All Sheets):",
@@ -4645,7 +4783,7 @@ def search_data_dialog(current_user=None, allow_edit=True):
         .strip()
     )
     if search_query != "":
-        found_data = search_across_all_sheets_by_fields(search_query)
+        found_data = search_across_all_sheets_by_fields(search_query, for_role=for_role)
         if found_data.empty:
             st.warning(f"No matching records found across all sheets for '{search_query}'.")
         else:
@@ -4682,6 +4820,7 @@ dialog_map = {
         allow_edit=load_permissions()
         .get(st.session_state.get("username", ""), {})
         .get("can_update", True),
+        for_role=st.session_state.get("role", "worker"),
     ),
 }
 
@@ -4832,22 +4971,24 @@ if not st.session_state["logged_in"]:
                         u_in = username_input.strip()
                         p_in = password_input.strip()
                         admin_u, admin_p = get_admin_creds()
-                        sheets = get_sheet_names()
-                        default_act_sheet = get_default_active_sheet(sheets)
+                        sheets = get_sheet_names(for_role="worker")
+                        default_act_sheet = get_default_active_sheet(sheets, for_role="worker")
 
                         if u_in.lower() == admin_u.lower() and p_in == admin_p:
+                            admin_sheets = get_sheet_names(for_role="admin")
+                            admin_act_sheet = get_default_active_sheet(admin_sheets, for_role="admin")
                             st.session_state["logged_in"] = True
                             st.session_state["username"] = admin_u
                             st.session_state["role"] = "admin"
-                            st.session_state["active_sheet"] = default_act_sheet
-                            st.session_state["dash_sheet"] = default_act_sheet
-                            st.session_state["records_sheet"] = default_act_sheet
+                            st.session_state["active_sheet"] = admin_act_sheet
+                            st.session_state["dash_sheet"] = admin_act_sheet
+                            st.session_state["records_sheet"] = admin_act_sheet
                             st.session_state["admin_active_view"] = "dashboard"
                             st.query_params.clear()
                             st.query_params["logged_in"] = "true"
                             st.query_params["username"] = admin_u
                             st.query_params["role"] = "admin"
-                            st.query_params["active_sheet"] = default_act_sheet
+                            st.query_params["active_sheet"] = admin_act_sheet
                             st.rerun()
                         elif is_worker_blocked(u_in):
                             st.error(
@@ -4860,7 +5001,8 @@ if not st.session_state["logged_in"]:
                                 _get_file_mtime()
                             )
                             for s_chk, df_check in all_sheets_chk.items():
-                                if str(s_chk).strip() in SYSTEM_SHEETS:
+                                s_chk_clean = str(s_chk).strip()
+                                if s_chk_clean in SYSTEM_SHEETS or s_chk_clean in ADMIN_ONLY_SHEETS or "delete" in s_chk_clean.lower():
                                     continue
                                 if df_check is not None and not df_check.empty:
                                     login_c = find_login_user_column(df_check)
@@ -4912,7 +5054,7 @@ if not st.session_state["logged_in"]:
 elif st.session_state["role"] == "admin":
     all_sheets_map = load_all_sheets_cached(_get_file_mtime())
     sheets = list(all_sheets_map.keys()) if all_sheets_map else ["Sheet1"]
-    default_act_s = get_default_active_sheet(sheets)
+    default_act_s = get_default_active_sheet(sheets, for_role="admin")
     current_sheet = st.session_state.get("active_sheet", default_act_s)
     if current_sheet not in sheets:
         current_sheet = default_act_s
@@ -4941,7 +5083,7 @@ elif st.session_state["role"] == "admin":
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
-            act_s = get_default_active_sheet(get_sheet_names())
+            act_s = get_default_active_sheet(get_sheet_names(for_role="admin"), for_role="admin")
             st.session_state["active_sheet"] = act_s
             st.session_state["dash_sheet"] = act_s
             st.session_state["records_sheet"] = act_s
@@ -5137,6 +5279,7 @@ elif st.session_state["role"] == "admin":
             all_matched = search_across_all_sheets_by_fields(
                 dash_search_query,
                 lead_filter=st.session_state["admin_selected_lead"],
+                for_role="admin",
             )
             if all_matched.empty:
                 st.warning(
@@ -5908,4 +6051,3 @@ else:
         sheet_for_link=current_sheet,
         allow_edit=can_update,
     )
-	
