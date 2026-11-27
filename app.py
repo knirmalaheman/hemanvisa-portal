@@ -65,7 +65,21 @@ def _get_case_field_ci(row_data, candidate_names):
 
 def build_cgi_formatted_message(row_data):
     u_name = _get_case_field_ci(row_data, ["USERNAME", "Username", "Case Username", "user"])
-    p_word = _get_case_field_ci(row_data, ["Case Password", "CASE PASSWORD", "case_password", "CGI Password", "CGI_PASSWORD",  "Case Pass", "PASSWORD", "Password","pass"])
+    p_word = _get_case_field_ci(
+    row_data,
+    [
+        "Password.1",
+        "PASSWORD.1",
+        "password.1",
+        "Password1",
+        "PASSWORD1",
+        "password1",
+        "Case Password",
+        "PASSWORD",
+        "Password",
+        "pass",
+    ],
+)
 
     sq1 = _get_case_field_ci(row_data, ["SQ1", "Security Question 1", "SQ 1"])
     sqa1 = _get_case_field_ci(row_data, ["SQA", "SQA1", "Security Answer 1", "SQA 1"])
