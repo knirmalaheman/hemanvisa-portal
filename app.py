@@ -2551,3 +2551,648 @@ def render_sidebar():
         if not get_webapp_url():
             st.caption("⚠️ `GSHEET_WEBAPP_URL` secret set చేయబడలేదు.")
 # ================= END OF STEP 11 =================
+# ================= STEP 12: ADMIN DASHBOARD, REPORTS, PERMISSIONS & ATTENDANCE VIEW =================
+def render_notice_banner():
+    notice_txt = get_admin_notice()
+    if notice_txt:
+        safe_n = (
+            notice_txt.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+        st.markdown(
+            f"""
+            <div class="notice-ticker-wrap">
+                <span class="notice-badge">📢 NOTICE</span>
+                <div class="notice-marquee">
+                    <div class="notice-marquee-text">{safe_n}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_admin_dashboard(active_sheet_name):
+    render_notice_banner()
+    ensure_all_cases_have_unique_ids()
+
+    df_main = load_data(sheet_name=active_sheet_name)
+    if df_main is None:
+        df_main = pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"], dtype=str)
+
+    all_sheets_map = load_all_sheets_cached(_get_file_mtime())
+    today_str = get_ist_now().strftime("%Y-%m-%d")
+
+    total_cases_cnt = len(df_main)
+    booked_cnt = 0
+    resched_cnt = 0
+    today_upd_cnt = 0
+
+    for s_n, df_s in all_sheets_map.items():
+        if str(s_n).strip() in SYSTEM_SHEETS or df_s is None or df_s.empty:
+            continue
+        if "booked" in str(s_n).lower():
+            booked_cnt += len(df_s)
+        if "Booking_Status" in df_s.columns:
+            st_series = df_s["Booking_Status"].astype(str).str.strip().str.lower()
+            booked_cnt += int((st_series == "booked").sum()) if "booked" not in str(s_n).lower() else 0
+            resched_cnt += int((st_series == "rescheduled").sum())
+        for _, r_s in df_s.iterrows():
+            if is_today_updated_row(r_s, today_str):
+                today_upd_cnt += 1
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        render_kpi_card(f"Active Sheet ({active_sheet_name})", total_cases_cnt, "#1d4ed8", "Total rows in selected sheet")
+    with k2:
+        render_kpi_card("Booked Cases", booked_cnt, "#059669", "Across sheets & booked status")
+    with k3:
+        render_kpi_card("Rescheduled Cases", resched_cnt, "#d97706", "Marked as Rescheduled")
+    with k4:
+        render_kpi_card("Updated Today (IST)", today_upd_cnt, "#7c3aed", f"Date: {today_str}")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    t_cases, t_leads, t_add, t_reqs, t_perms, t_att, t_cfg = st.tabs([
+        "📋 Cases & Search",
+        "📊 Leads & Booked Report",
+        "➕ Add New Case",
+        "📝 Edit Requests",
+        "🔐 Permissions & Logins",
+        "⏱️ Attendance & Hours",
+        "⚙️ Notice & Admin",
+    ])
+
+    # --- TAB 1: CASES & SEARCH ---
+    with t_cases:
+        c_s1, c_s2, c_s3 = st.columns([2.5, 1.3, 1.2])
+        with c_s1:
+            q_txt = st.text_input(
+                "🔍 Search Case ID, Username, DS-160, Password, Worker",
+                value=st.session_state.get("search_query", ""),
+                key="adm_search_inp",
+            )
+            st.session_state["search_query"] = q_txt
+        with c_s2:
+            lead_choice = st.selectbox(
+                "Lead Filter",
+                options=["All", "Kiran", "Shanthi"],
+                index=["All", "Kiran", "Shanthi"].index(st.session_state.get("lead_filter", "All"))
+                if st.session_state.get("lead_filter", "All") in ["All", "Kiran", "Shanthi"]
+                else 0,
+                key="adm_lead_filter_sel",
+            )
+            st.session_state["lead_filter"] = lead_choice
+        with c_s3:
+            search_scope = st.selectbox(
+                "Search Scope",
+                options=["Current Sheet", "All Sheets"],
+                key="adm_search_scope",
+            )
+
+        if search_scope == "All Sheets" and q_txt.strip():
+            res_all = search_across_all_sheets_by_fields(q_txt.strip(), lead_filter=lead_choice)
+            st.caption("Row click cheste aa sheet & row modal open avtundi.")
+            if not res_all.empty:
+                show_cols = [c for c in res_all.columns if c != "__orig_idx__"]
+                render_html_table(
+                    res_all[show_cols],
+                    clickable_rows=False,
+                    highlight_today_rows=True,
+                    today_str=today_str,
+                )
+                sel_label_opts = [
+                    f"{idx + 1}. [{r.get('Sheet_Name', '')}] {r.get('Case_ID', '')} - {r.get(find_display_username_column(res_all), '')}"
+                    for idx, r in res_all.iterrows()
+                ]
+                picked_label = st.selectbox("Select case to open modal:", options=[""] + sel_label_opts, key="adm_all_pick")
+                if picked_label:
+                    pos_i = sel_label_opts.index(picked_label)
+                    picked_row = res_all.iloc[pos_i]
+                    st.session_state["selected_sheet"] = str(picked_row.get("Sheet_Name", active_sheet_name))
+                    st.session_state["selected_row_idx"] = int(picked_row.get("__orig_idx__", 0))
+                    st.session_state["is_editing_popup"] = True
+                    st.rerun()
+            else:
+                st.info("Match ayye records levu.")
+        else:
+            df_filtered = df_main.copy()
+            if lead_choice != "All" and not df_filtered.empty:
+                lc_f = find_login_user_column(df_filtered)
+                lead_col_f = next(
+                    (c for c in df_filtered.columns if "lead" in c.strip().lower()), lc_f
+                )
+                if lead_col_f in df_filtered.columns:
+                    df_filtered = df_filtered[
+                        df_filtered[lead_col_f]
+                        .astype(str)
+                        .str.strip()
+                        .str.lower()
+                        .str.contains(lead_choice.lower(), na=False)
+                    ]
+            if q_txt.strip() and not df_filtered.empty:
+                m_f = search_username_ds160_password_worker(df_filtered, q_txt.strip())
+                df_filtered = df_filtered[m_f]
+
+            st.caption("💡 ఏదైనా row మీద click చేస్తే Edit / Reschedule / CGI Credentials modal open అవుతుంది.")
+            row_idxs = list(df_filtered.index)
+            render_html_table(
+                reorder_dataframe_columns(df_filtered),
+                clickable_rows=True,
+                row_indices=row_idxs,
+                highlight_today_rows=True,
+                today_str=today_str,
+            )
+
+    # --- TAB 2: LEADS & BOOKED REPORT ---
+    with t_leads:
+        st.subheader("LEADS & BOOKED CASES REPORT")
+        r_c1, r_c2, r_c3 = st.columns(3)
+        with r_c1:
+            filter_by_date = st.checkbox("Filter by Updated Date", value=False, key="rep_date_chk")
+        with r_c2:
+            chosen_date = st.date_input("Select Date (IST)", value=get_ist_now().date(), key="rep_date_val")
+        with r_c3:
+            rep_lead = st.selectbox("Lead Breakdown", options=["All", "Kiran", "Shanthi"], key="rep_lead_sel")
+
+        kiran_cnt = 0
+        shanthi_cnt = 0
+        other_cnt = 0
+        rep_rows = []
+
+        target_d_str = chosen_date.strftime("%Y-%m-%d")
+        for s_n, df_s in all_sheets_map.items():
+            if str(s_n).strip() in SYSTEM_SHEETS or df_s is None or df_s.empty:
+                continue
+            lc_s = find_login_user_column(df_s)
+            lead_col_s = next((c for c in df_s.columns if "lead" in c.strip().lower()), lc_s)
+            for _, r_s in df_s.iterrows():
+                if filter_by_date and target_d_str not in str(r_s.get("Updated_At", "")):
+                    continue
+                l_val = str(r_s.get(lead_col_s, "")).strip() if lead_col_s in df_s.columns else ""
+                l_low = l_val.lower()
+                if "kiran" in l_low:
+                    kiran_cnt += 1
+                elif "shanthi" in l_low:
+                    shanthi_cnt += 1
+                else:
+                    other_cnt += 1
+
+                if rep_lead != "All" and rep_lead.lower() not in l_low:
+                    continue
+
+                rep_rows.append({
+                    "Sheet": s_n,
+                    "Case_ID": r_s.get("Case_ID", ""),
+                    "Username": r_s.get(find_display_username_column(df_s), ""),
+                    "Lead / Worker": l_val,
+                    "Booking_Status": r_s.get("Booking_Status", ""),
+                    "Updated_By": r_s.get("Updated_By", ""),
+                    "Updated_At": r_s.get("Updated_At", ""),
+                })
+
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            render_kpi_card("Kiran Cases", kiran_cnt, "#0284c7")
+        with m2:
+            render_kpi_card("Shanthi Cases", shanthi_cnt, "#16a34a")
+        with m3:
+            render_kpi_card("Other / Unassigned", other_cnt, "#64748b")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        render_html_table(pd.DataFrame(rep_rows), max_height=380)
+
+    # --- TAB 3: ADD NEW CASE ---
+    with t_add:
+        with st.form("adm_add_case_form"):
+            a1, a2, a3 = st.columns(3)
+            disp_u_c = find_display_username_column(df_main)
+            p_c = find_password_column(df_main)
+            login_u_c = find_login_user_column(df_main)
+            v_c = find_visa_type_column(df_main)
+
+            with a1:
+                add_u = st.text_input("Case Username *")
+                add_p = st.text_input("Password *")
+            with a2:
+                add_w = st.selectbox("Assign Case Worker", options=[""] + get_all_workers_list())
+                add_lead = st.text_input("Lead (e.g., Kiran / Shanthi)")
+            with a3:
+                add_visa = st.text_input("Visa Category / Type") if v_c else ""
+                add_status = st.selectbox("Booking Status", options=["Active", "Booked", "Rescheduled", "Issue"])
+
+            add_submit = st.form_submit_button("➕ Add Case to Sheet", type="primary")
+
+        if add_submit:
+            if not str(add_u).strip() or not str(add_p).strip():
+                st.error("Case Username మరియు Password తప్పనిసరి.")
+            else:
+                new_row = {col: "" for col in df_main.columns}
+                new_row["Case_ID"] = generate_next_case_id()
+                if disp_u_c in new_row:
+                    new_row[disp_u_c] = str(add_u).strip()
+                if p_c in new_row:
+                    new_row[p_c] = str(add_p).strip()
+                if login_u_c in new_row:
+                    new_row[login_u_c] = str(add_w).strip()
+                for col in new_row:
+                    if "lead" in col.strip().lower() and str(add_lead).strip():
+                        new_row[col] = str(add_lead).strip()
+                if v_c and v_c in new_row:
+                    new_row[v_c] = str(add_visa).strip()
+                if "Booking_Status" in new_row:
+                    new_row["Booking_Status"] = add_status
+                if "Updated_By" in new_row:
+                    new_row["Updated_By"] = "Admin"
+                if "Updated_At" in new_row:
+                    new_row["Updated_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                if "Action_Type" in new_row:
+                    new_row["Action_Type"] = "Added"
+
+                df_updated = pd.concat([df_main, pd.DataFrame([new_row])], ignore_index=True)
+                save_data(df_updated, sheet_name=active_sheet_name)
+                st.success(f"✅ New case `{new_row['Case_ID']}` added to `{active_sheet_name}`!")
+                st.rerun()
+
+    # --- TAB 4: EDIT REQUESTS ---
+    with t_reqs:
+        reqs_all = load_edit_requests()
+        if not reqs_all:
+            st.info("ప్రస్తుతం Edit Requests ఏవీ లేవు.")
+        else:
+            render_html_table(pd.DataFrame(reqs_all), max_height=300)
+            pending_items = [r for r in reqs_all if r.get("Status", "").lower() == "pending"]
+            if pending_items:
+                req_opts = [
+                    f"{r.get('Request_ID')} | {r.get('Worker')} | {r.get('Sheet_Name')} | Case {r.get('Case_ID')} | {r.get('Reason')}"
+                    for r in pending_items
+                ]
+                chosen_req_str = st.selectbox("Select Pending Request to Review:", options=req_opts, key="adm_req_sel")
+                req_pos = req_opts.index(chosen_req_str)
+                target_req = pending_items[req_pos]
+
+                rc1, rc2 = st.columns(2)
+                with rc1:
+                    if st.button("✅ Approve Request", key="adm_req_approve", type="primary"):
+                        for r in reqs_all:
+                            if r.get("Request_ID") == target_req.get("Request_ID"):
+                                r["Status"] = "Approved"
+                                r["Reviewed_By"] = "Admin"
+                                r["Reviewed_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        save_edit_requests(reqs_all)
+                        st.success("Request approved!")
+                        st.rerun()
+                with rc2:
+                    if st.button("❌ Reject Request", key="adm_req_reject"):
+                        for r in reqs_all:
+                            if r.get("Request_ID") == target_req.get("Request_ID"):
+                                r["Status"] = "Rejected"
+                                r["Reviewed_By"] = "Admin"
+                                r["Reviewed_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                        save_edit_requests(reqs_all)
+                        st.warning("Request rejected.")
+                        st.rerun()
+
+    # --- TAB 5: PERMISSIONS & LOGINS ---
+    with t_perms:
+        workers_list = get_all_workers_list()
+        perms_map = dict(load_permissions())
+        logins_map = load_login_tracking()
+
+        p_b1, p_b2 = st.columns(2)
+        with p_b1:
+            if st.button("🚫 Block All Worker Logins", key="adm_block_all_btn"):
+                toggle_all_workers_block(True)
+                st.success("All worker logins blocked.")
+                st.rerun()
+        with p_b2:
+            if st.button("✅ Unblock All Worker Logins", key="adm_unblock_all_btn"):
+                toggle_all_workers_block(False)
+                st.success("All worker logins unblocked.")
+                st.rerun()
+
+        st.markdown("---")
+        for w_name in workers_list:
+            cur_p = perms_map.get(w_name, {})
+            cur_l = logins_map.get(w_name, {"status": "Not Logged In", "last_login": "-"})
+            with st.expander(
+                f"👤 {w_name} — Status: {cur_l.get('status', 'Not Logged In')} | Last Login: {cur_l.get('last_login', '-')}",
+                expanded=False,
+            ):
+                pc1, pc2, pc3, pc4 = st.columns(4)
+                with pc1:
+                    p_edit = st.checkbox("Can Edit/Update", value=bool(cur_p.get("can_edit", True)), key=f"pe_{w_name}")
+                    p_add = st.checkbox("Can Add Case", value=bool(cur_p.get("can_add", True)), key=f"pa_{w_name}")
+                with pc2:
+                    p_res = st.checkbox("Can Reschedule", value=bool(cur_p.get("can_reschedule", True)), key=f"pr_{w_name}")
+                    p_del = st.checkbox("Can Request Delete", value=bool(cur_p.get("can_delete_req", True)), key=f"pd_{w_name}")
+                with pc3:
+                    p_dl = st.checkbox("Can Download Excel", value=bool(cur_p.get("can_download", False)), key=f"pdl_{w_name}")
+                    p_sy = st.checkbox("Can Sync Sheets", value=bool(cur_p.get("can_sync", False)), key=f"psy_{w_name}")
+                with pc4:
+                    p_blk = st.checkbox("Block Login", value=bool(cur_p.get("block_login", False)), key=f"pblk_{w_name}")
+                    if st.button("💾 Save", key=f"psave_{w_name}"):
+                        perms_map[w_name] = {
+                            "can_edit": p_edit,
+                            "can_update": p_edit,
+                            "can_add": p_add,
+                            "can_reschedule": p_res,
+                            "can_delete_req": p_del,
+                            "can_download": p_dl,
+                            "can_sync": p_sy,
+                            "block_login": p_blk,
+                        }
+                        save_permissions(perms_map)
+                        st.success(f"Saved permissions for {w_name}")
+                        st.rerun()
+
+    # --- TAB 6: ATTENDANCE & HOURS ---
+    with t_att:
+        att_rows = load_attendance()
+        df_day_sum, df_overall_sum = build_attendance_summary_tables(att_rows)
+        st.markdown("#### Worker-wise & Overall Total Hours")
+        render_html_table(df_overall_sum, max_height=260)
+        st.markdown("#### Day-wise Attendance & Duration")
+        render_html_table(df_day_sum, max_height=340)
+
+    # --- TAB 7: NOTICE & ADMIN ---
+    with t_cfg:
+        cur_notice = get_admin_notice()
+        new_notice_val = st.text_area("📢 Scrolling Announcement / Notice Board Text", value=cur_notice, height=80)
+        if st.button("💾 Save Notice", key="adm_save_notice_btn", type="primary"):
+            save_admin_notice(new_notice_val)
+            st.success("Notice board updated!")
+            st.rerun()
+
+        st.markdown("---")
+        adm_u_cur, _ = get_admin_creds()
+        with st.form("adm_change_creds_form"):
+            nu = st.text_input("New Admin Username", value=adm_u_cur)
+            np1 = st.text_input("New Admin Password", type="password")
+            np2 = st.text_input("Confirm New Password", type="password")
+            chg_sub = st.form_submit_button("🔑 Update Admin Credentials")
+        if chg_sub:
+            if not nu.strip() or not np1.strip():
+                st.error("Username మరియు Password ఖాళీగా ఉండకూడదు.")
+            elif np1 != np2:
+                st.error("Passwords match కాలేదు.")
+            else:
+                save_admin_creds(nu.strip(), np1.strip())
+                st.success("Admin credentials updated!")
+# ================= END OF STEP 12 =================
+# ================= STEP 13: WORKER DASHBOARD & MAIN ENTRYPOINT =================
+def render_worker_dashboard(worker_name, active_sheet_name):
+    render_notice_banner()
+    ensure_all_cases_have_unique_ids()
+
+    perms_map = load_permissions()
+    u_perm = next(
+        (v for k, v in perms_map.items() if k.lower() == str(worker_name).strip().lower()),
+        {
+            "can_edit": True,
+            "can_update": True,
+            "can_add": True,
+            "can_reschedule": True,
+            "can_delete_req": True,
+            "can_search": True,
+            "can_download": False,
+            "can_sync": False,
+        },
+    )
+
+    df_main = load_data(sheet_name=active_sheet_name)
+    if df_main is None:
+        df_main = pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"], dtype=str)
+
+    today_str = get_ist_now().strftime("%Y-%m-%d")
+    lc_main = find_login_user_column(df_main) if not df_main.empty else None
+
+    if lc_main and lc_main in df_main.columns and not df_main.empty:
+        my_df = df_main[
+            df_main[lc_main].astype(str).str.strip().str.lower() == str(worker_name).strip().lower()
+        ].copy()
+    else:
+        my_df = df_main.iloc[0:0].copy()
+
+    booked_my = 0
+    resched_my = 0
+    today_my = 0
+    if not my_df.empty:
+        if "Booking_Status" in my_df.columns:
+            st_s = my_df["Booking_Status"].astype(str).str.strip().str.lower()
+            booked_my = int((st_s == "booked").sum())
+            resched_my = int((st_s == "rescheduled").sum())
+        for _, r_m in my_df.iterrows():
+            if is_today_updated_row(r_m, today_str):
+                today_my += 1
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        render_kpi_card("My Assigned Cases", len(my_df), "#1d4ed8", f"Sheet: {active_sheet_name}")
+    with k2:
+        render_kpi_card("My Booked", booked_my, "#059669")
+    with k3:
+        render_kpi_card("My Rescheduled", resched_my, "#d97706")
+    with k4:
+        render_kpi_card("Updated Today (IST)", today_my, "#7c3aed", f"Date: {today_str}")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    wt1, wt2, wt3, wt4 = st.tabs([
+        "👤 My Cases",
+        "🔍 All Sheets Search",
+        "➕ Add Case",
+        "📝 My Edit Requests",
+    ])
+
+    with wt1:
+        q_my = st.text_input("🔍 Search My Cases (Case ID, Username, DS-160, Password)", key="w_my_search")
+        view_my = my_df.copy()
+        if q_my.strip() and not view_my.empty:
+            view_my = view_my[search_username_ds160_password_worker(view_my, q_my.strip())]
+
+        st.caption("💡 ఏదైనా case row మీద click చేస్తే Edit / Reschedule / CGI Credentials modal open అవుతుంది.")
+        render_html_table(
+            reorder_dataframe_columns(view_my),
+            clickable_rows=True,
+            row_indices=list(view_my.index),
+            highlight_today_rows=True,
+            today_str=today_str,
+        )
+
+    with wt2:
+        if not u_perm.get("can_search", True):
+            st.warning("మీకు All Sheets Search permission లేదు.")
+        else:
+            q_all = st.text_input("🔍 Search Across All Sheets", key="w_all_search")
+            if q_all.strip():
+                res_all = search_across_all_sheets_by_fields(q_all.strip(), lead_filter="All")
+                if not res_all.empty:
+                    show_c = [c for c in res_all.columns if c != "__orig_idx__"]
+                    render_html_table(res_all[show_c], clickable_rows=False)
+                    opts_w = [
+                        f"{i + 1}. [{r.get('Sheet_Name', '')}] {r.get('Case_ID', '')} - {r.get(find_display_username_column(res_all), '')}"
+                        for i, r in res_all.iterrows()
+                    ]
+                    sel_w = st.selectbox("Select case to open modal:", options=[""] + opts_w, key="w_all_pick")
+                    if sel_w:
+                        p_idx = opts_w.index(sel_w)
+                        r_pick = res_all.iloc[p_idx]
+                        st.session_state["selected_sheet"] = str(r_pick.get("Sheet_Name", active_sheet_name))
+                        st.session_state["selected_row_idx"] = int(r_pick.get("__orig_idx__", 0))
+                        st.session_state["is_editing_popup"] = True
+                        st.rerun()
+                else:
+                    st.info("సంబంధిత records ఏవీ కనిపించలేదు.")
+
+    with wt3:
+        if not u_perm.get("can_add", True):
+            st.warning("మీకు కొత్త Case add చేసే permission లేదు.")
+        else:
+            with st.form("w_add_case_form"):
+                disp_uc = find_display_username_column(df_main)
+                pc = find_password_column(df_main)
+                l_uc = find_login_user_column(df_main)
+                vc = find_visa_type_column(df_main)
+
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    wu = st.text_input("Case Username *")
+                    wp = st.text_input("Password *")
+                with c2:
+                    w_assign = st.selectbox(
+                        "Assign Worker",
+                        options=[worker_name] + [w for w in get_all_workers_list() if w != worker_name],
+                    )
+                    w_lead = st.text_input("Lead")
+                with c3:
+                    w_visa = st.text_input("Visa Category / Type") if vc else ""
+                    w_st = st.selectbox("Booking Status", options=["Active", "Booked", "Rescheduled", "Issue"])
+
+                w_sub = st.form_submit_button("➕ Add Case", type="primary")
+
+            if w_sub:
+                if not str(wu).strip() or not str(wp).strip():
+                    st.error("Case Username మరియు Password తప్పనిసరి.")
+                else:
+                    nrow = {col: "" for col in df_main.columns}
+                    nrow["Case_ID"] = generate_next_case_id()
+                    if disp_uc in nrow:
+                        nrow[disp_uc] = str(wu).strip()
+                    if pc in nrow:
+                        nrow[pc] = str(wp).strip()
+                    if l_uc in nrow:
+                        nrow[l_uc] = str(w_assign).strip()
+                    for col in nrow:
+                        if "lead" in col.strip().lower() and str(w_lead).strip():
+                            nrow[col] = str(w_lead).strip()
+                    if vc and vc in nrow:
+                        nrow[vc] = str(w_visa).strip()
+                    if "Booking_Status" in nrow:
+                        nrow["Booking_Status"] = w_st
+                    if "Updated_By" in nrow:
+                        nrow["Updated_By"] = str(worker_name)
+                    if "Updated_At" in nrow:
+                        nrow["Updated_At"] = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                    if "Action_Type" in nrow:
+                        nrow["Action_Type"] = "Added"
+
+                    df_u = pd.concat([df_main, pd.DataFrame([nrow])], ignore_index=True)
+                    save_data(df_u, sheet_name=active_sheet_name)
+                    st.success(f"✅ Case `{nrow['Case_ID']}` added!")
+                    st.rerun()
+
+    with wt4:
+        all_reqs = load_edit_requests()
+        my_reqs = [
+            r for r in all_reqs if r.get("Worker", "").strip().lower() == str(worker_name).strip().lower()
+        ]
+        if my_reqs:
+            render_html_table(pd.DataFrame(my_reqs), max_height=240)
+        else:
+            st.info("మీ Edit Requests ఏవీ లేవు.")
+
+        with st.form("w_new_edit_req_form"):
+            r_cid = st.text_input("Case ID (e.g., HM1005) *")
+            r_cu = st.text_input("Case Username")
+            r_reason = st.text_area("Reason for Edit / Access Request *", height=70)
+            r_send = st.form_submit_button("📩 Submit Edit Request", type="primary")
+        if r_send:
+            if not str(r_cid).strip() or not str(r_reason).strip():
+                st.error("Case ID మరియు Reason తప్పనిసరి.")
+            else:
+                create_or_reopen_edit_request(
+                    worker_name=str(worker_name),
+                    sheet_name=str(active_sheet_name),
+                    case_id=str(r_cid).strip(),
+                    case_username=str(r_cu).strip(),
+                    row_idx="",
+                    reason=str(r_reason).strip(),
+                )
+                st.success("✅ Edit request submit అయింది!")
+                st.rerun()
+
+
+def main():
+    inject_custom_css()
+    render_sidebar()
+
+    is_admin = st.session_state.get("is_admin", False)
+    current_user = st.session_state.get("current_user")
+
+    if not is_admin and not current_user:
+        render_notice_banner()
+        st.markdown("## ✈️ HemanVisa Case & Appointment Portal")
+        st.info("👈 ఎడమ వైపు Sidebar లో **Case Worker** లేదా **Admin** login వివరాలు ఇచ్చి ప్రారంభించండి.")
+        return
+
+    sheets_list = get_sheet_names()
+    active_sheet = st.session_state.get("selected_sheet") or get_default_active_sheet(sheets_list)
+    st.session_state["selected_sheet"] = active_sheet
+
+    # Handle clickable row query param (?edit_row=...)
+    if "edit_row" in st.query_params:
+        raw_q_idx = str(st.query_params.get("edit_row", "")).strip()
+        try:
+            parsed_idx = int(raw_q_idx)
+            st.session_state["selected_row_idx"] = parsed_idx
+            st.session_state["is_editing_popup"] = True
+        except Exception:
+            pass
+        try:
+            del st.query_params["edit_row"]
+        except Exception:
+            pass
+
+    if is_admin:
+        render_admin_dashboard(active_sheet)
+    else:
+        render_worker_dashboard(str(current_user), active_sheet)
+
+    # Open modal dialog if requested
+    if st.session_state.get("is_editing_popup") and st.session_state.get("selected_row_idx") is not None:
+        modal_sheet = st.session_state.get("selected_sheet") or active_sheet
+        modal_df = load_data(sheet_name=modal_sheet)
+        target_idx = st.session_state.get("selected_row_idx")
+
+        perms_map = load_permissions()
+        u_perm = next(
+            (v for k, v in perms_map.items() if k.lower() == str(current_user or "").strip().lower()),
+            {},
+        )
+        show_case_action_modal(
+            target_row_idx=target_idx,
+            modal_df=modal_df,
+            modal_sheet_name=modal_sheet,
+            is_admin_view=bool(is_admin),
+            current_worker_name=str(current_user or ""),
+            can_edit_allowed=bool(u_perm.get("can_edit", True)),
+            can_delete_req_allowed=bool(u_perm.get("can_delete_req", True)),
+            can_reschedule_allowed=bool(u_perm.get("can_reschedule", True)),
+        )
+
+
+if __name__ == "__main__":
+    main()
+# ================= END OF STEP 13 =================
