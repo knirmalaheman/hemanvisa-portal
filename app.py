@@ -1,4 +1,4 @@
-# ================= PART 1: IMPORTS, CONSTANTS, CGI FORMATTER & WEBAPP BASE =================
+# ================= STEP 1: IMPORTS, CONSTANTS, CGI FORMATTER & WEBAPP BASE =================
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -194,9 +194,18 @@ def get_webapp_url():
 def _clear_sheet_runtime_caches():
     st.session_state.pop("_mem_sheets_cache", None)
     st.session_state.pop("_parsed_meta_cache", None)
-    _fetch_and_process_all_sheets_cached.clear()
-    get_admin_gsheet_export_bytes.clear()
-    get_worker_export_bytes.clear()
+    try:
+        _fetch_and_process_all_sheets_cached.clear()
+    except Exception:
+        pass
+    try:
+        get_admin_gsheet_export_bytes.clear()
+    except Exception:
+        pass
+    try:
+        get_worker_export_bytes.clear()
+    except Exception:
+        pass
 
 
 def _rows_to_df(raw_rows):
@@ -396,7 +405,7 @@ def _write_sheet_records(sheet_name, columns, records):
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
     st.session_state.pop("_parsed_meta_cache", None)
-    # ================= PART 2: EDIT REQUESTS, ADMIN CREDS, NOTICE & PERMISSIONS =================
+    # ================= STEP 2: EDIT REQUESTS, ADMIN CREDS, NOTICE & PERMISSIONS =================
 EDIT_REQ_COLS = [
     "Request_ID",
     "Worker",
@@ -616,12 +625,7 @@ def save_permissions(perms_dict):
                 "block_login": str(p.get("block_login", False)),
             })
     _write_sheet_records("App_Permissions", cols, records)
-```[cite: 2]
-
----
-
-**Part 2** paste chesi, tarvata **"next"** ani cheppandi — **Part 3** (IST Date/Time Parsing, Login Tracking, Attendance & Summary Tables) istaanu[cite: 2].
-    # ================= PART 3: IST PARSING, LOGIN TRACKING, ATTENDANCE & SUMMARY =================
+    # ================= STEP 3: IST PARSING, LOGIN TRACKING, ATTENDANCE & SUMMARY =================
 def _parse_iso_to_ist_datetime(val_str):
     s = str(val_str).strip()
     if not s or s == "-":
@@ -1120,7 +1124,7 @@ def build_attendance_summary_tables(attendance_data):
     if not df_overall.empty:
         df_overall.index = range(1, len(df_overall) + 1)
     return df_day, df_overall
-    # ================= PART 4: COLUMN REORDERING, CASE IDS, SHEET NORMALIZATION & EXPORT =================
+    # ================= STEP 4: COLUMN REORDERING, CASE IDS, SHEET NORMALIZATION & EXPORT =================
 def close_case_popup_state():
     st.session_state["is_editing_popup"] = False
     st.session_state["is_delete_request_mode"] = False
@@ -1508,7 +1512,7 @@ def get_worker_export_bytes(file_mtime, current_user, current_sheet):
             u_rows_cur = reorder_dataframe_columns(u_rows_cur)
             u_rows_cur.to_excel(writer, sheet_name=str(current_sheet)[:31], index=False)
     return worker_buffer.getvalue()
-    # ================= PART 5: DATA LOAD/SAVE, SEARCH, WORKER BLOCKING & POPUP NAV =================
+    # ================= STEP 5: DATA LOAD/SAVE, SEARCH, WORKER BLOCKING & POPUP NAV =================
 def load_data(sheet_name=0):
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     if not all_sheets:
@@ -1883,7 +1887,7 @@ def enable_right_cursor_navigation_in_popup():
         height=0,
         width=0,
     )
-    # ================= PART 6: SESSION STATE, CSS, TOP BANNER & CLICKABLE TABLE =================
+    # ================= STEP 6: SESSION STATE, CSS, TOP BANNER & CLICKABLE TABLE =================
 qp = st.query_params
 
 if "logged_in" not in st.session_state:
@@ -2682,7 +2686,7 @@ def render_clickable_table(
 
     html_parts.append("</tbody></table></div>")
     st.markdown("".join(html_parts), unsafe_allow_html=True)
-    # ================= PART 7: VIEW/EDIT CASE DIALOG & ADMIN DIALOGS =================
+    # ================= STEP 7: VIEW/EDIT CASE DIALOG & ADMIN DIALOGS =================
 @st.dialog("Case Details & Actions", width="large")
 def view_and_edit_case_dialog():
     enable_right_cursor_navigation_in_popup()
@@ -3458,7 +3462,7 @@ def open_admin_modal():
     if st.button("Close Window", key="close_admin_dialog_btn"):
         st.session_state["open_dialog"] = None
         st.rerun()
-    # ================= PART 8: HOME PAGE, LOGIN PAGE & WORKER PORTAL =================
+    # ================= STEP 8: HOME PAGE, LOGIN PAGE & WORKER PORTAL =================
 def show_home_page():
     st.markdown(
         """
@@ -3775,7 +3779,7 @@ def show_worker_portal():
         allow_edit=can_edit_perm,
         restrict_edit_to_user=None,
     )
-    # ================= PART 9: ADMIN PORTAL, DIALOG TRIGGER & ENTRYPOINT =================
+    # ================= STEP 9: ADMIN PORTAL, DIALOG TRIGGER & ENTRYPOINT =================
 def show_admin_portal():
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     visible_sheets = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
@@ -3993,4 +3997,7 @@ else:
         show_home_page()
     else:
         show_login_page()
+
+if __name__ == "__main__":
+    pass
     
