@@ -108,6 +108,23 @@ def _fetch_sheets_from_webapp():
         return None
 
 
+def _update_session_sheets_cache(updated_sheets_map):
+    if not updated_sheets_map:
+        return
+    mem_cache = st.session_state.get("_mem_sheets_cache")
+    if isinstance(mem_cache, dict):
+        for s_k, df_v in updated_sheets_map.items():
+            if df_v is not None:
+                s_clean = str(s_k).strip()
+                if s_clean in SYSTEM_SHEETS:
+                    df_sys = df_v.copy()
+                    df_sys.columns = df_sys.columns.str.strip()
+                    mem_cache[s_clean] = df_sys.fillna("").astype(str)
+                else:
+                    mem_cache[s_clean] = _normalize_sheet_df(df_v.copy())
+        st.session_state["_mem_sheets_cache"] = mem_cache
+
+
 def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
     url = get_webapp_url()
     if not url:
@@ -133,8 +150,44 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
             st.error(f"Google Sheet Save Error ({sheet_name}): {res_json}")
+        else:
+            to_update = dict(all_sheets_dict) if all_sheets_dict else {str(sheet_name): df_clean}
+            _update_session_sheets_cache(to_update)
     except Exception as e:
         st.error(f"Google Sheet Push Error ({sheet_name}): {e}")
+
+
+def _push_multiple_sheets_batch(sheets_map):
+    if not sheets_map:
+        return
+    url = get_webapp_url()
+    if not url:
+        st.error("GSHEET_WEBAPP_URL కనిపించడం లేదు!")
+        return
+    try:
+        items = [(str(k), v.fillna("").astype(str)) for k, v in sheets_map.items() if v is not None]
+        if not items:
+            return
+        first_name, first_df = items[0]
+        rows_2d = [first_df.columns.tolist()] + first_df.values.tolist()
+        all_payload = {}
+        for s_k, df_k in items:
+            all_payload[s_k] = [df_k.columns.tolist()] + df_k.values.tolist()
+        body = {
+            "action": "save_sheet",
+            "sheet_name": first_name,
+            "data": rows_2d,
+            "sheets": all_payload,
+        }
+        resp = requests.post(url, json=body, timeout=20, allow_redirects=True)
+        resp.raise_for_status()
+        res_json = resp.json()
+        if isinstance(res_json, dict) and res_json.get("status") != "success":
+            st.error(f"Google Sheet Batch Save Error: {res_json}")
+        else:
+            _update_session_sheets_cache({k: v for k, v in items})
+    except Exception as e:
+        st.error(f"Google Sheet Batch Push Error: {e}")
 
 
 def get_ist_now():
@@ -159,21 +212,22 @@ def _read_sheet_rows(sheet_name):
     return df.fillna("").astype(str).to_dict(orient="records")
 
 
-def _write_sheet_records(sheet_name, columns, records):
+def _build_records_df(columns, records):
     if records:
         df_new = pd.DataFrame(records)
         for col in columns:
             if col not in df_new.columns:
                 df_new[col] = ""
-        df_new = df_new[columns].fillna("").astype(str)
-    else:
-        df_new = pd.DataFrame(columns=columns, dtype=str)
+        return df_new[columns].fillna("").astype(str)
+    return pd.DataFrame(columns=columns, dtype=str)
 
+
+def _write_sheet_records(sheet_name, columns, records):
+    df_new = _build_records_df(columns, records)
     _push_sheet_to_webapp(sheet_name, df_new, all_sheets_dict=None)
     st.session_state["_gsheet_sync_version"] = (
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
-    st.cache_data.clear()
 
 
 EDIT_REQ_COLS = [
@@ -588,6 +642,45 @@ def save_attendance(att_list):
     _write_sheet_records("App_Attendance", ATTENDANCE_COLS, records)
 
 
+def _build_login_tracking_df(logins_dict):
+    cols = ["Worker", "status", "last_login"]
+    records = []
+    for w, info in (logins_dict or {}).items():
+        if str(w).strip():
+            raw_last = str(info.get("last_login", "-")).strip() or "-"
+            clean_last = _normalize_iso_timestamp_to_ist(raw_last) if raw_last != "-" else "-"
+            records.append({
+                "Worker": str(w).strip(),
+                "status": str(info.get("status", "Not Logged In")),
+                "last_login": clean_last or "-",
+            })
+    return _build_records_df(cols, records)
+
+
+def _build_attendance_df(att_list):
+    records = []
+    for item in (att_list or []):
+        w = str(item.get("Worker", "")).strip()
+        if w:
+            d_clean = _normalize_date_ist(item.get("Date", ""))
+            l_clean = _normalize_time_ist(item.get("Login_Time", "-"))
+            lo_clean = _normalize_time_ist(item.get("Logout_Time", "-"))
+            raw_st = str(item.get("Status", "")).strip()
+            st_clean = "Logged Out" if lo_clean != "-" else (raw_st if raw_st else "Active")
+            is_act = st_clean.lower() in ["active", "logged in", "online"]
+            dur_sec = _compute_duration_seconds(d_clean, l_clean, lo_clean, is_active=is_act)
+            dur_str = _format_seconds_hhmm(dur_sec) if (l_clean != "-" and (lo_clean != "-" or is_act)) else "0h 0m"
+            records.append({
+                "Worker": w,
+                "Date": d_clean,
+                "Login_Time": l_clean,
+                "Logout_Time": lo_clean,
+                "Duration": dur_str,
+                "Status": st_clean,
+            })
+    return _build_records_df(ATTENDANCE_COLS, records)
+
+
 def record_worker_login(worker_name):
     if not worker_name:
         return
@@ -601,7 +694,7 @@ def record_worker_login(worker_name):
         "status": "Logged In",
         "last_login": full_timestamp,
     }
-    _save_login_tracking(logins)
+    df_logins = _build_login_tracking_df(logins)
 
     attendance = load_attendance()
     for entry in attendance:
@@ -621,7 +714,15 @@ def record_worker_login(worker_name):
         "Duration": "0h 0m",
         "Status": "Active",
     })
-    save_attendance(attendance)
+    df_att = _build_attendance_df(attendance)
+
+    _push_multiple_sheets_batch({
+        "App_Logins": df_logins,
+        "App_Attendance": df_att,
+    })
+    st.session_state["_gsheet_sync_version"] = (
+        st.session_state.get("_gsheet_sync_version", 0) + 1
+    )
 
 
 def record_worker_logout(worker_name):
@@ -635,7 +736,7 @@ def record_worker_logout(worker_name):
     for k in list(logins.keys()):
         if k.strip().lower() == worker_name.strip().lower():
             logins[k]["status"] = "Not Logged In"
-    _save_login_tracking(logins)
+    df_logins = _build_login_tracking_df(logins)
 
     attendance = load_attendance()
     updated_any = False
@@ -694,7 +795,15 @@ def record_worker_logout(worker_name):
             "Duration": "0h 0m",
             "Status": "Logged Out",
         })
-    save_attendance(attendance)
+    df_att = _build_attendance_df(attendance)
+
+    _push_multiple_sheets_batch({
+        "App_Logins": df_logins,
+        "App_Attendance": df_att,
+    })
+    st.session_state["_gsheet_sync_version"] = (
+        st.session_state.get("_gsheet_sync_version", 0) + 1
+    )
 
 
 def build_attendance_summary_tables(attendance_data):
@@ -978,7 +1087,7 @@ def _normalize_sheet_df(df):
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_all_sheets_cached(file_mtime):
+def _fetch_and_process_all_sheets_cached(base_cache_key):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
 
@@ -1013,6 +1122,18 @@ def load_all_sheets_cached(file_mtime):
         return {}
 
 
+def load_all_sheets_cached(file_mtime):
+    mem_cache = st.session_state.get("_mem_sheets_cache")
+    if isinstance(mem_cache, dict) and len(mem_cache) > 0:
+        return mem_cache
+    base_key = os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
+    processed = _fetch_and_process_all_sheets_cached(base_key)
+    if isinstance(processed, dict) and len(processed) > 0:
+        st.session_state["_mem_sheets_cache"] = {k: v.copy() for k, v in processed.items()}
+        return st.session_state["_mem_sheets_cache"]
+    return processed
+
+
 def ensure_all_cases_have_unique_ids(force=False):
     mtime = _get_file_mtime()
     last_checked_key = "_last_id_sync_mtime"
@@ -1033,7 +1154,7 @@ def ensure_all_cases_have_unique_ids(force=False):
             first_s = list(all_sheets.keys())[0]
             _push_sheet_to_webapp(first_s, all_sheets[first_s], all_sheets)
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-            st.cache_data.clear()
+            st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
         st.session_state[last_checked_key] = _get_file_mtime()
     except Exception:
         pass
@@ -1236,7 +1357,7 @@ def save_data(df_to_save, sheet_name=0):
 
     _push_sheet_to_webapp(target_sheet_key, df_to_save, sheets_data)
     st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-    st.cache_data.clear()
+    st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
     st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
 
 
@@ -1615,7 +1736,9 @@ if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
 
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
     curr_w = st.session_state.get("username", "")
-    if is_worker_blocked(curr_w):
+    if st.session_state.pop("_just_logged_in", False):
+        pass
+    elif is_worker_blocked(curr_w):
         record_worker_logout(curr_w)
         st.query_params.clear()
         st.session_state["logged_in"] = False
@@ -4050,7 +4173,7 @@ def permissions_dialog():
                         }
                         save_permissions(current_perms)
                         st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-                        st.cache_data.clear()
+                        st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
                         st.success(f"✅ Saved changes for '{u_name}'!")
                     except Exception as e:
                         st.error(f"❌ Error updating '{u_name}': {e}")
@@ -4099,7 +4222,7 @@ def sync_excel_dialog():
                     first_k = list(uploaded_sheets.keys())[0]
                     _push_sheet_to_webapp(first_k, uploaded_sheets[first_k], uploaded_sheets)
                 st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-                st.cache_data.clear()
+                st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
                 ensure_all_cases_have_unique_ids(force=True)
                 st.success("✅ Cloud & Google Sheet data updated successfully!")
                 st.rerun()
@@ -4167,7 +4290,7 @@ def worker_password_dialog(worker_name):
                         first_k = list(all_sheets_data.keys())[0]
                         _push_sheet_to_webapp(first_k, all_sheets_data[first_k], all_sheets_data)
                     st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-                    st.cache_data.clear()
+                    st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
                     st.success("✅ Password updated successfully!")
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
@@ -4562,6 +4685,7 @@ if not st.session_state["logged_in"]:
                                     default_act_sheet
                                 )
                                 st.session_state["attendance_recorded"] = True
+                                st.session_state["_just_logged_in"] = True
                                 st.query_params.clear()
                                 st.query_params["logged_in"] = "true"
                                 st.query_params["username"] = (
@@ -4605,7 +4729,7 @@ elif st.session_state["role"] == "admin":
     with top_col2:
         if st.button("🔄 Refresh", key="admin_refresh"):
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-            st.cache_data.clear()
+            st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
             st.session_state["active_sheet"] = act_s
@@ -5299,7 +5423,7 @@ else:
     with w_top3:
         if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-            st.cache_data.clear()
+            st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
             st.session_state["active_sheet"] = act_s
