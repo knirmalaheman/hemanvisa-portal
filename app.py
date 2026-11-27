@@ -2111,3 +2111,443 @@ def render_html_table(
     )
     st.markdown(table_html, unsafe_allow_html=True)
 # ================= END OF STEP 9 =================
+# ================= STEP 10: CASE ACTION / EDIT MODAL DIALOG =================
+@st.dialog("✏️ Case Details, Reschedule & CGI Credentials", width="large")
+def show_case_action_modal(
+    target_row_idx,
+    modal_df,
+    modal_sheet_name,
+    is_admin_view=False,
+    current_worker_name="",
+    can_edit_allowed=True,
+    can_delete_req_allowed=True,
+    can_reschedule_allowed=True,
+):
+    if modal_df is None or target_row_idx not in modal_df.index:
+        st.warning("ఈ case row అందుబాటులో లేదు.")
+        if st.button("Close", key="dlg_missing_close"):
+            close_case_popup_state()
+            st.rerun()
+        return
+
+    row_data = modal_df.loc[target_row_idx]
+    disp_u_col = find_display_username_column(modal_df)
+    p_col = find_password_column(modal_df)
+    login_u_col = find_login_user_column(modal_df)
+    v_col = find_visa_type_column(modal_df)
+    ds_cols = find_ds160_columns(modal_df)
+
+    case_id_val = str(row_data.get("Case_ID", "N/A")).strip() if "Case_ID" in modal_df.columns else "N/A"
+    case_user_val = str(row_data.get(disp_u_col, "")).strip() if disp_u_col in modal_df.columns else ""
+    assigned_worker_val = str(row_data.get(login_u_col, "")).strip() if login_u_col in modal_df.columns else ""
+
+    st.caption(
+        f"**Sheet:** `{modal_sheet_name}` | **Case ID:** `{case_id_val}` | "
+        f"**Case Username:** `{case_user_val or '-'}` | **Assigned Worker:** `{assigned_worker_val or 'Not Assigned'}`"
+    )
+
+    tab_edit, tab_resched, tab_cgi = st.tabs([
+        "✏️ Edit / Update Case",
+        "🔄 Reschedule Case",
+        "📋 CGI Credentials Message",
+    ])
+
+    with tab_edit:
+        if not is_admin_view and not can_edit_allowed:
+            st.error("మీకు case edit చేసే permission లేదు.")
+        else:
+            with st.form(f"dlg_edit_form_{modal_sheet_name}_{target_row_idx}"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    new_case_user = st.text_input(
+                        "Case Username",
+                        value=case_user_val,
+                    )
+                    new_password = st.text_input(
+                        "Password",
+                        value=str(row_data.get(p_col, "")).strip() if p_col in modal_df.columns else "",
+                    )
+                with c2:
+                    worker_options = [""] + get_all_workers_list()
+                    cur_w_idx = 0
+                    for idx_w, w_opt in enumerate(worker_options):
+                        if w_opt.lower() == assigned_worker_val.lower():
+                            cur_w_idx = idx_w
+                            break
+                    new_worker = st.selectbox(
+                        "Assigned Case Worker",
+                        options=worker_options,
+                        index=cur_w_idx,
+                    )
+                    status_opts = ["Active", "Booked", "Rescheduled", "Issue", "Completed", "On Hold"]
+                    cur_st = str(row_data.get("Booking_Status", "Active")).strip() or "Active"
+                    st_idx = status_opts.index(cur_st) if cur_st in status_opts else 0
+                    new_booking_status = st.selectbox("Booking Status", options=status_opts, index=st_idx)
+                with c3:
+                    new_visa = ""
+                    if v_col and v_col in modal_df.columns:
+                        new_visa = st.text_input(
+                            f"{v_col}",
+                            value=str(row_data.get(v_col, "")).strip(),
+                        )
+                    new_appt_entry = st.text_input(
+                        "Appointment Entry / Slot",
+                        value=str(row_data.get("Appointment_Entry", "")).strip(),
+                    )
+
+                ds_inputs = {}
+                if ds_cols:
+                    ds_cols_ui = st.columns(min(len(ds_cols), 3))
+                    for i_ds, d_col in enumerate(ds_cols):
+                        with ds_cols_ui[i_ds % len(ds_cols_ui)]:
+                            ds_inputs[d_col] = st.text_input(
+                                f"{d_col}",
+                                value=str(row_data.get(d_col, "")).strip(),
+                                key=f"dlg_ds_{target_row_idx}_{i_ds}",
+                            )
+
+                c4, c5 = st.columns(2)
+                with c4:
+                    new_issue_remark = st.text_area(
+                        "Issue / Remark",
+                        value=str(row_data.get("Issue_Remark", "")).strip(),
+                        height=75,
+                    )
+                with c5:
+                    uploaded_pdf = st.file_uploader(
+                        "Upload Appointment PDF (Optional)",
+                        type=["pdf"],
+                        key=f"dlg_pdf_{target_row_idx}",
+                    )
+                    existing_pdf = str(row_data.get("Appointment_PDF", "")).strip()
+                    if existing_pdf:
+                        st.caption(f"Current PDF: `{existing_pdf}`")
+
+                delete_reason = ""
+                request_delete_flag = False
+                if not is_admin_view and can_delete_req_allowed:
+                    st.markdown("---")
+                    request_delete_flag = st.checkbox("🗑️ Request Admin to Delete this Case")
+                    delete_reason = st.text_input("Delete Request Reason", placeholder="Reason for deletion...")
+
+                save_btn = st.form_submit_button("💾 Save Case Changes", type="primary")
+
+            if save_btn:
+                if not str(new_case_user).strip() and not str(new_password).strip():
+                    st.error("కనీసం Case Username లేదా Password enter చేయండి.")
+                elif request_delete_flag and not str(delete_reason).strip():
+                    st.error("Delete request పంపడానికి Reason తప్పనిసరి.")
+                else:
+                    actor_name = "Admin" if is_admin_view else (current_worker_name or "Worker")
+                    now_str = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+
+                    updated_df = load_data(sheet_name=modal_sheet_name)
+                    if updated_df is None:
+                        updated_df = modal_df.copy()
+
+                    if target_row_idx in updated_df.index:
+                        if disp_u_col in updated_df.columns:
+                            updated_df.at[target_row_idx, disp_u_col] = str(new_case_user).strip()
+                        if p_col in updated_df.columns:
+                            updated_df.at[target_row_idx, p_col] = str(new_password).strip()
+                        if login_u_col in updated_df.columns:
+                            updated_df.at[target_row_idx, login_u_col] = str(new_worker).strip()
+                        if v_col and v_col in updated_df.columns:
+                            updated_df.at[target_row_idx, v_col] = str(new_visa).strip()
+                        for d_col, d_val in ds_inputs.items():
+                            if d_col in updated_df.columns:
+                                updated_df.at[target_row_idx, d_col] = str(d_val).strip()
+
+                        if "Booking_Status" in updated_df.columns:
+                            updated_df.at[target_row_idx, "Booking_Status"] = str(new_booking_status).strip()
+                        if "Appointment_Entry" in updated_df.columns:
+                            updated_df.at[target_row_idx, "Appointment_Entry"] = str(new_appt_entry).strip()
+                        if "Issue_Remark" in updated_df.columns:
+                            updated_df.at[target_row_idx, "Issue_Remark"] = str(new_issue_remark).strip()
+
+                        if uploaded_pdf is not None:
+                            safe_cid = re.sub(r"[^A-Za-z0-9_-]", "_", case_id_val or "case")
+                            pdf_dir = os.path.join(PDF_BASE_DIR, safe_cid)
+                            os.makedirs(pdf_dir, exist_ok=True)
+                            pdf_fname = f"{safe_cid}_{int(get_ist_now().timestamp())}.pdf"
+                            pdf_path = os.path.join(pdf_dir, pdf_fname)
+                            with open(pdf_path, "wb") as pf:
+                                pf.write(uploaded_pdf.getbuffer())
+                            if "Appointment_PDF" in updated_df.columns:
+                                updated_df.at[target_row_idx, "Appointment_PDF"] = pdf_path
+
+                        if request_delete_flag and not is_admin_view:
+                            if "Delete_Reason" in updated_df.columns:
+                                updated_df.at[target_row_idx, "Delete_Reason"] = str(delete_reason).strip()
+                            if "Action_Type" in updated_df.columns:
+                                updated_df.at[target_row_idx, "Action_Type"] = "Delete Requested"
+                        elif "Action_Type" in updated_df.columns:
+                            updated_df.at[target_row_idx, "Action_Type"] = "Updated"
+
+                        if "Updated_By" in updated_df.columns:
+                            updated_df.at[target_row_idx, "Updated_By"] = actor_name
+                        if "Updated_At" in updated_df.columns:
+                            updated_df.at[target_row_idx, "Updated_At"] = now_str
+
+                        save_data(updated_df, sheet_name=modal_sheet_name)
+                        st.success("✅ Case details update అయ్యాయి!")
+                        close_case_popup_state()
+                        st.rerun()
+
+    with tab_resched:
+        if not is_admin_view and not can_reschedule_allowed:
+            st.error("మీకు case reschedule చేసే permission లేదు.")
+        else:
+            with st.form(f"dlg_resched_form_{modal_sheet_name}_{target_row_idx}"):
+                r1, r2 = st.columns(2)
+                with r1:
+                    pref_loc = st.text_input(
+                        "Preferred Location / Consular Post",
+                        value=str(row_data.get("Preferred_Location", "")).strip(),
+                        placeholder="e.g., Hyderabad, Chennai, Delhi",
+                    )
+                    pref_dates = st.text_input(
+                        "Preferred Dates / Month",
+                        value=str(row_data.get("Preferred_Dates", "")).strip(),
+                        placeholder="e.g., Dec 2026 / Jan 2027",
+                    )
+                with r2:
+                    prior_notice = st.text_input(
+                        "Prior Notice / Notes",
+                        value=str(row_data.get("Prior_Notice", "")).strip(),
+                        placeholder="e.g., Need 2 days notice",
+                    )
+                    resched_worker_opts = ["Keep Same"] + get_all_workers_list()
+                    resched_w_choice = st.selectbox(
+                        "Assign Worker for New Rescheduled Case",
+                        options=resched_worker_opts,
+                    )
+
+                resched_submit = st.form_submit_button("🔄 Create Rescheduled Case", type="primary")
+
+            if resched_submit:
+                actor_name = "Admin" if is_admin_view else (current_worker_name or "Worker")
+                now_str = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                chosen_w = assigned_worker_val if resched_w_choice == "Keep Same" else resched_w_choice
+
+                new_id, active_s = append_rescheduled_to_active_sheet(
+                    source_row=row_data,
+                    pref_loc=pref_loc,
+                    pref_dates=pref_dates,
+                    prior_notice=prior_notice,
+                    updated_by=actor_name,
+                    updated_at=now_str,
+                    assigned_worker=chosen_w,
+                )
+                if new_id:
+                    st.success(f"✅ Rescheduled case created with ID `{new_id}` in sheet `{active_s}`!")
+                    close_case_popup_state()
+                    st.rerun()
+                else:
+                    st.error("Rescheduled case create చేయడంలో error వచ్చింది.")
+
+    with tab_cgi:
+        cgi_msg = build_cgi_formatted_message(row_data)
+        render_copy_message_button(cgi_msg, btn_key=f"dlg_copy_cgi_{target_row_idx}")
+        st.code(cgi_msg, language="text")
+
+    if st.button("❌ Close Modal", key=f"dlg_close_btn_{target_row_idx}"):
+        close_case_popup_state()
+        st.rerun()
+# ================= END OF STEP 10 =================
+# ================= STEP 11: SIDEBAR LOGIN, QUICK CONTROLS & NAVIGATION =================
+def init_session_defaults():
+    defaults = {
+        "is_admin": False,
+        "current_user": None,
+        "selected_sheet": None,
+        "is_editing_popup": False,
+        "is_delete_request_mode": False,
+        "is_reschedule_mode": False,
+        "selected_row_idx": None,
+        "open_dialog": None,
+        "lead_filter": "All",
+        "search_query": "",
+        "active_worker_tab": "My Cases",
+        "_gsheet_sync_version": 0,
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+
+def render_sidebar():
+    init_session_defaults()
+    logo_path = next((p for p in LOGO_FILES if os.path.exists(p)), None)
+
+    with st.sidebar:
+        if logo_path:
+            try:
+                b64_logo = get_base64_image(logo_path)
+                st.markdown(
+                    f"""
+                    <div style="text-align:center; padding: 6px 0 10px 0;">
+                        <img src="data:image/jpeg;base64,{b64_logo}"
+                             style="max-height:78px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.12);" />
+                        <div style="font-size:15px; font-weight:800; color:#0f172a; margin-top:6px;">
+                            HemanVisa Portal
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            except Exception:
+                st.markdown("### ✈️ HemanVisa Portal")
+        else:
+            st.markdown("### ✈️ HemanVisa Portal")
+
+        st.markdown('<hr class="compact-divider">', unsafe_allow_html=True)
+
+        is_admin = st.session_state.get("is_admin", False)
+        current_user = st.session_state.get("current_user")
+
+        if not is_admin and not current_user:
+            st.markdown("#### 🔐 Portal Login")
+            login_role = st.radio(
+                "Login As",
+                options=["Case Worker", "Admin"],
+                horizontal=True,
+                key="sidebar_login_role",
+            )
+
+            if login_role == "Admin":
+                with st.form("admin_login_form"):
+                    adm_u = st.text_input("Admin Username", key="adm_u_inp")
+                    adm_p = st.text_input("Admin Password", type="password", key="adm_p_inp")
+                    adm_submit = st.form_submit_button("Login as Admin", type="primary")
+                if adm_submit:
+                    cfg_u, cfg_p = get_admin_creds()
+                    if adm_u.strip() == cfg_u and adm_p.strip() == cfg_p:
+                        st.session_state["is_admin"] = True
+                        st.session_state["current_user"] = None
+                        close_case_popup_state()
+                        st.rerun()
+                    else:
+                        st.error("తప్పుడు Admin Username లేదా Password.")
+            else:
+                workers_all = get_all_workers_list()
+                if are_all_workers_blocked():
+                    st.error("⛔ అన్ని Case Worker logins తాత్కాలికంగా నిలిపివేయబడ్డాయి (Blocked by Admin).")
+                else:
+                    with st.form("worker_login_form"):
+                        w_choice = st.selectbox(
+                            "Select Case Worker",
+                            options=[""] + workers_all,
+                            key="w_login_select",
+                        )
+                        w_submit = st.form_submit_button("Login to Workspace", type="primary")
+                    if w_submit:
+                        w_clean = str(w_choice).strip()
+                        if not w_clean:
+                            st.warning("దయచేసి మీ పేరును ఎంచుకోండి.")
+                        elif is_worker_blocked(w_clean):
+                            st.error(f"⛔ `{w_clean}` login block చేయబడింది. Admin ని సంప్రదించండి.")
+                        else:
+                            st.session_state["current_user"] = w_clean
+                            st.session_state["is_admin"] = False
+                            close_case_popup_state()
+                            record_worker_login(w_clean)
+                            st.rerun()
+        else:
+            if is_admin:
+                st.success("🛡️ Logged in as: **Admin**")
+            else:
+                st.success(f"👤 Logged in as: **{current_user}**")
+
+            sheets_list = get_sheet_names()
+            if not sheets_list:
+                sheets_list = ["Sheet1"]
+            default_sheet = get_default_active_sheet(sheets_list)
+            if (
+                st.session_state.get("selected_sheet") not in sheets_list
+            ):
+                st.session_state["selected_sheet"] = default_sheet
+
+            chosen_sheet = st.selectbox(
+                "📄 Active Sheet",
+                options=sheets_list,
+                index=sheets_list.index(st.session_state["selected_sheet"]),
+                key="sidebar_sheet_selector",
+            )
+            if chosen_sheet != st.session_state["selected_sheet"]:
+                st.session_state["selected_sheet"] = chosen_sheet
+                close_case_popup_state()
+                st.rerun()
+
+            can_sync_now = True
+            if not is_admin:
+                perms_all = load_permissions()
+                u_perm = next(
+                    (v for k, v in perms_all.items() if k.lower() == str(current_user).lower()),
+                    {},
+                )
+                can_sync_now = bool(u_perm.get("can_sync", False))
+
+            if can_sync_now:
+                if st.button("🔄 Sync Google Sheets", key="sidebar_sync_btn", use_container_width=True):
+                    _clear_sheet_runtime_caches()
+                    st.session_state["_gsheet_sync_version"] = (
+                        st.session_state.get("_gsheet_sync_version", 0) + 1
+                    )
+                    st.session_state.pop("_last_id_sync_mtime", None)
+                    st.rerun()
+
+            if is_admin:
+                try:
+                    exp_bytes = get_admin_gsheet_export_bytes(_get_file_mtime())
+                    st.download_button(
+                        label="📥 Download All Sheets (.xlsx)",
+                        data=exp_bytes,
+                        file_name=f"HemanVisa_All_Sheets_{get_ist_now().strftime('%Y%m%d_%H%M')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="sidebar_admin_dl_btn",
+                        use_container_width=True,
+                    )
+                except Exception:
+                    pass
+            else:
+                perms_all = load_permissions()
+                u_perm = next(
+                    (v for k, v in perms_all.items() if k.lower() == str(current_user).lower()),
+                    {},
+                )
+                if u_perm.get("can_download", False):
+                    try:
+                        w_bytes = get_worker_export_bytes(
+                            _get_file_mtime(),
+                            str(current_user),
+                            st.session_state["selected_sheet"],
+                        )
+                        st.download_button(
+                            label="📥 Download My Cases (.xlsx)",
+                            data=w_bytes,
+                            file_name=f"{current_user}_Cases_{get_ist_now().strftime('%Y%m%d')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="sidebar_worker_dl_btn",
+                            use_container_width=True,
+                        )
+                    except Exception:
+                        pass
+
+            st.markdown('<hr class="compact-divider">', unsafe_allow_html=True)
+
+            if st.button("🚪 Logout", key="sidebar_logout_btn", type="secondary", use_container_width=True):
+                if not is_admin and current_user:
+                    record_worker_logout(str(current_user))
+                    w_low = str(current_user).strip().lower()
+                    for k_sess in list(st.session_state.keys()):
+                        if str(k_sess).startswith(f"_login_sync_done_{w_low}_"):
+                            st.session_state.pop(k_sess, None)
+                st.session_state["is_admin"] = False
+                st.session_state["current_user"] = None
+                close_case_popup_state()
+                st.rerun()
+
+        if not get_webapp_url():
+            st.caption("⚠️ `GSHEET_WEBAPP_URL` secret set చేయబడలేదు.")
+# ================= END OF STEP 11 =================
