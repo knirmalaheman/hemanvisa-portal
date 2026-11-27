@@ -40,6 +40,129 @@ if not os.path.exists(PDF_BASE_DIR):
 st.set_page_config(page_title="HemanVisa Portal", page_icon="✈️", layout="wide")
 
 
+def _clean_cell_text(val):
+    s = "" if val is None else str(val).strip()
+    return "" if s.lower() in ["nan", "none", "null"] else s
+
+
+def _get_case_field_ci(row_data, candidate_names):
+    if row_data is None:
+        return ""
+    for name in candidate_names:
+        if name in row_data.index:
+            val = _clean_cell_text(row_data.get(name, ""))
+            if val:
+                return val
+    lower_map = {str(k).strip().lower(): k for k in row_data.index}
+    for name in candidate_names:
+        matched_k = lower_map.get(str(name).strip().lower())
+        if matched_k is not None:
+            val = _clean_cell_text(row_data.get(matched_k, ""))
+            if val:
+                return val
+    return ""
+
+
+def build_cgi_formatted_message(row_data):
+    u_name = _get_case_field_ci(row_data, ["USERNAME", "Username", "Case Username", "user"])
+    p_word = _get_case_field_ci(row_data, ["PASSWORD", "Password", "Case Password", "pass"])
+
+    sq1 = _get_case_field_ci(row_data, ["SQ1", "Security Question 1", "SQ 1"])
+    sqa1 = _get_case_field_ci(row_data, ["SQA", "SQA1", "Security Answer 1", "SQA 1"])
+
+    sq2 = _get_case_field_ci(row_data, ["SQ2", "Security Question 2", "SQ 2"])
+    sqa2 = _get_case_field_ci(row_data, ["SQA2", "Security Answer 2", "SQA 2"])
+
+    sq3 = _get_case_field_ci(row_data, ["SQ3", "Security Question 3", "SQ 3"])
+    sqa3 = _get_case_field_ci(row_data, ["SQA3", "Security Answer 3", "SQA 3"])
+
+    sq_lines = []
+    for q_val, a_val in [(sq1, sqa1), (sq2, sqa2), (sq3, sqa3)]:
+        if q_val or a_val:
+            if q_val and a_val:
+                sq_lines.append(f"{q_val} - {a_val}")
+            elif q_val:
+                sq_lines.append(f"{q_val} -")
+            else:
+                sq_lines.append(f"- {a_val}")
+
+    sq_section = "\n".join(sq_lines) if sq_lines else "No security questions found"
+
+    return (
+        f"CGI Portal Login Credentials*\n"
+        f"Username: {u_name}\n"
+        f"Password: {p_word}\n\n"
+        f"Security questions and answers\n"
+        f"{sq_section}"
+    )
+
+
+def render_copy_message_button(msg_text, btn_key="copy_cgi_msg_btn"):
+    safe_json_text = json.dumps(msg_text)
+    components.html(
+        f"""
+        <div style="margin: 6px 0 10px 0;">
+            <button id="{btn_key}" type="button" style="
+                background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 700;
+                cursor: pointer;
+                box-shadow: 0 3px 8px rgba(4, 120, 87, 0.25);
+            ">📋 Copy Message</button>
+            <span id="{btn_key}_status" style="margin-left: 10px; font-size: 12.5px; font-weight: 700; color: #047857;"></span>
+        </div>
+        <script>
+        (function() {{
+            const btn = document.getElementById({json.dumps(btn_key)});
+            const statusEl = document.getElementById({json.dumps(btn_key + "_status")});
+            const textToCopy = {safe_json_text};
+            if (!btn) return;
+            btn.addEventListener("click", async function() {{
+                try {{
+                    if (navigator.clipboard && navigator.clipboard.writeText) {{
+                        await navigator.clipboard.writeText(textToCopy);
+                    }} else {{
+                        const ta = document.createElement("textarea");
+                        ta.value = textToCopy;
+                        ta.style.position = "fixed";
+                        ta.style.opacity = "0";
+                        document.body.appendChild(ta);
+                        ta.focus();
+                        ta.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(ta);
+                    }}
+                    if (statusEl) {{
+                        statusEl.textContent = "✅ Copied!";
+                        setTimeout(() => {{ statusEl.textContent = ""; }}, 2500);
+                    }}
+                }} catch (err) {{
+                    const ta = document.createElement("textarea");
+                    ta.value = textToCopy;
+                    ta.style.position = "fixed";
+                    ta.style.opacity = "0";
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    try {{ document.execCommand("copy"); }} catch (e) {{}}
+                    document.body.removeChild(ta);
+                    if (statusEl) {{
+                        statusEl.textContent = "✅ Copied!";
+                        setTimeout(() => {{ statusEl.textContent = ""; }}, 2500);
+                    }}
+                }}
+            }});
+        }})();
+        </script>
+        """,
+        height=46,
+    )
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _cached_webapp_url():
     try:
@@ -1404,95 +1527,6 @@ def find_password_column(df):
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
 
-def format_cgi_credentials_message(row_data, df_cols, display_c, login_c, p_col):
-    """Builds the formatted CGI portal login credentials message for a case."""
-    case_username = str(row_data.get(display_c, "")).strip()
-
-    # Find the case portal password column (separate from worker login password if two password columns exist)
-    case_password = ""
-    pass_candidates = [
-        c for c in df_cols
-        if ("pass" in c.strip().lower() or "pwd" in c.strip().lower())
-        and c != login_c
-    ]
-    if len(pass_candidates) > 1:
-        non_worker_pass = [c for c in pass_candidates if c != p_col]
-        chosen_pass_col = non_worker_pass[0] if non_worker_pass else pass_candidates[0]
-        case_password = str(row_data.get(chosen_pass_col, "")).strip()
-    elif len(pass_candidates) == 1:
-        case_password = str(row_data.get(pass_candidates[0], "")).strip()
-
-    # Detect Security Questions & Answers dynamically from available columns
-    excluded_cols = {
-        "Sheet_Name", "Case_ID", display_c, login_c, p_col,
-        "Updated_By", "Updated_At", "Action_Type", "Delete_Reason",
-        "Booking_Status", "Issue_Remark", "Appointment_Entry",
-        "Appointment_PDF", "Preferred_Location", "Preferred_Dates",
-        "Prior_Notice", "__orig_idx__"
-    }
-    excluded_cols.update(pass_candidates)
-
-    q_cols = {}
-    a_cols = {}
-    direct_sec_pairs = []
-
-    for col in df_cols:
-        if col in excluded_cols:
-            continue
-        c_strip = col.strip()
-        c_low = c_strip.lower().replace("_", " ").replace("-", " ").strip()
-        val = str(row_data.get(col, "")).strip()
-        if val in ["", "nan", "None", "-"]:
-            continue
-
-        # Match numbered question/answer columns like Question 1 / Answer 1, Q1 / A1, Security Question 1 / Security Answer 1
-        m_q = re.match(r"^(?:security\s*)?(?:question|ques|q)\s*([1-9])$", c_low)
-        m_a = re.match(r"^(?:security\s*)?(?:answer|ans|a)\s*([1-9])$", c_low)
-        if m_q:
-            q_cols[m_q.group(1)] = val
-        elif m_a:
-            a_cols[m_a.group(1)] = val
-        elif any(
-            kw in c_low
-            for kw in [
-                "first car", "favorite food", "favourite food", "childhood hero",
-                "mother", "maiden", "pet", "school", "birth", "city", "street",
-                "security", "question", "secret"
-            ]
-        ):
-            direct_sec_pairs.append((c_strip, val))
-
-    sec_lines = []
-    if q_cols or a_cols:
-        for num in sorted(set(list(q_cols.keys()) + list(a_cols.keys()))):
-            q_txt = q_cols.get(num, "").strip()
-            a_txt = a_cols.get(num, "").strip()
-            if q_txt and a_txt:
-                sec_lines.append(f"{q_txt} - {a_txt}")
-            elif q_txt:
-                sec_lines.append(q_txt)
-            elif a_txt:
-                sec_lines.append(f"Answer {num} - {a_txt}")
-
-    for col_label, col_val in direct_sec_pairs:
-        sec_lines.append(f"{col_label} - {col_val}")
-
-    msg_lines = [
-        f"Username: {case_username}",
-        f"Password: {case_password}",
-        "Security questions and answers",
-    ]
-    if sec_lines:
-        msg_lines.extend(sec_lines)
-    else:
-        msg_lines.append("First car - ")
-        msg_lines.append("Favorite food - ")
-        msg_lines.append("Childhood Hero - ")
-
-    msg_lines.append("Above are the CGI portal login credentials")
-    return "\n".join(msg_lines)
-
-
 def get_target_search_columns(df):
     target_cols = set()
     if df is None or df.empty:
@@ -2632,56 +2666,6 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             if col not in [p_col, "Appointment_PDF"]:
                 st.text(f"{col}: {row_data[col]}")
 
-        # Formatted CGI Portal Credentials Message Box (Copy & Send)
-        formatted_cgi_msg = format_cgi_credentials_message(
-            row_data, df_full.columns, display_c, login_c, p_col
-        )
-        with st.expander("📋 CGI Portal Credentials Message (Copy & Send)", expanded=True):
-            edited_cgi_msg = st.text_area(
-                "Formatted Message (Copy or edit before sending):",
-                value=formatted_cgi_msg,
-                height=190,
-                key=f"cgi_msg_box_{sheet_name}_{row_idx}",
-            )
-            msg_js_literal = json.dumps(edited_cgi_msg)
-            components.html(
-                f"""
-                <div style="display:flex; align-items:center; gap:10px; margin-top:-4px;">
-                    <button id="copyCgiBtn" style="
-                        background: linear-gradient(135deg, #065f46 0%, #059669 100%);
-                        color: #ffffff;
-                        border: none;
-                        padding: 8px 16px;
-                        border-radius: 8px;
-                        font-weight: 700;
-                        font-size: 13px;
-                        cursor: pointer;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-                    ">📋 Copy Message</button>
-                    <span id="copyCgiStatus" style="font-size:12.5px; font-weight:700; color:#059669;"></span>
-                </div>
-                <script>
-                    const msgText = {msg_js_literal};
-                    document.getElementById("copyCgiBtn").addEventListener("click", function() {{
-                        if (navigator.clipboard && navigator.clipboard.writeText) {{
-                            navigator.clipboard.writeText(msgText).then(function() {{
-                                document.getElementById("copyCgiStatus").innerText = "✅ Copied to clipboard!";
-                            }});
-                        }} else {{
-                            const ta = document.createElement("textarea");
-                            ta.value = msgText;
-                            document.body.appendChild(ta);
-                            ta.select();
-                            document.execCommand("copy");
-                            document.body.removeChild(ta);
-                            document.getElementById("copyCgiStatus").innerText = "✅ Copied to clipboard!";
-                        }}
-                    }});
-                </script>
-                """,
-                height=42,
-            )
-
         curr_b_status = str(row_data.get("Booking_Status", "Active")).strip()
         st.markdown(f"📌 **Status:** `{curr_b_status}`")
 
@@ -2700,6 +2684,20 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             st.markdown(
                 f"🔄 **Reschedule Info:** Location: `{pref_loc}` | Dates: `{pref_dates}` | Prior Notice: `{prior_notice}`"
             )
+
+        st.markdown("#### ✉️ Formatted Message (Copy or edit before sending):")
+        formatted_cgi_msg = build_cgi_formatted_message(row_data)
+        st.text_area(
+            "Formatted Message",
+            value=formatted_cgi_msg,
+            height=195,
+            label_visibility="collapsed",
+            key=f"cgi_formatted_msg_{sheet_name}_{row_idx}",
+        )
+        render_copy_message_button(
+            formatted_cgi_msg,
+            btn_key=f"copy_cgi_btn_{sheet_name}_{row_idx}",
+        )
 
         pdf_path = str(row_data.get("Appointment_PDF", "")).strip()
         if pdf_path and os.path.exists(pdf_path):
