@@ -926,139 +926,7 @@ def close_case_popup_state():
             del st.query_params["edit_row"]
         except Exception:
             pass
-DEFAULT_CGI_USERNAME = "kondalaraogogineni"
-DEFAULT_CGI_PASSWORD = "Visa@2026"
-DEFAULT_CGI_SECURITY_QA = [
-    ("First car", "amaze"),
-    ("Favorite food", "roti"),
-    ("Childhood Hero", "father"),
-]
 
-
-def build_cgi_credentials_message(
-    row_data=None,
-    df_columns=None,
-    case_id="",
-    case_user="",
-    worker_name="",
-    sheet_name="",
-    custom_username=DEFAULT_CGI_USERNAME,
-    custom_password=DEFAULT_CGI_PASSWORD,
-    security_qa=None,
-):
-    qa_list = security_qa if security_qa is not None else DEFAULT_CGI_SECURITY_QA
-    c_id = str(case_id or (row_data.get("Case_ID", "") if row_data is not None else "")).strip()
-    c_usr = str(case_user or "").strip()
-    w_nm = str(worker_name or "").strip()
-    s_nm = str(sheet_name or "").strip()
-
-    lines = ["📋 *CGI Portal Credentials*"]
-    if c_id:
-        lines.append(f"• *Case ID:* {c_id}")
-    if c_usr:
-        lines.append(f"• *Case / Applicant:* {c_usr}")
-    if w_nm:
-        lines.append(f"• *Case Worker:* {w_nm}")
-    if s_nm:
-        lines.append(f"• *Sheet:* {s_nm}")
-
-    lines.extend([
-        "------------------------",
-        f"Username: {str(custom_username).strip()}",
-        f"Password: {str(custom_password).strip()}",
-        "Security questions and answers",
-    ])
-    for q_label, a_val in qa_list:
-        lines.append(f"{str(q_label).strip()} - {str(a_val).strip()}")
-
-    if row_data is not None and df_columns is not None:
-        extra_cgi = []
-        for col in df_columns:
-            c_low = str(col).strip().lower()
-            if any(k in c_low for k in ["cgi", "security", "question", "car", "food", "hero"]):
-                val = str(row_data.get(col, "")).strip()
-                if val and val.lower() not in ["nan", "none", "-"]:
-                    extra_cgi.append(f"{col}: {val}")
-        if extra_cgi:
-            lines.append("------------------------")
-            lines.append("*Case Sheet CGI Info:*")
-            lines.extend(extra_cgi)
-
-    return "\n".join(lines)
-
-
-def render_cgi_message_section(
-    row_data=None,
-    df_columns=None,
-    case_id="",
-    case_user="",
-    worker_name="",
-    sheet_name="",
-    key_prefix="cgi_msg",
-):
-    st.markdown("#### 💬 CGI Portal Credentials Message")
-    with st.expander("✉️ View / Customize / Send CGI Message", expanded=False):
-        c_u1, c_u2 = st.columns(2)
-        with c_u1:
-            cgi_u = st.text_input(
-                "CGI Username",
-                value=DEFAULT_CGI_USERNAME,
-                key=f"{key_prefix}_u",
-            )
-        with c_u2:
-            cgi_p = st.text_input(
-                "CGI Password",
-                value=DEFAULT_CGI_PASSWORD,
-                key=f"{key_prefix}_p",
-            )
-
-        q_cols = st.columns(3)
-        qa_inputs = []
-        for idx_q, (def_q, def_a) in enumerate(DEFAULT_CGI_SECURITY_QA):
-            with q_cols[idx_q % 3]:
-                a_in = st.text_input(
-                    f"{def_q} Answer",
-                    value=def_a,
-                    key=f"{key_prefix}_a_{idx_q}",
-                )
-                qa_inputs.append((def_q, a_in))
-
-        msg_text = build_cgi_credentials_message(
-            row_data=row_data,
-            df_columns=df_columns,
-            case_id=case_id,
-            case_user=case_user,
-            worker_name=worker_name,
-            sheet_name=sheet_name,
-            custom_username=cgi_u,
-            custom_password=cgi_p,
-            security_qa=qa_inputs,
-        )
-
-        st.text_area(
-            "📋 Ready-to-Send Message (Select & Copy or Download):",
-            value=msg_text,
-            height=220,
-            key=f"{key_prefix}_area",
-        )
-
-        wa_url = "https://wa.me/?text=" + urllib.parse.quote(msg_text)
-        b_c1, b_c2 = st.columns(2)
-        with b_c1:
-            st.link_button(
-                "📲 Send via WhatsApp",
-                url=wa_url,
-                use_container_width=True,
-            )
-        with b_c2:
-            st.download_button(
-                label="📥 Download Message (.txt)",
-                data=msg_text.encode("utf-8"),
-                file_name=f"CGI_Credentials_{case_id or 'Case'}.txt",
-                mime="text/plain",
-                use_container_width=True,
-                key=f"{key_prefix}_dl_txt",
-            )
 
 def reorder_dataframe_columns(df):
     if df is None or df.empty:
@@ -2709,15 +2577,7 @@ def view_and_edit_case_dialog(sheet_name, row_idx, role, current_user, can_updat
             )
         else:
             st.info("ℹ️ No Appointment PDF uploaded yet.")
-    render_cgi_message_section(
-            row_data=row_data,
-            df_columns=df_full.columns,
-            case_id=case_id_val,
-            case_user=case_user_val,
-            worker_name=case_owner_val,
-            sheet_name=sheet_name,
-            key_prefix=f"case_cgi_{sheet_name}_{row_idx}",
-        )
+
         st.markdown("---")
         if role == "worker" and not can_update:
             st.warning(
