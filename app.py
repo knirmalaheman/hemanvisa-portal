@@ -1974,68 +1974,59 @@ st.markdown("""
         font-weight: 700;
     }
     .kpi-card {
-        position: relative;
-        background: linear-gradient(145deg, #0f172a 0%, #1e293b 65%, #334155 100%);
-        color: #ffffff;
-        padding: 15px 12px 13px 12px;
-        border-radius: 15px;
-        box-shadow: 0 10px 24px -6px rgba(15, 23, 42, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: white;
+        padding: 14px 10px;
+        border-radius: 13px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
         text-align: center;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-bottom: 4px solid #94a3b8;
-        margin-bottom: 8px;
-        height: 98px;
+        border-bottom: 4px solid #64748b;
+        margin-bottom: 6px;
+        height: 92px;
         width: 100%;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        transition: transform 0.18s ease, box-shadow 0.18s ease;
-    }
-    .kpi-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 16px 30px -6px rgba(15, 23, 42, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.22);
     }
     .kpi-card.gold {
-        background: linear-gradient(145deg, #78350f 0%, #b45309 65%, #d97706 100%);
-        border-bottom: 4px solid #fde047;
+        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+        border-bottom: 4px solid #d97706;
     }
     .kpi-card.green {
-        background: linear-gradient(145deg, #064e3b 0%, #047857 65%, #10b981 100%);
-        border-bottom: 4px solid #6ee7b7;
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        border-bottom: 4px solid #059669;
     }
     .kpi-card.purple {
-        background: linear-gradient(145deg, #312e81 0%, #4338ca 65%, #6366f1 100%);
-        border-bottom: 4px solid #c7d2fe;
+        background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+        border-bottom: 4px solid #6366f1;
     }
     .kpi-card.teal {
-        background: linear-gradient(145deg, #134e4a 0%, #0f766e 65%, #14b8a6 100%);
-        border-bottom: 4px solid #99f6e4;
+        background: linear-gradient(135deg, #115e59 0%, #0f766e 100%);
+        border-bottom: 4px solid #14b8a6;
     }
     .kpi-card.rose {
-        background: linear-gradient(145deg, #881337 0%, #be123c 65%, #f43f5e 100%);
-        border-bottom: 4px solid #fda4af;
+        background: linear-gradient(135deg, #881337 0%, #be123c 100%);
+        border-bottom: 4px solid #fb7185;
     }
     .kpi-title {
         font-size: 10.5px;
         text-transform: uppercase;
-        letter-spacing: 0.95px;
-        opacity: 0.95;
-        margin-bottom: 6px;
-        font-weight: 800;
-        color: #f8fafc;
+        letter-spacing: 0.9px;
+        opacity: 0.92;
+        margin-bottom: 5px;
+        font-weight: 700;
+        color: #f1f5f9;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 100%;
     }
     .kpi-value {
-        font-size: 26px;
-        font-weight: 900;
+        font-size: 24px;
+        font-weight: 800;
         margin: 0;
         line-height: 1.1;
-        letter-spacing: 0.4px;
-        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
     }
 
     div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
@@ -2108,28 +2099,21 @@ st.markdown("""
     }
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
-        min-height: 42px !important;
-        border-radius: 11px !important;
-        font-weight: 700 !important;
+        min-height: 40px !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
         font-size: 13px !important;
-        letter-spacing: 0.25px !important;
-        padding: 7px 12px !important;
+        padding: 6px 10px !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.22) !important;
-        box-shadow: 0 5px 14px -3px rgba(15, 23, 42, 0.22), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.1);
         margin-top: 2px !important;
-        margin-bottom: 7px !important;
+        margin-bottom: 6px !important;
         white-space: nowrap !important;
-        transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
         background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 18px -4px rgba(15, 23, 42, 0.32), inset 0 1px 0 rgba(255,255,255,0.28) !important;
-        filter: brightness(1.06) !important;
-    }
-    .stButton > button:active, [data-testid="stDownloadButton"] > button:active {
-        transform: translateY(0px) scale(0.99) !important;
+        opacity: 0.94;
     }
     .username-hyperlink {
         color: #1e293b !important;
