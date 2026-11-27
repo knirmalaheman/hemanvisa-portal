@@ -66,20 +66,20 @@ def _get_case_field_ci(row_data, candidate_names):
 def build_cgi_formatted_message(row_data):
     u_name = _get_case_field_ci(row_data, ["USERNAME", "Username", "Case Username", "user"])
     p_word = _get_case_field_ci(
-    row_data,
-    [
-        "Password.1",
-        "PASSWORD.1",
-        "password.1",
-        "Password1",
-        "PASSWORD1",
-        "password1",
-        "Case Password",
-        "PASSWORD",
-        "Password",
-        "pass",
-    ],
-)
+        row_data,
+        [
+            "Password.1",
+            "PASSWORD.1",
+            "password.1",
+            "Password1",
+            "PASSWORD1",
+            "password1",
+            "Case Password",
+            "PASSWORD",
+            "Password",
+            "pass",
+        ],
+    )
 
     sq1 = _get_case_field_ci(row_data, ["SQ1", "Security Question 1", "SQ 1"])
     sqa1 = _get_case_field_ci(row_data, ["SQA", "SQA1", "Security Answer 1", "SQA 1"])
@@ -190,6 +190,14 @@ def get_webapp_url():
     return _cached_webapp_url()
 
 
+def _clear_sheet_runtime_caches():
+    st.session_state.pop("_mem_sheets_cache", None)
+    st.session_state.pop("_parsed_meta_cache", None)
+    _fetch_and_process_all_sheets_cached.clear()
+    get_admin_gsheet_export_bytes.clear()
+    get_worker_export_bytes.clear()
+
+
 def _rows_to_df(raw_rows):
     if not raw_rows or not isinstance(raw_rows, list) or len(raw_rows) == 0:
         return pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"], dtype=str)
@@ -223,7 +231,7 @@ def _fetch_sheets_from_webapp():
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=15, allow_redirects=True)
+        resp = requests.get(url, timeout=10, allow_redirects=True)
         resp.raise_for_status()
         text_body = resp.text.strip()
         if not text_body:
@@ -260,6 +268,7 @@ def _update_session_sheets_cache(updated_sheets_map):
                 else:
                     mem_cache[s_clean] = _normalize_sheet_df(df_v.copy())
         st.session_state["_mem_sheets_cache"] = mem_cache
+    st.session_state.pop("_parsed_meta_cache", None)
 
 
 def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
@@ -282,7 +291,7 @@ def _push_sheet_to_webapp(sheet_name, df_to_push, all_sheets_dict=None):
                 all_payload[str(s_k)] = [df_kc.columns.tolist()] + df_kc.values.tolist()
             body["sheets"] = all_payload
 
-        resp = requests.post(url, json=body, timeout=20, allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=10, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
@@ -316,7 +325,7 @@ def _push_multiple_sheets_batch(sheets_map):
             "data": rows_2d,
             "sheets": all_payload,
         }
-        resp = requests.post(url, json=body, timeout=20, allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=8, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
@@ -324,7 +333,7 @@ def _push_multiple_sheets_batch(sheets_map):
         else:
             _update_session_sheets_cache({k: v for k, v in items})
     except Exception as e:
-        st.error(f"Google Sheet Batch Push Error: {e}")
+        st.warning(f"Background sync slow ({e}) — session active.")
 
 
 def get_ist_now():
@@ -339,6 +348,26 @@ def _get_file_mtime():
     sync_ver = st.session_state.get("_gsheet_sync_version", 0)
     f_mtime = os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
     return f"{f_mtime}_{sync_ver}"
+
+
+def _get_runtime_meta():
+    token = _get_file_mtime()
+    cache = st.session_state.get("_parsed_meta_cache")
+    if isinstance(cache, dict) and cache.get("_token") == token:
+        return cache
+
+    meta = {
+        "_token": token,
+        "perms": None,
+        "notice": None,
+        "admin_creds": None,
+        "logins": None,
+        "attendance": None,
+        "edit_requests": None,
+        "workers_list": None,
+    }
+    st.session_state["_parsed_meta_cache"] = meta
+    return meta
 
 
 def _read_sheet_rows(sheet_name):
@@ -365,6 +394,7 @@ def _write_sheet_records(sheet_name, columns, records):
     st.session_state["_gsheet_sync_version"] = (
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
+    st.session_state.pop("_parsed_meta_cache", None)
 
 
 EDIT_REQ_COLS = [
@@ -383,6 +413,9 @@ EDIT_REQ_COLS = [
 
 
 def load_edit_requests():
+    meta = _get_runtime_meta()
+    if meta["edit_requests"] is not None:
+        return meta["edit_requests"]
     rows = _read_sheet_rows("App_Edit_Requests")
     cleaned = []
     for r in rows:
@@ -390,6 +423,7 @@ def load_edit_requests():
         cid = str(r.get("Case_ID", "")).strip()
         if w or cid:
             cleaned.append({col: str(r.get(col, "")).strip() for col in EDIT_REQ_COLS})
+    meta["edit_requests"] = cleaned
     return cleaned
 
 
@@ -467,12 +501,17 @@ def create_or_reopen_edit_request(worker_name, sheet_name, case_id, case_usernam
 
 
 def get_admin_creds():
+    meta = _get_runtime_meta()
+    if meta["admin_creds"] is not None:
+        return meta["admin_creds"]
     rows = _read_sheet_rows("App_Config")
     for r in rows:
         if r.get("Key", "").strip() == "admin_creds":
             u = r.get("Value1", "").strip() or "admin"
             p = r.get("Value2", "").strip() or "admin123"
+            meta["admin_creds"] = (u, p)
             return u, p
+    meta["admin_creds"] = ("admin", "admin123")
     return "admin", "admin123"
 
 
@@ -494,10 +533,16 @@ def save_admin_creds(new_user, new_pass):
 
 
 def get_admin_notice():
+    meta = _get_runtime_meta()
+    if meta["notice"] is not None:
+        return meta["notice"]
     rows = _read_sheet_rows("App_Config")
     for r in rows:
         if r.get("Key", "").strip() == "admin_notice":
-            return r.get("Value1", "").strip()
+            val = r.get("Value1", "").strip()
+            meta["notice"] = val
+            return val
+    meta["notice"] = ""
     return ""
 
 
@@ -518,6 +563,9 @@ def save_admin_notice(notice_text):
 
 
 def load_permissions():
+    meta = _get_runtime_meta()
+    if meta["perms"] is not None:
+        return meta["perms"]
     rows = _read_sheet_rows("App_Permissions")
     perms = {}
     for r in rows:
@@ -543,6 +591,7 @@ def load_permissions():
                 "block_login": str(r.get("block_login", "False")).strip().lower()
                 in ["true", "1", "yes"],
             }
+    meta["perms"] = perms
     return perms
 
 
@@ -640,6 +689,9 @@ def _normalize_time_ist(val_str):
 
 
 def load_login_tracking():
+    meta = _get_runtime_meta()
+    if meta["logins"] is not None:
+        return meta["logins"]
     rows = _read_sheet_rows("App_Logins")
     logins = {}
     for r in rows:
@@ -651,6 +703,7 @@ def load_login_tracking():
                 "status": r.get("status", "Not Logged In").strip() or "Not Logged In",
                 "last_login": clean_last or "-",
             }
+    meta["logins"] = logins
     return logins
 
 
@@ -730,6 +783,9 @@ def _format_seconds_hhmm(total_seconds):
 
 
 def load_attendance():
+    meta = _get_runtime_meta()
+    if meta["attendance"] is not None:
+        return meta["attendance"]
     rows = _read_sheet_rows("App_Attendance")
     cleaned = []
     for r in rows:
@@ -752,6 +808,7 @@ def load_attendance():
                 "Status": st_clean,
                 "_duration_sec": dur_sec,
             })
+    meta["attendance"] = cleaned
     return cleaned
 
 
@@ -826,14 +883,19 @@ def record_worker_login(worker_name):
     time_str = now_dt.strftime("%I:%M:%S %p")
     full_timestamp = f"{today_str} {time_str}"
 
-    logins = load_login_tracking()
+    session_guard = f"_login_sync_done_{worker_name.strip().lower()}_{today_str}"
+    if st.session_state.get(session_guard):
+        return
+    st.session_state[session_guard] = True
+
+    logins = dict(load_login_tracking())
     logins[worker_name.strip()] = {
         "status": "Logged In",
         "last_login": full_timestamp,
     }
     df_logins = _build_login_tracking_df(logins)
 
-    attendance = load_attendance()
+    attendance = list(load_attendance())
     for entry in attendance:
         if (
             entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
@@ -853,6 +915,7 @@ def record_worker_login(worker_name):
     })
     df_att = _build_attendance_df(attendance)
 
+    _update_session_sheets_cache({"App_Logins": df_logins, "App_Attendance": df_att})
     _push_multiple_sheets_batch({
         "App_Logins": df_logins,
         "App_Attendance": df_att,
@@ -860,6 +923,7 @@ def record_worker_login(worker_name):
     st.session_state["_gsheet_sync_version"] = (
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
+    st.session_state.pop("_parsed_meta_cache", None)
 
 
 def record_worker_logout(worker_name):
@@ -869,13 +933,13 @@ def record_worker_logout(worker_name):
     today_str = now_dt.strftime("%Y-%m-%d")
     time_str = now_dt.strftime("%I:%M:%S %p")
 
-    logins = load_login_tracking()
+    logins = dict(load_login_tracking())
     for k in list(logins.keys()):
         if k.strip().lower() == worker_name.strip().lower():
             logins[k]["status"] = "Not Logged In"
     df_logins = _build_login_tracking_df(logins)
 
-    attendance = load_attendance()
+    attendance = list(load_attendance())
     updated_any = False
 
     for entry in reversed(attendance):
@@ -934,6 +998,7 @@ def record_worker_logout(worker_name):
         })
     df_att = _build_attendance_df(attendance)
 
+    _update_session_sheets_cache({"App_Logins": df_logins, "App_Attendance": df_att})
     _push_multiple_sheets_batch({
         "App_Logins": df_logins,
         "App_Attendance": df_att,
@@ -941,6 +1006,7 @@ def record_worker_logout(worker_name):
     st.session_state["_gsheet_sync_version"] = (
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
+    st.session_state.pop("_parsed_meta_cache", None)
 
 
 def build_attendance_summary_tables(attendance_data):
@@ -1223,7 +1289,7 @@ def _normalize_sheet_df(df):
     return reorder_dataframe_columns(df)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def _fetch_and_process_all_sheets_cached(base_cache_key):
     remote_sheets = _fetch_sheets_from_webapp()
     all_sheets = None
@@ -1291,7 +1357,7 @@ def ensure_all_cases_have_unique_ids(force=False):
             first_s = list(all_sheets.keys())[0]
             _push_sheet_to_webapp(first_s, all_sheets[first_s], all_sheets)
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-            st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
+            _clear_sheet_runtime_caches()
         st.session_state[last_checked_key] = _get_file_mtime()
     except Exception:
         pass
@@ -1465,16 +1531,6 @@ def save_data(df_to_save, sheet_name=0):
         for s_k, df_k in cached_sheets.items():
             sheets_data[str(s_k)] = df_k.copy()
 
-    if os.path.exists(EXCEL_FILE):
-        try:
-            disk_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
-            if disk_sheets:
-                for s_d, df_d in disk_sheets.items():
-                    if str(s_d) not in sheets_data:
-                        sheets_data[str(s_d)] = df_d.copy()
-        except Exception:
-            pass
-
     target_sheet_key = str(sheet_name)
     if isinstance(sheet_name, int) and sheets_data:
         keys = list(sheets_data.keys())
@@ -1484,17 +1540,10 @@ def save_data(df_to_save, sheet_name=0):
     df_to_save = reorder_dataframe_columns(df_to_save)
     sheets_data[target_sheet_key] = df_to_save
 
-    try:
-        with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
-            for s, df_val in sheets_data.items():
-                df_val = reorder_dataframe_columns(df_val)
-                df_val.to_excel(writer, sheet_name=str(s)[:31], index=False)
-    except Exception:
-        pass
-
+    _update_session_sheets_cache({target_sheet_key: df_to_save})
     _push_sheet_to_webapp(target_sheet_key, df_to_save, sheets_data)
     st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-    st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
+    st.session_state.pop("_parsed_meta_cache", None)
     st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
 
 
@@ -1672,6 +1721,9 @@ def find_visa_type_column(df):
 
 
 def get_all_workers_list():
+    meta = _get_runtime_meta()
+    if meta["workers_list"] is not None:
+        return meta["workers_list"]
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     all_workers = set()
     for s_name, df_s in all_sheets.items():
@@ -1691,7 +1743,9 @@ def get_all_workers_list():
     for extra_w in ["Kalyan", "Anil"]:
         if not any(w.lower() == extra_w.lower() for w in all_workers):
             all_workers.add(extra_w)
-    return sorted(list(all_workers))
+    res = sorted(list(all_workers))
+    meta["workers_list"] = res
+    return res
 
 
 def are_all_workers_blocked():
@@ -1717,7 +1771,7 @@ def is_worker_blocked(worker_name):
 
 def toggle_all_workers_block(block_status: bool):
     all_workers = get_all_workers_list()
-    current_perms = load_permissions()
+    current_perms = dict(load_permissions())
     for w in all_workers:
         matched_key = next(
             (k for k in current_perms if k.lower() == w.lower()), w
@@ -1733,8 +1787,6 @@ def toggle_all_workers_block(block_status: bool):
             }
         else:
             current_perms[matched_key]["block_login"] = block_status
-        if block_status:
-            record_worker_logout(w)
     save_permissions(current_perms)
 
 
@@ -1860,7 +1912,6 @@ if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
     qp_role = qp.get("role", "worker")
     qp_user = qp.get("username", "")
     if qp_role == "worker" and is_worker_blocked(qp_user):
-        record_worker_logout(qp_user)
         qp.clear()
         st.session_state["force_logged_out_msg"] = True
     else:
@@ -1876,7 +1927,6 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
     if st.session_state.pop("_just_logged_in", False):
         pass
     elif is_worker_blocked(curr_w):
-        record_worker_logout(curr_w)
         st.query_params.clear()
         st.session_state["logged_in"] = False
         st.session_state["username"] = ""
@@ -2526,6 +2576,15 @@ def render_clickable_table(
         if (curr_role == "worker" and allow_edit)
         else []
     )
+    worker_edit_req_lookup = {}
+    if all_edit_reqs and curr_role == "worker":
+        u_low_k = curr_user.strip().lower()
+        for er in all_edit_reqs:
+            if er.get("Worker", "").strip().lower() == u_low_k:
+                s_k = er.get("Sheet_Name", "").strip().lower()
+                cid_k = er.get("Case_ID", "").strip().lower()
+                cu_k = er.get("Case_Username", "").strip().lower()
+                worker_edit_req_lookup[(s_k, cid_k, cu_k)] = er
 
     for i, idx in enumerate(indices):
         serial_no = start_idx + i + 1
@@ -2546,16 +2605,16 @@ def render_clickable_table(
             r_cu = col_data[display_c][i].strip().lower() if display_c in col_data else ""
             if r_worker != curr_user.strip().lower():
                 is_other_worker_case = True
-                matched_req = None
-                for er in all_edit_reqs:
-                    if (
-                        er.get("Worker", "").strip().lower() == curr_user.strip().lower()
-                        and er.get("Sheet_Name", "").strip().lower() == target_sheet_name.strip().lower()
-                    ):
-                        er_cid = er.get("Case_ID", "").strip().lower()
-                        er_cu = er.get("Case_Username", "").strip().lower()
-                        if (r_cid and er_cid == r_cid) or (not r_cid and r_cu and er_cu == r_cu):
-                            matched_req = er
+                matched_req = worker_edit_req_lookup.get(
+                    (target_sheet_name.strip().lower(), r_cid, r_cu)
+                )
+                if matched_req is None:
+                    for (s_k, cid_k, cu_k), er_val in worker_edit_req_lookup.items():
+                        if s_k == target_sheet_name.strip().lower() and (
+                            (r_cid and cid_k == r_cid) or (not r_cid and r_cu and cu_k == r_cu)
+                        ):
+                            matched_req = er_val
+                            break
                 if matched_req and matched_req.get("Status", "").strip().lower() == "approved":
                     req_badge = ' <span style="font-size:10.5px; color:#047857; background:#d1fae5; padding:1px 6px; border-radius:5px; font-weight:700;">Approved Edit</span>'
                 elif matched_req and matched_req.get("Status", "").strip().lower() == "pending":
@@ -5849,3 +5908,4 @@ else:
         sheet_for_link=current_sheet,
         allow_edit=can_update,
     )
+	
