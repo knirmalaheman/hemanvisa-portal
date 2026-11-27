@@ -1565,3 +1565,392 @@ def find_password_column(df):
         if col.strip().lower() in ["password", "pass"]:
             return col
     return df.columns[1] if len(df.columns) > 1 else df.columns[0]
+
+# --- Step 4: Search Helpers, Worker Blocking, Popup Navigation & Session Init ---
+
+def get_target_search_columns(df):
+    target_cols = set()
+    if df is None or df.empty:
+        return []
+    for c in df.columns:
+        c_low = c.strip().lower().replace("_", " ")
+        if (
+            "case id" in c_low
+            or "username" in c_low
+            or "user" in c_low
+            or "case worker" in c_low
+            or "worker" in c_low
+            or "password" in c_low
+            or c_low == "pass"
+        ):
+            target_cols.add(c)
+    for ds_c in find_ds160_columns(df):
+        target_cols.add(ds_c)
+    if not target_cols:
+        target_cols.add(find_display_username_column(df))
+    return [c for c in df.columns if c in target_cols]
+
+
+def search_username_ds160_password_worker(df, query_text):
+    if df is None or df.empty or not query_text:
+        return (
+            pd.Series([True] * len(df), index=df.index)
+            if df is not None
+            else pd.Series([], dtype=bool)
+        )
+
+    q = query_text.strip().lower()
+    target_cols = get_target_search_columns(df)
+
+    mask = pd.Series([False] * len(df), index=df.index)
+    for col in target_cols:
+        col_mask = (
+            df[col]
+            .astype(str)
+            .str.lower()
+            .str.contains(q, case=False, na=False, regex=False)
+        )
+        mask = mask | col_mask
+    return mask
+
+
+def search_across_all_sheets_by_fields(query_text, lead_filter="All"):
+    if not query_text:
+        return pd.DataFrame()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    matched_dfs = []
+    for s_name, df_s in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS:
+            continue
+        if df_s is None or df_s.empty:
+            continue
+        df_curr = reorder_dataframe_columns(df_s.copy())
+        if lead_filter and lead_filter != "All":
+            login_c_s = find_login_user_column(df_curr)
+            lead_col_s = next(
+                (c for c in df_curr.columns if "lead" in c.strip().lower()), login_c_s
+            )
+            if lead_col_s in df_curr.columns:
+                df_curr = df_curr[
+                    df_curr[lead_col_s]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                    .str.contains(lead_filter.lower(), na=False)
+                ]
+        if df_curr.empty:
+            continue
+        m = search_username_ds160_password_worker(df_curr, query_text)
+        res_s = df_curr[m]
+        if not res_s.empty:
+            res_s = res_s.copy()
+            res_s["__orig_idx__"] = res_s.index
+            res_s["Sheet_Name"] = s_name
+            res_s = reorder_dataframe_columns(res_s)
+            matched_dfs.append(res_s)
+    if not matched_dfs:
+        return pd.DataFrame()
+    return reorder_dataframe_columns(pd.concat(matched_dfs, ignore_index=True))
+
+
+def search_main_data_any(df, query_text):
+    if df is None or df.empty or not query_text:
+        return (
+            pd.Series([True] * len(df), index=df.index)
+            if df is not None
+            else pd.Series([], dtype=bool)
+        )
+
+    q = query_text.strip().lower()
+    p_col = find_password_column(df)
+    excluded_cols = {
+        p_col,
+        "Appointment_PDF",
+        "Updated_By",
+        "Updated_At",
+        "Action_Type",
+        "Delete_Reason",
+    }
+    search_cols = [
+        c
+        for c in df.columns
+        if c not in excluded_cols and "password" not in c.strip().lower()
+    ]
+    if not search_cols:
+        search_cols = [c for c in df.columns if c != p_col]
+
+    mask = pd.Series([False] * len(df), index=df.index)
+    for col in search_cols:
+        col_mask = (
+            df[col]
+            .astype(str)
+            .str.lower()
+            .str.contains(q, case=False, na=False, regex=False)
+        )
+        mask = mask | col_mask
+    return mask
+
+
+def find_visa_type_column(df):
+    for c in df.columns:
+        if any(term in c.lower() for term in ["visa", "category", "type", "service"]):
+            return c
+    return None
+
+
+def get_all_workers_list():
+    meta = _get_runtime_meta()
+    if meta["workers_list"] is not None:
+        return meta["workers_list"]
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    all_workers = set()
+    for s_name, df_s in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS:
+            continue
+        if df_s is not None and not df_s.empty:
+            lc = find_login_user_column(df_s)
+            users = df_s[lc].astype(str).str.strip()
+            for u in users.unique():
+                if u != "" and u.lower() not in ["", "admin", "not assigned", "nan", "none"]:
+                    all_workers.add(u)
+    perms_map = load_permissions()
+    for p_user in perms_map.keys():
+        u_clean = str(p_user).strip()
+        if u_clean and u_clean.lower() not in ["admin", "not assigned"]:
+            all_workers.add(u_clean)
+    for extra_w in ["Kalyan", "Anil"]:
+        if not any(w.lower() == extra_w.lower() for w in all_workers):
+            all_workers.add(extra_w)
+    res = sorted(list(all_workers))
+    meta["workers_list"] = res
+    return res
+
+
+def are_all_workers_blocked():
+    workers = get_all_workers_list()
+    if not workers:
+        return False
+    perms = load_permissions()
+    norm_perms = {k.lower(): v for k, v in perms.items()}
+    return all(
+        norm_perms.get(w.lower(), {}).get("block_login", False) for w in workers
+    )
+
+
+def is_worker_blocked(worker_name):
+    if not worker_name:
+        return False
+    perms = load_permissions()
+    for k, v in perms.items():
+        if k.lower() == worker_name.strip().lower():
+            return v.get("block_login", False)
+    return False
+
+
+def toggle_all_workers_block(block_status: bool):
+    all_workers = get_all_workers_list()
+    current_perms = dict(load_permissions())
+    for w in all_workers:
+        matched_key = next(
+            (k for k in current_perms if k.lower() == w.lower()), w
+        )
+        if matched_key not in current_perms:
+            current_perms[matched_key] = {
+                "can_update": True,
+                "can_add": True,
+                "can_search": True,
+                "can_download": False,
+                "can_sync": False,
+                "block_login": block_status,
+            }
+        else:
+            current_perms[matched_key]["block_login"] = block_status
+    save_permissions(current_perms)
+
+
+def is_not_assigned_value(val):
+    s = str(val).strip().lower()
+    return s in ["", "nan", "none", "not assigned", "unassigned", "-"]
+
+
+def is_today_updated_row(row, today_str):
+    upd_at = str(row.get("Updated_At", "")).strip()
+    upd_by = str(row.get("Updated_By", "")).strip()
+    if today_str in upd_at and upd_by != "":
+        return True
+    return False
+
+
+def enable_right_cursor_navigation_in_popup():
+    components.html(
+        """
+        <script>
+        (function() {
+            const doc = window.parent.document;
+
+            function getPopupInputs() {
+                const dialog = doc.querySelector('[data-testid="stDialog"]');
+                if (!dialog) return [];
+                const elements = Array.from(
+                    dialog.querySelectorAll('input:not([type="file"]):not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
+                );
+                return elements.filter(el => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && !el.closest('[data-testid="stSidebar"]');
+                });
+            }
+
+            function moveCursorRight(currentEl) {
+                const inputs = getPopupInputs();
+                if (!inputs.length) return;
+                const idx = inputs.indexOf(currentEl);
+                if (idx === -1) return;
+
+                const curRect = currentEl.getBoundingClientRect();
+                const curMidY = curRect.top + curRect.height / 2;
+
+                let rightCandidate = null;
+                let bestRightScore = Infinity;
+
+                for (let i = 0; i < inputs.length; i++) {
+                    if (i === idx) continue;
+                    const cand = inputs[i];
+                    const r = cand.getBoundingClientRect();
+                    const midY = r.top + r.height / 2;
+                    const dy = Math.abs(midY - curMidY);
+                    const dx = r.left - curRect.right;
+
+                    if (dx > -10 && dy < 36) {
+                        const score = Math.max(0, dx) + dy * 4;
+                        if (score < bestRightScore) {
+                            bestRightScore = score;
+                            rightCandidate = cand;
+                        }
+                    }
+                }
+
+                const nextEl = rightCandidate || inputs[(idx + 1) % inputs.length];
+                if (nextEl) {
+                    nextEl.focus();
+                    if (typeof nextEl.select === "function" && nextEl.tagName === "INPUT") {
+                        try { nextEl.select(); } catch (e) {}
+                    }
+                }
+            }
+
+            if (!doc.__hemanPopupRightNavBound) {
+                doc.addEventListener("keydown", function(e) {
+                    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+                    const dialog = doc.querySelector('[data-testid="stDialog"]');
+                    if (!dialog) return;
+                    const active = doc.activeElement;
+                    if (!active || !dialog.contains(active)) return;
+                    if (active.tagName === "TEXTAREA" || active.tagName === "BUTTON") return;
+
+                    e.preventDefault();
+                    e.stopPropagation();
+                    moveCursorRight(active);
+                }, true);
+                doc.__hemanPopupRightNavBound = true;
+            }
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+qp = st.query_params
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+    st.session_state["username"] = ""
+    st.session_state["role"] = ""
+
+if "attendance_recorded" not in st.session_state:
+    st.session_state["attendance_recorded"] = False
+
+if "selected_visa_filter" not in st.session_state:
+    st.session_state["selected_visa_filter"] = "All"
+
+if "force_logged_out_msg" not in st.session_state:
+    st.session_state["force_logged_out_msg"] = False
+
+if "is_editing_popup" not in st.session_state:
+    st.session_state["is_editing_popup"] = False
+
+if "is_delete_request_mode" not in st.session_state:
+    st.session_state["is_delete_request_mode"] = False
+
+if "is_reschedule_mode" not in st.session_state:
+    st.session_state["is_reschedule_mode"] = False
+
+if not st.session_state["logged_in"] and qp.get("logged_in") == "true":
+    qp_role = qp.get("role", "worker")
+    qp_user = qp.get("username", "")
+    if qp_role == "worker" and is_worker_blocked(qp_user):
+        qp.clear()
+        st.session_state["force_logged_out_msg"] = True
+    else:
+        st.session_state["logged_in"] = True
+        st.session_state["username"] = qp_user
+        st.session_state["role"] = qp_role
+        if qp_role == "worker" and not st.session_state["attendance_recorded"]:
+            record_worker_login(qp_user)
+            st.session_state["attendance_recorded"] = True
+
+if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
+    curr_w = st.session_state.get("username", "")
+    if st.session_state.pop("_just_logged_in", False):
+        pass
+    elif is_worker_blocked(curr_w):
+        st.query_params.clear()
+        st.session_state["logged_in"] = False
+        st.session_state["username"] = ""
+        st.session_state["role"] = ""
+        st.session_state["attendance_recorded"] = False
+        close_case_popup_state()
+        st.session_state["force_logged_out_msg"] = True
+        st.rerun()
+
+if "open_dialog" not in st.session_state:
+    st.session_state["open_dialog"] = None
+
+if "selected_row_idx" not in st.session_state:
+    st.session_state["selected_row_idx"] = None
+
+if st.session_state["logged_in"] and "edit_row" in qp:
+    try:
+        r_val = int(qp["edit_row"])
+        if "active_sheet" in qp and qp["active_sheet"] in get_sheet_names():
+            st.session_state["active_sheet"] = qp["active_sheet"]
+        st.session_state["selected_row_idx"] = r_val
+        st.session_state["open_dialog"] = "edit_case_popup"
+        st.session_state["is_editing_popup"] = False
+        st.session_state["is_delete_request_mode"] = False
+        st.session_state["is_reschedule_mode"] = False
+        if "edit_row" in st.query_params:
+            del st.query_params["edit_row"]
+    except Exception:
+        if "edit_row" in st.query_params:
+            del st.query_params["edit_row"]
+elif not st.session_state["logged_in"] and "edit_row" in qp:
+    qp.clear()
+
+default_s_init = st.session_state.get("active_sheet", "Sheet1")
+if st.session_state.get("logged_in") or st.session_state.get("open_dialog"):
+    sheets_init = get_sheet_names()
+    default_s_init = get_default_active_sheet(sheets_init)
+    if "active_sheet" not in st.session_state:
+        st.session_state["active_sheet"] = default_s_init
+        st.query_params["active_sheet"] = default_s_init
+    if "dash_sheet" not in st.session_state:
+        st.session_state["dash_sheet"] = default_s_init
+    if "records_sheet" not in st.session_state:
+        st.session_state["records_sheet"] = default_s_init
+
+if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
+    if not st.session_state.get("attendance_recorded", False):
+        record_worker_login(st.session_state["username"])
+        st.session_state["attendance_recorded"] = True
