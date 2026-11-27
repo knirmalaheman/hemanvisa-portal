@@ -1091,3 +1091,477 @@ def build_attendance_summary_tables(attendance_data):
     if not df_overall.empty:
         df_overall.index = range(1, len(df_overall) + 1)
     return df_day, df_overall
+
+
+# --- Step 3: Sheet Loading, Case IDs (HMxxxx), Reschedule & Excel Exports ---
+
+def close_case_popup_state():
+    st.session_state["is_editing_popup"] = False
+    st.session_state["is_delete_request_mode"] = False
+    st.session_state["is_reschedule_mode"] = False
+    st.session_state["selected_row_idx"] = None
+    st.session_state["open_dialog"] = None
+    if "edit_row" in st.query_params:
+        try:
+            del st.query_params["edit_row"]
+        except Exception:
+            pass
+
+
+def reorder_dataframe_columns(df):
+    if df is None or df.empty:
+        return df
+    cols_to_drop = [
+        c
+        for c in df.columns
+        if c.strip().lower() in ["ds-160 case worker", "ds160 case worker"]
+    ]
+    if cols_to_drop:
+        df = df.drop(columns=cols_to_drop, errors="ignore")
+
+    cols = list(df.columns)
+    found_priority = []
+
+    if "Sheet_Name" in cols:
+        found_priority.append("Sheet_Name")
+    if "Case_ID" in cols:
+        found_priority.append("Case_ID")
+
+    desired_order_prefixes = ["case", "username", "password", "no of app", "lead"]
+    for prefix in desired_order_prefixes:
+        for c in cols:
+            c_low = c.strip().lower().replace("_", " ")
+            if (c_low == prefix or prefix in c_low) and c not in found_priority:
+                found_priority.append(c)
+
+    remaining_cols = [c for c in cols if c not in found_priority]
+    return df[found_priority + remaining_cols]
+
+
+def _detect_case_username_col(df):
+    if df is None or df.empty:
+        return None
+    for col in df.columns:
+        if col.strip() == "USERNAME":
+            return col
+    login_c = None
+    for col in df.columns:
+        if col.strip().lower() in ["username", "case worker", "cases_worker", "user"]:
+            if col.strip() != "USERNAME":
+                login_c = col
+                break
+    for col in df.columns:
+        if col.strip().lower() == "username" and col != login_c:
+            return col
+    for col in df.columns:
+        c_low = col.strip().lower().replace("_", " ")
+        if "case" in c_low and "user" in c_low:
+            return col
+    return None
+
+
+def _is_valid_case_username(val):
+    s = str(val).strip().lower()
+    return s not in ["", "nan", "none", "not assigned", "unassigned", "-"]
+
+
+def _assign_case_username_based_ids(all_sheets):
+    max_num = 1000
+    username_to_id = {}
+    modified = False
+
+    for s_name, df in all_sheets.items():
+        if df is None or str(s_name).strip() in SYSTEM_SHEETS:
+            continue
+        df.columns = df.columns.str.strip()
+        disp_col = _detect_case_username_col(df)
+        if "Case_ID" in df.columns:
+            for idx in df.index:
+                cid = str(df.at[idx, "Case_ID"]).strip()
+                if cid and cid.lower() != "nan":
+                    m = re.search(r"(\d+)", cid)
+                    if m:
+                        num = int(m.group(1))
+                        if num > max_num:
+                            max_num = num
+                    if disp_col and disp_col in df.columns:
+                        u_val = str(df.at[idx, disp_col]).strip()
+                        if _is_valid_case_username(u_val):
+                            u_key = u_val.lower()
+                            if u_key not in username_to_id:
+                                username_to_id[u_key] = cid
+
+    for s_name, df in all_sheets.items():
+        if df is None or str(s_name).strip() in SYSTEM_SHEETS:
+            continue
+        df.columns = df.columns.str.strip()
+        df = df.fillna("")
+        if "Case_ID" not in df.columns:
+            df.insert(0, "Case_ID", "")
+            modified = True
+
+        disp_col = _detect_case_username_col(df)
+        for idx in df.index:
+            cid = str(df.at[idx, "Case_ID"]).strip()
+            if cid == "" or cid.lower() == "nan":
+                u_key = ""
+                if disp_col and disp_col in df.columns:
+                    u_val = str(df.at[idx, disp_col]).strip()
+                    if _is_valid_case_username(u_val):
+                        u_key = u_val.lower()
+
+                if u_key and u_key in username_to_id:
+                    df.at[idx, "Case_ID"] = username_to_id[u_key]
+                else:
+                    max_num += 1
+                    new_cid = f"HM{max_num}"
+                    df.at[idx, "Case_ID"] = new_cid
+                    if u_key:
+                        username_to_id[u_key] = new_cid
+                modified = True
+
+        all_sheets[s_name] = df
+
+    return all_sheets, modified
+
+
+def _normalize_sheet_df(df):
+    df.columns = df.columns.str.strip()
+    df = df.fillna("")
+
+    if "Unnamed: 5" in df.columns:
+        df = df.rename(columns={"Unnamed: 5": "Category"})
+    if "Updated_By" not in df.columns:
+        df["Updated_By"] = ""
+    if "Updated_At" not in df.columns:
+        df["Updated_At"] = ""
+    if "Action_Type" not in df.columns:
+        df["Action_Type"] = ""
+    if "Delete_Reason" not in df.columns:
+        df["Delete_Reason"] = ""
+    if "Booking_Status" not in df.columns:
+        df["Booking_Status"] = "Active"
+    if "Issue_Remark" not in df.columns:
+        df["Issue_Remark"] = ""
+
+    if (
+        "Appointment_Entry" not in df.columns
+        and "Current Appointment" in df.columns
+    ):
+        df = df.rename(
+            columns={"Current Appointment": "Appointment_Entry"}
+        )
+    elif "Appointment_Entry" not in df.columns:
+        df["Appointment_Entry"] = ""
+
+    if "Appointment_PDF" not in df.columns:
+        df["Appointment_PDF"] = ""
+    if "Preferred_Location" not in df.columns:
+        df["Preferred_Location"] = ""
+    if "Preferred_Dates" not in df.columns:
+        df["Preferred_Dates"] = ""
+    if "Prior_Notice" not in df.columns:
+        df["Prior_Notice"] = ""
+
+    return reorder_dataframe_columns(df)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _fetch_and_process_all_sheets_cached(base_cache_key):
+    remote_sheets = _fetch_sheets_from_webapp()
+    all_sheets = None
+
+    if remote_sheets is not None and len(remote_sheets) > 0:
+        all_sheets = remote_sheets
+    elif os.path.exists(EXCEL_FILE):
+        try:
+            all_sheets = pd.read_excel(EXCEL_FILE, sheet_name=None, dtype=str)
+        except Exception:
+            return {}
+
+    if not all_sheets:
+        return {}
+
+    try:
+        all_sheets, _ = _assign_case_username_based_ids(all_sheets)
+        processed = {}
+        for s_name, df in all_sheets.items():
+            if df is None:
+                continue
+            s_clean = str(s_name).strip()
+            if not s_clean:
+                continue
+            if s_clean in SYSTEM_SHEETS:
+                df_sys = df.copy()
+                df_sys.columns = df_sys.columns.str.strip()
+                processed[s_clean] = df_sys.fillna("").astype(str)
+            else:
+                processed[s_clean] = _normalize_sheet_df(df)
+        return processed
+    except Exception:
+        return {}
+
+
+def load_all_sheets_cached(file_mtime):
+    mem_cache = st.session_state.get("_mem_sheets_cache")
+    if isinstance(mem_cache, dict) and len(mem_cache) > 0:
+        return mem_cache
+    base_key = os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
+    processed = _fetch_and_process_all_sheets_cached(base_key)
+    if isinstance(processed, dict) and len(processed) > 0:
+        st.session_state["_mem_sheets_cache"] = {k: v.copy() for k, v in processed.items()}
+        return st.session_state["_mem_sheets_cache"]
+    return processed
+
+
+def ensure_all_cases_have_unique_ids(force=False):
+    mtime = _get_file_mtime()
+    last_checked_key = "_last_id_sync_mtime"
+    if not force and st.session_state.get(last_checked_key) == mtime:
+        return
+    try:
+        all_sheets = load_all_sheets_cached(mtime)
+        if not all_sheets:
+            return
+        all_sheets, modified = _assign_case_username_based_ids(all_sheets)
+        for s_name, df in all_sheets.items():
+            all_sheets[s_name] = reorder_dataframe_columns(df)
+
+        if modified:
+            with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl") as writer:
+                for s, df_val in all_sheets.items():
+                    df_val.to_excel(writer, sheet_name=str(s), index=False)
+            first_s = list(all_sheets.keys())[0]
+            _push_sheet_to_webapp(first_s, all_sheets[first_s], all_sheets)
+            st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
+            _clear_sheet_runtime_caches()
+        st.session_state[last_checked_key] = _get_file_mtime()
+    except Exception:
+        pass
+
+
+def get_sheet_names():
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    if all_sheets:
+        visible = [s for s in all_sheets.keys() if str(s).strip() not in SYSTEM_SHEETS]
+        return visible if visible else list(all_sheets.keys())
+    return ["Sheet1"]
+
+
+def get_default_active_sheet(sheets_list=None):
+    if sheets_list is None:
+        sheets_list = get_sheet_names()
+    filtered = [s for s in sheets_list if str(s).strip() not in SYSTEM_SHEETS]
+    pool = filtered if filtered else sheets_list
+    if not pool:
+        return "Sheet1"
+    return next(
+        (
+            s
+            for s in pool
+            if "booked" not in s.lower() and "issue" not in s.lower()
+        ),
+        pool[0],
+    )
+
+
+def generate_next_case_id(extra_reserved_ids=None):
+    all_sheets_dict = load_all_sheets_cached(_get_file_mtime())
+    max_num = 1000
+    for s_name, df_s in all_sheets_dict.items():
+        if df_s is not None and not df_s.empty and "Case_ID" in df_s.columns:
+            for val in df_s["Case_ID"].astype(str):
+                m = re.search(r"(\d+)", val.strip())
+                if m:
+                    num = int(m.group(1))
+                    if num > max_num:
+                        max_num = num
+    if extra_reserved_ids:
+        for cid in extra_reserved_ids:
+            m = re.search(r"(\d+)", str(cid).strip())
+            if m:
+                num = int(m.group(1))
+                if num > max_num:
+                    max_num = num
+    return f"HM{max_num + 1}"
+
+
+def append_rescheduled_to_active_sheet(
+    source_row,
+    pref_loc,
+    pref_dates,
+    prior_notice,
+    updated_by,
+    updated_at,
+    assigned_worker=None,
+):
+    sheets_all = get_sheet_names()
+    active_sheet_name = get_default_active_sheet(sheets_all)
+    if not active_sheet_name:
+        return None, None
+    df_active = load_data(sheet_name=active_sheet_name)
+    if df_active is None:
+        return None, None
+
+    new_rescheduled_id = generate_next_case_id()
+    row_to_active = {col: "" for col in df_active.columns}
+
+    for col in df_active.columns:
+        if col in source_row.index:
+            row_to_active[col] = str(source_row[col])
+
+    row_to_active["Case_ID"] = new_rescheduled_id
+
+    if assigned_worker is not None:
+        raw_w = str(assigned_worker).strip()
+        clean_worker = "" if raw_w.lower() in ["", "not assigned"] else raw_w
+        login_c_act = find_login_user_column(df_active)
+        row_to_active[login_c_act] = clean_worker
+        for col in df_active.columns:
+            c_low = col.strip().lower().replace("_", " ")
+            if c_low in ["case worker", "cases worker", "worker", "assigned to", "user"]:
+                row_to_active[col] = clean_worker
+
+    row_to_active["Booking_Status"] = "Rescheduled"
+    row_to_active["Preferred_Location"] = pref_loc.strip()
+    row_to_active["Preferred_Dates"] = pref_dates.strip()
+    row_to_active["Prior_Notice"] = prior_notice.strip()
+    row_to_active["Updated_By"] = updated_by
+    row_to_active["Updated_At"] = updated_at
+    row_to_active["Action_Type"] = "Rescheduled Case"
+
+    df_active_ordered = pd.concat(
+        [df_active, pd.DataFrame([row_to_active])], ignore_index=True
+    )
+    save_data(df_active_ordered, sheet_name=active_sheet_name)
+    return new_rescheduled_id, active_sheet_name
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_admin_gsheet_export_bytes(file_mtime):
+    all_sheets = load_all_sheets_cached(file_mtime)
+    excel_buffer = io.BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+        has_data = False
+        for s_name, df_s in all_sheets.items():
+            if str(s_name).strip() in SYSTEM_SHEETS:
+                continue
+            if df_s is not None:
+                df_clean = reorder_dataframe_columns(df_s.copy())
+                df_clean.to_excel(writer, sheet_name=str(s_name)[:31], index=False)
+                has_data = True
+        if not has_data:
+            pd.DataFrame().to_excel(writer, sheet_name="Sheet1", index=False)
+    return excel_buffer.getvalue()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_worker_export_bytes(file_mtime, current_user, current_sheet):
+    all_sheets = load_all_sheets_cached(file_mtime)
+    worker_buffer = io.BytesIO()
+    with pd.ExcelWriter(worker_buffer, engine="openpyxl") as writer:
+        has_user_data = False
+        for s, df_s in all_sheets.items():
+            if df_s is not None and not df_s.empty:
+                login_cs = find_login_user_column(df_s)
+                u_rows_s = df_s[
+                    df_s[login_cs].astype(str).str.strip().str.lower()
+                    == current_user.lower()
+                ]
+                if not u_rows_s.empty:
+                    has_user_data = True
+                    u_rows_s = reorder_dataframe_columns(u_rows_s)
+                    u_rows_s.to_excel(writer, sheet_name=str(s)[:31], index=False)
+        if not has_user_data and current_sheet in all_sheets:
+            df_cur = all_sheets[current_sheet]
+            login_cs = find_login_user_column(df_cur)
+            u_rows_cur = df_cur[
+                df_cur[login_cs].astype(str).str.strip().str.lower()
+                == current_user.lower()
+            ]
+            u_rows_cur = reorder_dataframe_columns(u_rows_cur)
+            u_rows_cur.to_excel(writer, sheet_name=str(current_sheet)[:31], index=False)
+    return worker_buffer.getvalue()
+
+
+def load_data(sheet_name=0):
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    if not all_sheets:
+        return None
+    if isinstance(sheet_name, int):
+        keys = list(all_sheets.keys())
+        if 0 <= sheet_name < len(keys):
+            return all_sheets[keys[sheet_name]].copy()
+        return None
+    if sheet_name in all_sheets:
+        return all_sheets[sheet_name].copy()
+    return None
+
+
+def save_data(df_to_save, sheet_name=0):
+    if "Category" in df_to_save.columns:
+        df_to_save = df_to_save.rename(columns={"Category": ""})
+
+    sheets_data = {}
+    cached_sheets = load_all_sheets_cached(_get_file_mtime())
+    if cached_sheets:
+        for s_k, df_k in cached_sheets.items():
+            sheets_data[str(s_k)] = df_k.copy()
+
+    target_sheet_key = str(sheet_name)
+    if isinstance(sheet_name, int) and sheets_data:
+        keys = list(sheets_data.keys())
+        if 0 <= sheet_name < len(keys):
+            target_sheet_key = str(keys[sheet_name])
+
+    df_to_save = reorder_dataframe_columns(df_to_save)
+    sheets_data[target_sheet_key] = df_to_save
+
+    _update_session_sheets_cache({target_sheet_key: df_to_save})
+    _push_sheet_to_webapp(target_sheet_key, df_to_save, sheets_data)
+    st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
+    st.session_state.pop("_parsed_meta_cache", None)
+    st.session_state["_last_id_sync_mtime"] = _get_file_mtime()
+
+
+@st.cache_data(show_spinner=False)
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+
+def find_login_user_column(df):
+    for col in df.columns:
+        if col.strip().lower() in ["username", "case worker", "cases_worker", "user"]:
+            if col.strip() != "USERNAME":
+                return col
+    for col in df.columns:
+        if col.strip().lower() in ["case worker", "cases_worker", "user"]:
+            return col
+    return df.columns[0]
+
+
+def find_display_username_column(df):
+    for col in df.columns:
+        if col.strip() == "USERNAME":
+            return col
+    for col in df.columns:
+        if col.strip().lower() == "username" and col.strip() != find_login_user_column(df):
+            return col
+    return df.columns[0]
+
+
+def find_ds160_columns(df):
+    ds_cols = []
+    for col in df.columns:
+        c_norm = col.strip().lower().replace("-", "").replace("_", "").replace(" ", "")
+        if "ds160" in c_norm or "ds 160" in col.strip().lower():
+            ds_cols.append(col)
+    return ds_cols
+
+
+def find_password_column(df):
+    for col in df.columns:
+        if col.strip().lower() in ["password", "pass"]:
+            return col
+    return df.columns[1] if len(df.columns) > 1 else df.columns[0]
