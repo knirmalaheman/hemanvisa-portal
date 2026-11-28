@@ -2690,38 +2690,135 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
 
-    /* Enterprise Visa Type Stat Chips */
+    /* Enterprise Visa Type Stat Chips (Colorful Pastel-Gradient Software Pills) */
     div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button {
         background: #ffffff !important;
         color: #0f172a !important;
         border: 1px solid #cbd5e1 !important;
-        border-left: 4px solid #2563eb !important;
-        border-radius: 9px !important;
-        min-height: 40px !important;
+        border-left: 4.5px solid #2563eb !important;
+        border-radius: 10px !important;
+        min-height: 42px !important;
         padding: 6px 12px !important;
         font-size: 12.5px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 5px rgba(15, 23, 42, 0.04) !important;
+        font-weight: 800 !important;
+        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.05) !important;
+        transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button p {
+        font-weight: 800 !important;
+        font-size: 12.5px !important;
     }
     div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button:hover {
-        background: #f1f5f9 !important;
-        border-color: #2563eb !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 7px 15px rgba(15, 23, 42, 0.12) !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button { border-left-color: #2563eb !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button { border-left-color: #059669 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button { border-left-color: #d97706 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button { border-left-color: #4f46e5 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button { border-left-color: #db2777 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button { border-left-color: #0d9488 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button { border-left-color: #475569 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button { border-left-color: #dc2626 !important; }
 
+    /* 0: Sapphire Blue */
+    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+        border: 1px solid #93c5fd !important;
+        border-left: 4.5px solid #2563eb !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button p { color: #1e3a8a !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* 1: Emerald Green */
+    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+        border: 1px solid #6ee7b7 !important;
+        border-left: 4.5px solid #059669 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button p { color: #064e3b !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* 2: Warm Amber Gold */
+    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+        border: 1px solid #fcd34d !important;
+        border-left: 4.5px solid #d97706 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button p { color: #78350f !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* 3: Royal Indigo */
+    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+        border: 1px solid #a5b4fc !important;
+        border-left: 4.5px solid #4f46e5 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button p { color: #312e81 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* 4: Vibrant Rose */
+    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%) !important;
+        border: 1px solid #f9a8d4 !important;
+        border-left: 4.5px solid #db2777 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button p { color: #831843 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #db2777 0%, #be185d 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* 5: Ocean Teal */
+    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%) !important;
+        border: 1px solid #5eead4 !important;
+        border-left: 4.5px solid #0d9488 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button p { color: #134e4a !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* 6: Violet Purple */
+    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+        border: 1px solid #c4b5fd !important;
+        border-left: 4.5px solid #7c3aed !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button p { color: #4c1d95 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* 7: Crimson Coral */
+    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+        border: 1px solid #fca5a5 !important;
+        border-left: 4.5px solid #dc2626 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button p { color: #7f1d1d !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    /* Selected Active Visa Chip */
     div[data-testid="stElementContainer"]:has([class*="visa-chip-active-"]) + div[data-testid="stElementContainer"] button {
-        background: #0f172a !important;
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;
         color: #ffffff !important;
-        border: 1px solid #0f172a !important;
-        border-left: 4px solid #38bdf8 !important;
-        box-shadow: 0 5px 14px rgba(15, 23, 42, 0.22) !important;
+        border: 1px solid #1d4ed8 !important;
+        border-left: 4.5px solid #38bdf8 !important;
+        box-shadow: 0 6px 16px rgba(30, 58, 138, 0.28) !important;
+    }
+    div[data-testid="stElementContainer"]:has([class*="visa-chip-active-"]) + div[data-testid="stElementContainer"] button p {
+        color: #ffffff !important;
     }
 
     /* Search Input */
