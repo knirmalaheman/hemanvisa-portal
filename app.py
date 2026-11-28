@@ -6078,6 +6078,9 @@ else:
         if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
+            st.session_state.pop("_mem_messages_cache", None)
+            st.session_state["_msg_sync_ver"] = st.session_state.get("_msg_sync_ver", 0) + 1
+            _fetch_messages_cached.clear()
             st.session_state.pop("_last_id_sync_mtime", None)
             act_s = get_default_active_sheet(get_sheet_names())
             st.session_state["active_sheet"] = act_s
