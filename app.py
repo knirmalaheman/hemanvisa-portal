@@ -5697,7 +5697,7 @@ else:
     can_update = user_perms.get("can_update", True)
     can_add = user_perms.get("can_add", True)
     can_search = user_perms.get("can_search", True)
-    can_download = user_perms.get("can_download", False)
+    can_download = user_perms.get("can_download", True)
 
     if "worker_selected_lead" not in st.session_state:
         st.session_state["worker_selected_lead"] = "All"
