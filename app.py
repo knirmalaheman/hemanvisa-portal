@@ -5919,7 +5919,74 @@ else:
             .str.lower()
             .str.contains(sel_lw, na=False)
         ]
+	user_rows_w = user_rows_w[
+            user_rows_w[lead_col_w]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .str.contains(sel_lw, na=False)
+        ]
 
+    # --- IKKADA PASTE CHEYANDI (Line 5922) ---
+    if "worker_selected_visa_filter" not in st.session_state:
+        st.session_state["worker_selected_visa_filter"] = "All"
+
+    visa_col_w = find_visa_type_column(df_w)
+    visa_counts_w = {}
+    if visa_col_w and not user_rows_w.empty and visa_col_w in user_rows_w.columns:
+        v_series_w = user_rows_w[visa_col_w].astype(str).str.strip().str.upper()
+        v_series_w = v_series_w[(v_series_w != "") & (v_series_w != "NAN") & (v_series_w != "NONE")]
+        visa_counts_w = v_series_w.value_counts().to_dict()
+
+    if visa_counts_w:
+        st.markdown(
+            "<div class='action-group-title'>✈️ FILTER BY VISA TYPE:</div>",
+            unsafe_allow_html=True,
+        )
+        visa_items_w = list(visa_counts_w.items())
+        w_vcols = st.columns(min(len(visa_items_w), 6), gap="small")
+        for idx_v, (v_name_w, v_count_w) in enumerate(visa_items_w):
+            with w_vcols[idx_v % len(w_vcols)]:
+                st.markdown(
+                    f'<span class="visa-color-{idx_v % 8}" style="display:none;"></span>',
+                    unsafe_allow_html=True,
+                )
+                if st.button(
+                    f"✈️ {v_name_w}: {v_count_w}",
+                    key=f"worker_visa_card_btn_{current_sheet}_{v_name_w}_{idx_v}",
+                    use_container_width=True,
+                ):
+                    st.session_state["worker_selected_visa_filter"] = (
+                        "All"
+                        if st.session_state["worker_selected_visa_filter"] == v_name_w
+                        else v_name_w
+                    )
+                    st.session_state[f"page_num_worker_{current_sheet}"] = 1
+                    st.rerun()
+
+        if st.session_state["worker_selected_visa_filter"] != "All":
+            if st.button(
+                f"🔄 Active Visa Filter: [{st.session_state['worker_selected_visa_filter']}] — Click to Reset",
+                use_container_width=True,
+                key="worker_reset_visa_filter",
+            ):
+                st.session_state["worker_selected_visa_filter"] = "All"
+                st.session_state[f"page_num_worker_{current_sheet}"] = 1
+                st.rerun()
+
+    if (
+        st.session_state["worker_selected_visa_filter"] != "All"
+        and visa_col_w
+        and not user_rows_w.empty
+        and visa_col_w in user_rows_w.columns
+    ):
+        target_visa_w = st.session_state["worker_selected_visa_filter"]
+        user_rows_w = user_rows_w[
+            user_rows_w[visa_col_w].astype(str).str.strip().str.upper() == target_visa_w
+        ]
+    # --- PASTE END ---
+
+    
     total_w_cases = len(user_rows_w) if not user_rows_w.empty else 0
     today_str_w = get_ist_now().strftime("%Y-%m-%d")
     today_w_cases = 0
