@@ -2798,6 +2798,253 @@ st.markdown("""
         border-left: 4px solid #fbbf24 !important;
         box-shadow: 0 6px 16px rgba(30, 58, 138, 0.28) !important;
     }
+
+    /* Sleek Light-Frosted Top Brand Bar (Replaces Heavy Dark Top Strip) */
+    .sticky-top-banner {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 99999;
+        background: rgba(255, 255, 255, 0.92) !important;
+        backdrop-filter: blur(18px) !important;
+        -webkit-backdrop-filter: blur(18px) !important;
+        padding: 8px 28px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        border-image: none !important;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05) !important;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        box-sizing: border-box;
+    }
+    .brand-left-wrap {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+    }
+    .logo-container {
+        margin-left: 4px !important;
+        display: flex;
+        align-items: center;
+    }
+    .sticky-top-banner img {
+        max-height: 44px !important;
+        width: auto;
+        border-radius: 10px !important;
+        background: #ffffff;
+        padding: 2px;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+    }
+    .brand-name-stack {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.15;
+    }
+    .brand-main-name {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: 0.6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .brand-tag {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        color: #ffffff;
+        font-size: 9.5px;
+        font-weight: 800;
+        padding: 2px 6px;
+        border-radius: 5px;
+        letter-spacing: 0.8px;
+    }
+    .brand-sub-tag {
+        font-size: 10.5px;
+        font-weight: 600;
+        color: #64748b;
+    }
+    .world-map-title {
+        font-size: 14.5px !important;
+        font-weight: 800 !important;
+        background: linear-gradient(90deg, #0f172a 0%, #1d4ed8 55%, #059669 100%) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        letter-spacing: 1px !important;
+        text-transform: uppercase;
+        margin-bottom: 1px;
+    }
+    .world-map-subtitle {
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        color: #64748b !important;
+        letter-spacing: 0.4px !important;
+    }
+    .banner-badge {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 5px 12px !important;
+        border-radius: 999px !important;
+        color: #334155 !important;
+        font-weight: 600 !important;
+    }
+    .banner-badge:hover {
+        background: #eff6ff !important;
+        border-color: #93c5fd !important;
+    }
+    .banner-info a {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+    }
+    .social-icons {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 5px 11px !important;
+        border-radius: 999px !important;
+    }
+
+    /* Clean Crisp White Control Panel Header (Replaces Heavy Dark Blue Block) */
+    .sticky-control-panel {
+        top: 63px !important;
+        background: rgba(244, 247, 251, 0.88) !important;
+        border-bottom: none !important;
+        padding: 6px 0 4px 0 !important;
+        margin-bottom: 8px !important;
+    }
+    .workspace-header-bar {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        padding: 10px 18px !important;
+        border-radius: 13px !important;
+        border: 1px solid #e2e8f0 !important;
+        border-left: 5px solid #2563eb !important;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+    }
+    .ws-title-group {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+    }
+    .ws-crown-badge {
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        border: 1px solid #bfdbfe;
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+    }
+    .ws-main-title {
+        font-size: 15.5px;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.15;
+    }
+    .ws-sub-caption {
+        font-size: 11px;
+        font-weight: 600;
+        color: #64748b;
+    }
+    .ws-right-pills {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .ws-live-dot {
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        color: #047857;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+    }
+    .workspace-sheet-pill {
+        background: #eff6ff !important;
+        border: 1px solid #93c5fd !important;
+        color: #1d4ed8 !important;
+        padding: 4px 13px !important;
+        border-radius: 999px !important;
+        font-size: 12px !important;
+        font-weight: 800 !important;
+        box-shadow: none !important;
+    }
+
+    /* Refresh & Logout Crisp Control Buttons */
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-refresh) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #1d4ed8 !important;
+        border: 1px solid #bfdbfe !important;
+        border-radius: 11px !important;
+        min-height: 52px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-refresh) + div[data-testid="stElementContainer"] button:hover {
+        background: #eff6ff !important;
+        border-color: #3b82f6 !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-logout) + div[data-testid="stElementContainer"] button {
+        background: #fff1f2 !important;
+        color: #be123c !important;
+        border: 1px solid #fecdd3 !important;
+        border-radius: 11px !important;
+        min-height: 52px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 3px 10px rgba(225, 29, 72, 0.06) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-logout) + div[data-testid="stElementContainer"] button:hover {
+        background: #ffe4e6 !important;
+        border-color: #fb7185 !important;
+    }
+
+    /* Segmented Modern Navigation Tabs */
+    div[data-testid="stElementContainer"]:has(.nav-tab-active) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid #1d4ed8 !important;
+        border-bottom: 3px solid #38bdf8 !important;
+        border-radius: 11px !important;
+        min-height: 42px !important;
+        font-size: 13px !important;
+        font-weight: 800 !important;
+        box-shadow: 0 6px 15px rgba(30, 58, 138, 0.22) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.nav-tab-inactive) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #475569 !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 11px !important;
+        min-height: 42px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.nav-tab-inactive) + div[data-testid="stElementContainer"] button:hover {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    /* Corner Download Excel Button Polish */
+    div[data-testid="stElementContainer"]:has(.dl-excel-pill) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid #065f46 !important;
+        border-radius: 11px !important;
+        min-height: 44px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.22) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -2812,10 +3059,16 @@ else:
 
 st.markdown(f"""
     <div class="sticky-top-banner">
-        <div>{logo_html}</div>
+        <div class="brand-left-wrap">
+            {logo_html}
+            <div class="brand-name-stack">
+                <span class="brand-main-name">HEMANVISA <span class="brand-tag">PRO</span></span>
+                <span class="brand-sub-tag">Global Immigration & Visa Command</span>
+            </div>
+        </div>
         <div class="banner-middle">
             <div class="world-map-title">🌐 GLOBAL VISA & IMMIGRATION EXPERTS</div>
-            <div class="world-map-subtitle">✈️ Your Gateway to Study, Work & Travel Worldwide</div>
+            <div class="world-map-subtitle">✈️ Study &nbsp;•&nbsp; Work &nbsp;•&nbsp; Residency &nbsp;•&nbsp; Worldwide Mobility</div>
         </div>
         <div class="banner-info">
             <div class="banner-badge">✉️ <a href="mailto:services@hemanvisa.com">services@hemanvisa.com</a></div>
@@ -5715,13 +5968,26 @@ elif st.session_state["role"] == "admin":
     )
 
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    top_col1, top_col2, top_col3 = st.columns([6.6, 1.2, 1.2], gap="small")
+    top_col1, top_col2, top_col3 = st.columns([6.8, 1.1, 1.1], gap="small")
     with top_col1:
         st.markdown(
-            f"<div class='workspace-header-bar'><span>👑 Admin Control Panel</span><span class='workspace-sheet-pill'>📂 {header_sheet_label}</span></div>",
+            f"""<div class='workspace-header-bar'>
+                <div class='ws-title-group'>
+                    <span class='ws-crown-badge'>👑</span>
+                    <div>
+                        <div class='ws-main-title'>Admin Control Panel</div>
+                        <div class='ws-sub-caption'>Enterprise Visa Operations & Team Management</div>
+                    </div>
+                </div>
+                <div class='ws-right-pills'>
+                    <span class='ws-live-dot'>● LIVE SYNC</span>
+                    <span class='workspace-sheet-pill'>📂 {header_sheet_label}</span>
+                </div>
+            </div>""",
             unsafe_allow_html=True,
         )
     with top_col2:
+        st.markdown('<span class="ctrl-btn-refresh" style="display:none;"></span>', unsafe_allow_html=True)
         if st.button("🔄 Refresh", key="admin_refresh"):
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.session_state["_msg_sync_ver"] = st.session_state.get("_msg_sync_ver", 0) + 1
@@ -5740,6 +6006,7 @@ elif st.session_state["role"] == "admin":
             st.query_params["active_sheet"] = act_s
             st.rerun()
     with top_col3:
+        st.markdown('<span class="ctrl-btn-logout" style="display:none;"></span>', unsafe_allow_html=True)
         if st.button("🚪 Logout", key="admin_logout"):
             st.query_params.clear()
             st.session_state["logged_in"] = False
@@ -5750,15 +6017,15 @@ elif st.session_state["role"] == "admin":
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    t_c1, t_c2 = st.columns([1.4, 1.4], gap="small")
+    t_c1, t_c2, t_spacer = st.columns([1.4, 1.4, 2.2], gap="small")
     with t_c1:
         is_d_act = active_admin_view == "dashboard"
         st.markdown(
-            f'<span class="{"admin-btn-0" if is_d_act else "admin-btn-6"}" style="display:none;"></span>',
+            f'<span class="{"nav-tab-active" if is_d_act else "nav-tab-inactive"}" style="display:none;"></span>',
             unsafe_allow_html=True,
         )
         if st.button(
-            "📊 Dashboard & Quick Actions",
+            "📊  Dashboard & Quick Actions",
             key="admin_tab_dash_btn",
             use_container_width=True,
         ):
@@ -5767,11 +6034,11 @@ elif st.session_state["role"] == "admin":
     with t_c2:
         is_r_act = active_admin_view == "records"
         st.markdown(
-            f'<span class="{"admin-btn-0" if is_r_act else "admin-btn-6"}" style="display:none;"></span>',
+            f'<span class="{"nav-tab-active" if is_r_act else "nav-tab-inactive"}" style="display:none;"></span>',
             unsafe_allow_html=True,
         )
         if st.button(
-            "📂 Case Records & Search",
+            "📂  Case Records & Search",
             key="admin_tab_rec_btn",
             use_container_width=True,
         ):
@@ -5789,6 +6056,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
         with dash_top_r:
+            st.markdown('<span class="dl-excel-pill" style="display:none;"></span>', unsafe_allow_html=True)
             gsheet_excel_bytes = get_admin_gsheet_export_bytes(_get_file_mtime())
             st.download_button(
                 label="📥 Download Excel",
@@ -6440,6 +6708,7 @@ else:
             unsafe_allow_html=True,
         )
     with w_top2:
+        st.markdown('<span class="ctrl-btn-refresh" style="display:none;"></span>', unsafe_allow_html=True)
         if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
@@ -6454,6 +6723,7 @@ else:
             st.query_params["active_sheet"] = act_s
             st.rerun()
     with w_top3:
+        st.markdown('<span class="ctrl-btn-logout" style="display:none;"></span>', unsafe_allow_html=True)
         if st.button("🚪 Logout", key="worker_logout", use_container_width=True):
             record_worker_logout(current_user)
             st.session_state["attendance_recorded"] = False
