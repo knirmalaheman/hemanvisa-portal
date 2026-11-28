@@ -2101,6 +2101,7 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 12px;
+        margin-left: 75px !important;
     }
     .logo-container {
         margin-left: 2px !important;
