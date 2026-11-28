@@ -884,13 +884,17 @@ def record_worker_login(worker_name):
     time_str = now_dt.strftime("%I:%M:%S %p")
     full_timestamp = f"{today_str} {time_str}"
 
-    session_guard = f"_login_sync_done_{worker_name.strip().lower()}_{today_str}"
-    if st.session_state.get(session_guard):
+    w_clean = worker_name.strip()
+    logins = dict(load_login_tracking())
+    matched_k = next((k for k in logins if k.strip().lower() == w_clean.lower()), w_clean)
+    already_logged_in = logins.get(matched_k, {}).get("status") == "Logged In"
+
+    session_guard = f"_login_sync_done_{w_clean.lower()}_{today_str}"
+    if st.session_state.get(session_guard) and already_logged_in:
         return
     st.session_state[session_guard] = True
 
-    logins = dict(load_login_tracking())
-    logins[worker_name.strip()] = {
+    logins[matched_k] = {
         "status": "Logged In",
         "last_login": full_timestamp,
     }
@@ -899,7 +903,7 @@ def record_worker_login(worker_name):
     attendance = list(load_attendance())
     for entry in attendance:
         if (
-            entry.get("Worker", "").strip().lower() == worker_name.strip().lower()
+            entry.get("Worker", "").strip().lower() == w_clean.lower()
             and _normalize_time_ist(entry.get("Logout_Time", "-")) == "-"
             and str(entry.get("Status", "")).strip().lower() in ["active", "logged in", ""]
         ):
@@ -907,7 +911,7 @@ def record_worker_login(worker_name):
             entry["Status"] = "Logged Out"
 
     attendance.append({
-        "Worker": worker_name.strip(),
+        "Worker": matched_k,
         "Date": today_str,
         "Login_Time": time_str,
         "Logout_Time": "-",
@@ -924,7 +928,7 @@ def record_worker_login(worker_name):
     st.session_state["_gsheet_sync_version"] = (
         st.session_state.get("_gsheet_sync_version", 0) + 1
     )
-    st.session_state.pop("_parsed_meta_cache", None)
+    _clear_sheet_runtime_caches()
 
 
 def record_worker_logout(worker_name):
@@ -2038,8 +2042,14 @@ if st.session_state.get("logged_in") or st.session_state.get("open_dialog"):
         st.session_state["records_sheet"] = default_s_init
 
 if st.session_state.get("logged_in") and st.session_state.get("role") == "worker":
-    if not st.session_state.get("attendance_recorded", False):
-        record_worker_login(st.session_state["username"])
+    w_curr_name = st.session_state.get("username", "").strip()
+    logins_now = load_login_tracking()
+    is_marked_online = any(
+        k.strip().lower() == w_curr_name.lower() and v.get("status") == "Logged In"
+        for k, v in logins_now.items()
+    )
+    if not st.session_state.get("attendance_recorded", False) or not is_marked_online:
+        record_worker_login(w_curr_name)
         st.session_state["attendance_recorded"] = True
 
 st.markdown("""
