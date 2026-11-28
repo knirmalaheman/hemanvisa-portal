@@ -325,13 +325,14 @@ def _push_multiple_sheets_batch(sheets_map):
             "data": rows_2d,
             "sheets": all_payload,
         }
-        resp = requests.post(url, json=body, timeout=8, allow_redirects=True)
+        resp = requests.post(url, json=body, timeout=25, allow_redirects=True)
         resp.raise_for_status()
         res_json = resp.json()
         if isinstance(res_json, dict) and res_json.get("status") != "success":
             st.error(f"Google Sheet Batch Save Error: {res_json}")
         else:
             _update_session_sheets_cache({k: v for k, v in items})
+            _clear_sheet_runtime_caches()
     except Exception as e:
         st.warning(f"Background sync slow ({e}) — session active.")
 
@@ -5416,6 +5417,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_lstatus",
                 use_container_width=True,
             ):
+                _clear_sheet_runtime_caches()
                 st.session_state["open_dialog"] = "admin_login_status"
                 st.rerun()
         with q_r2_3:
