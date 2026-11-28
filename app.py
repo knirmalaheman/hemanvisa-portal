@@ -4697,63 +4697,66 @@ def admin_worker_wise_report_dialog():
 @st.dialog("📋 Active Worker Cases", width="large")
 def admin_active_worker_cases_dialog():
     st.info(
-        "💡 Only **Active** sheet nundi `Booking_Status` active unnavi (`booked`, `rescheduled`, `issues`) worker-wise count + case usernames format lo chupistundi."
+        "💡 **Active Cases** sheet nunchi prathi Case Worker ki unna total cases count + case usernames format lo chupistundi."
     )
 
-    df_active = load_data(sheet_name="Active")
+    sheets_all = get_sheet_names()
+    target_sheet_name = next(
+        (s for s in sheets_all if str(s).strip().lower() == "active cases"),
+        "Active Cases",
+    )
+
+    df_active = load_data(sheet_name=target_sheet_name)
     if df_active is None or df_active.empty:
-        st.warning("'Active' sheet lo data emi ledhu.")
+        st.warning(f"'{target_sheet_name}' sheet lo data emi ledhu.")
         return
 
     df_work = df_active.copy()
     df_work.columns = df_work.columns.str.strip()
 
-    col_lower_map = {str(c).strip().lower(): c for c in df_work.columns}
-    status_col = col_lower_map.get("booking_status")
     worker_col = find_login_user_column(df_work)
     user_col = find_display_username_column(df_work)
 
-    if not status_col or status_col not in df_work.columns:
-        st.warning("'Active' sheet lo `Booking_Status` column dorakaledhu.")
+    if worker_col not in df_work.columns or user_col not in df_work.columns:
+        st.warning(f"'{target_sheet_name}' sheet lo Case Worker / Username columns dorakaledhu.")
         return
 
-    active_statuses = {"booked", "rescheduled", "issues"}
-    status_norm = df_work[status_col].astype(str).str.strip().str.lower()
-    filtered_df = df_work[status_norm.isin(active_statuses)].copy()
+    df_work[worker_col] = df_work[worker_col].astype(str).str.strip()
+    df_work[user_col] = df_work[user_col].astype(str).str.strip()
 
-    if filtered_df.empty:
-        st.info(
-            "'Active' sheet lo prastutam `booked` / `rescheduled` / `issues` status lo active cases levu."
-        )
-        return
+    invalid_worker_vals = {"", "nan", "none", "null", "not assigned", "unassigned", "-"}
+    invalid_user_vals = {"", "nan", "none", "null", "-"}
 
-    filtered_df[worker_col] = filtered_df[worker_col].astype(str).str.strip()
-    filtered_df[user_col] = filtered_df[user_col].astype(str).str.strip()
+    df_valid = df_work[
+        (~df_work[worker_col].str.lower().isin(invalid_worker_vals))
+        & (~df_work[user_col].str.lower().isin(invalid_user_vals))
+    ].copy()
 
-    invalid_vals = {"", "nan", "none", "null", "not assigned", "unassigned", "-"}
-    filtered_df = filtered_df[
-        (~filtered_df[worker_col].str.lower().isin(invalid_vals))
-        & (~filtered_df[user_col].str.lower().isin(invalid_vals))
-    ]
-
-    if filtered_df.empty:
-        st.info("'Active' sheet lo valid Case Worker + Case Username unna active cases levu.")
+    if df_valid.empty:
+        st.info(f"'{target_sheet_name}' sheet lo valid Case Worker + Case Username records levu.")
         return
 
     summary_lines = []
-    for worker_name, grp in filtered_df.groupby(worker_col, sort=True):
-        usernames = list(dict.fromkeys([u for u in grp[user_col].tolist() if u]))
+    total_cases_count = 0
+
+    for worker_name, grp in df_valid.groupby(worker_col, sort=True):
+        usernames = [u for u in grp[user_col].tolist() if u]
         case_cnt = len(usernames)
+        total_cases_count += case_cnt
         users_text = ", ".join(usernames)
         summary_lines.append(f"{worker_name} ({case_cnt}): {users_text}")
 
     ready_copy_text = "\n".join(summary_lines)
 
-    st.markdown(f"**📂 Sheet:** `Active` &nbsp;|&nbsp; **👷 Workers:** `{len(summary_lines)}`")
+    st.markdown(
+        f"**📂 Sheet:** `{target_sheet_name}` &nbsp;|&nbsp; "
+        f"**👷 Workers:** `{len(summary_lines)}` &nbsp;|&nbsp; "
+        f"**📊 Total Cases:** `{total_cases_count}`"
+    )
     st.text_area(
-        "Copy-Ready Active Cases List (Worker Count & Usernames)",
+        "Copy-Ready Case Worker Wise Cases & Usernames",
         value=ready_copy_text,
-        height=240,
+        height=260,
         key="admin_active_worker_cases_copy_area",
     )
 
