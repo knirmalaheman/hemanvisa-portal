@@ -2055,20 +2055,22 @@ if st.session_state.get("logged_in") and st.session_state.get("role") == "worker
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap');
 
     html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        -webkit-font-smoothing: antialiased;
     }
 
-    /* Aurora Ambient Mesh Canvas */
+    /* Enterprise Software Canvas: Subtle Cool Slate Grid + Soft Ambient Depth */
     .stApp {
-        background-color: #f4f7fb !important;
+        background-color: #eef2f7 !important;
         background-image:
-            radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.08) 0px, transparent 52%),
-            radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 48%),
-            radial-gradient(at 50% 100%, rgba(99, 102, 241, 0.06) 0px, transparent 55%) !important;
-        background-attachment: fixed !important;
+            linear-gradient(to right, rgba(15, 23, 42, 0.025) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(15, 23, 42, 0.025) 1px, transparent 1px),
+            radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.09) 0px, transparent 50%),
+            radial-gradient(at 100% 0%, rgba(15, 118, 110, 0.07) 0px, transparent 45%) !important;
+        background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100% !important;
     }
 
     [data-testid="stHeader"] {
@@ -2078,38 +2080,70 @@ st.markdown("""
         z-index: 100005 !important;
     }
 
-    /* Royal Obsidian & Champagne Gold Top Command Header */
+    /* Executive Corporate Top Navbar (Deep Slate-Navy Software Header) */
     .sticky-top-banner {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         z-index: 99999;
-        background: linear-gradient(120deg, #060b19 0%, #0f172a 50%, #172554 100%);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        padding: 9px 28px;
-        border-bottom: 2px solid transparent;
-        border-image: linear-gradient(90deg, #1e3a8a, #f59e0b, #fde047, #f59e0b, #1e3a8a) 1;
-        box-shadow: 0 10px 30px rgba(6, 11, 25, 0.35);
+        background: linear-gradient(90deg, #090d16 0%, #111827 50%, #0f172a 100%) !important;
+        padding: 9px 30px !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.22) !important;
+        box-shadow: 0 6px 24px rgba(9, 13, 22, 0.28) !important;
         display: flex;
         align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
         box-sizing: border-box;
     }
+    .brand-left-wrap {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
     .logo-container {
-        margin-left: 10px;
+        margin-left: 2px !important;
         display: flex;
         align-items: center;
     }
     .sticky-top-banner img {
-        max-height: 48px;
+        max-height: 44px !important;
         width: auto;
-        border-radius: 10px;
+        border-radius: 9px !important;
         background: #ffffff;
-        padding: 3px;
-        box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.5), 0 6px 16px rgba(0,0,0,0.35);
+        padding: 2px;
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+    }
+    .brand-name-stack {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.18;
+    }
+    .brand-main-name {
+        font-size: 16.5px;
+        font-weight: 800;
+        color: #ffffff !important;
+        letter-spacing: 0.7px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+    .brand-tag {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: #ffffff;
+        font-size: 9.5px;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 4px;
+        letter-spacing: 0.9px;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.45);
+    }
+    .brand-sub-tag {
+        font-size: 10.5px;
+        font-weight: 500;
+        color: #94a3b8 !important;
     }
     .banner-middle {
         text-align: center;
@@ -2117,20 +2151,20 @@ st.markdown("""
         padding: 0 14px;
     }
     .world-map-title {
-        font-size: 17px;
-        font-weight: 800;
-        background: linear-gradient(90deg, #ffffff 0%, #e2e8f0 50%, #fde047 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        letter-spacing: 1.5px;
+        font-size: 14.5px !important;
+        font-weight: 700 !important;
+        color: #f8fafc !important;
+        background: none !important;
+        -webkit-text-fill-color: #f8fafc !important;
+        letter-spacing: 1.3px !important;
         text-transform: uppercase;
         margin-bottom: 2px;
     }
     .world-map-subtitle {
-        font-size: 11px;
-        font-weight: 600;
-        color: #fbbf24;
-        letter-spacing: 1.1px;
+        font-size: 11px !important;
+        font-weight: 500 !important;
+        color: #38bdf8 !important;
+        letter-spacing: 0.6px !important;
     }
     .banner-info {
         display: flex;
@@ -2138,99 +2172,133 @@ st.markdown("""
         gap: 9px;
         flex-wrap: wrap;
         font-size: 11.5px;
-        font-weight: 600;
-        color: #e2e8f0;
     }
     .banner-badge {
-        background: rgba(255, 255, 255, 0.07);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        padding: 5px 12px;
-        border-radius: 999px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.2s ease;
+        background: rgba(255, 255, 255, 0.06) !important;
+        border: 1px solid rgba(148, 163, 184, 0.24) !important;
+        padding: 5px 12px !important;
+        border-radius: 7px !important;
+        color: #e2e8f0 !important;
+        font-weight: 600 !important;
+        transition: all 0.15s ease;
     }
     .banner-badge:hover {
-        background: rgba(251, 191, 36, 0.15);
-        border-color: rgba(251, 191, 36, 0.45);
+        background: rgba(59, 130, 246, 0.18) !important;
+        border-color: rgba(59, 130, 246, 0.55) !important;
     }
     .banner-info a {
-        color: #f8fafc;
+        color: #f1f5f9 !important;
         text-decoration: none;
     }
     .social-icons {
         display: flex;
         gap: 8px;
         align-items: center;
-        background: rgba(255, 255, 255, 0.07);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        padding: 5px 11px;
-        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06) !important;
+        border: 1px solid rgba(148, 163, 184, 0.24) !important;
+        padding: 5px 11px !important;
+        border-radius: 7px !important;
     }
     .social-icons img {
-        height: 16px;
-        width: 16px;
-        border-radius: 4px;
-        max-height: 16px !important;
+        height: 15px;
+        width: 15px;
+        border-radius: 3px;
+        max-height: 15px !important;
         background: transparent !important;
         padding: 0 !important;
         box-shadow: none !important;
     }
 
     .block-container {
-        padding-top: 86px !important;
+        padding-top: 82px !important;
         padding-bottom: 2.5rem;
         max-width: 1440px !important;
     }
 
-    /* Frosted Glass Sticky Command Bar */
+    /* Executive Command Bar (Dark Navy Card with Crisp Contrast) */
     .sticky-control-panel {
         position: sticky;
-        top: 68px;
+        top: 63px !important;
         z-index: 99990;
-        background: rgba(244, 247, 251, 0.82);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        padding: 8px 0 8px 0;
-        border-bottom: 1px solid rgba(203, 213, 225, 0.7);
-        margin-bottom: 12px;
+        background: rgba(238, 242, 247, 0.88) !important;
+        backdrop-filter: blur(12px) !important;
+        padding: 8px 0 6px 0 !important;
+        border-bottom: 1px solid #cbd5e1 !important;
+        margin-bottom: 12px !important;
     }
     .workspace-header-bar {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 65%, #1e3a8a 100%);
-        color: #ffffff;
-        padding: 11px 20px;
-        border-radius: 12px;
-        border: 1px solid rgba(59, 130, 246, 0.35);
-        border-left: 5px solid #f59e0b;
-        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
-        font-size: 15.5px;
-        font-weight: 800;
-        letter-spacing: 0.3px;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #172554 100%) !important;
+        color: #ffffff !important;
+        padding: 11px 20px !important;
+        border-radius: 11px !important;
+        border: 1px solid #334155 !important;
+        border-left: 5px solid #3b82f6 !important;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+    }
+    .ws-title-group {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 12px;
+    }
+    .ws-crown-badge {
+        background: rgba(59, 130, 246, 0.2) !important;
+        border: 1px solid rgba(96, 165, 250, 0.45) !important;
+        width: 36px;
+        height: 36px;
+        border-radius: 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+    }
+    .ws-main-title {
+        font-size: 15.5px;
+        font-weight: 800;
+        color: #ffffff !important;
+        line-height: 1.2;
+    }
+    .ws-sub-caption {
+        font-size: 11px;
+        font-weight: 500;
+        color: #94a3b8 !important;
+    }
+    .ws-right-pills {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .ws-live-dot {
+        background: rgba(16, 185, 129, 0.16) !important;
+        border: 1px solid rgba(52, 211, 153, 0.5) !important;
+        color: #6ee7b7 !important;
+        padding: 4px 11px;
+        border-radius: 6px;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
     }
     .workspace-sheet-pill {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(251, 191, 36, 0.12));
-        border: 1px solid rgba(251, 191, 36, 0.65);
-        color: #fde047;
-        padding: 4px 14px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
-        box-shadow: 0 0 12px rgba(251, 191, 36, 0.2);
+        background: rgba(59, 130, 246, 0.22) !important;
+        border: 1px solid rgba(96, 165, 250, 0.6) !important;
+        color: #bfdbfe !important;
+        padding: 4px 13px !important;
+        border-radius: 6px !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
     }
 
-    /* Worker Command Banner */
+    /* Worker Executive Command Banner */
     .worker-hero-banner {
-        background: linear-gradient(135deg, #091326 0%, #172554 55%, #064e3b 100%);
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #064e3b 100%);
         color: #ffffff;
         padding: 12px 20px;
-        border-radius: 12px;
-        border: 1px solid rgba(16, 185, 129, 0.35);
+        border-radius: 11px;
+        border: 1px solid #334155;
         border-left: 5px solid #10b981;
-        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -2240,7 +2308,7 @@ st.markdown("""
     .worker-hero-title {
         font-size: 15.5px;
         font-weight: 800;
-        letter-spacing: 0.3px;
+        color: #ffffff;
     }
     .worker-pill-group {
         display: flex;
@@ -2249,364 +2317,407 @@ st.markdown("""
         align-items: center;
     }
     .worker-pill-gold {
-        background: rgba(251, 191, 36, 0.18);
-        border: 1px solid rgba(251, 191, 36, 0.6);
-        color: #fef08a;
-        padding: 4px 13px;
-        border-radius: 999px;
+        background: rgba(245, 158, 11, 0.2);
+        border: 1px solid rgba(251, 191, 36, 0.55);
+        color: #fde68a;
+        padding: 4px 12px;
+        border-radius: 6px;
         font-size: 12px;
         font-weight: 700;
     }
     .worker-pill-cyan {
-        background: rgba(56, 189, 248, 0.18);
-        border: 1px solid rgba(56, 189, 248, 0.6);
+        background: rgba(56, 189, 248, 0.2);
+        border: 1px solid rgba(56, 189, 248, 0.55);
         color: #bae6fd;
-        padding: 4px 13px;
-        border-radius: 999px;
+        padding: 4px 12px;
+        border-radius: 6px;
         font-size: 12px;
         font-weight: 700;
     }
 
-    /* Section Banners & Group Labels */
+    /* Refresh & Logout Enterprise Action Buttons */
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-refresh) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 10px !important;
+        min-height: 54px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-refresh) + div[data-testid="stElementContainer"] button:hover {
+        background: #f1f5f9 !important;
+        border-color: #2563eb !important;
+        color: #1d4ed8 !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-logout) + div[data-testid="stElementContainer"] button {
+        background: #dc2626 !important;
+        color: #ffffff !important;
+        border: 1px solid #b91c1c !important;
+        border-radius: 10px !important;
+        min-height: 54px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 10px rgba(220, 38, 38, 0.22) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.ctrl-btn-logout) + div[data-testid="stElementContainer"] button:hover {
+        background: #b91c1c !important;
+    }
+
+    /* Corporate Software Navigation Tabs */
+    div[data-testid="stElementContainer"]:has(.nav-tab-active) + div[data-testid="stElementContainer"] button {
+        background: #2563eb !important;
+        color: #ffffff !important;
+        border: 1px solid #1d4ed8 !important;
+        border-radius: 9px !important;
+        min-height: 40px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.nav-tab-inactive) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #334155 !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 9px !important;
+        min-height: 40px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.nav-tab-inactive) + div[data-testid="stElementContainer"] button:hover {
+        background: #f8fafc !important;
+        border-color: #94a3b8 !important;
+        color: #0f172a !important;
+    }
+
+    /* Section Header Bar (Slate-Tint Executive Strip) */
     .section-banner {
-        background: linear-gradient(90deg, #ffffff 0%, #f8fafc 100%);
-        border: 1px solid #e2e8f0;
-        border-left: 5px solid #2563eb;
-        padding: 11px 18px;
-        border-radius: 11px;
-        margin: 8px 0px;
-        font-weight: 800;
-        color: #0f172a;
-        font-size: 15px;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
+        background: linear-gradient(90deg, #1e293b 0%, #334155 100%) !important;
+        border: 1px solid #1e293b !important;
+        border-left: 5px solid #38bdf8 !important;
+        padding: 10px 18px !important;
+        border-radius: 9px !important;
+        margin: 6px 0px !important;
+        font-weight: 700 !important;
+        color: #ffffff !important;
+        font-size: 14.5px !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1) !important;
     }
     .action-group-title {
-        font-size: 11.5px;
+        font-size: 11px;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.9px;
-        color: #475569;
+        color: #334155;
         margin: 12px 0 5px 2px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
+        padding-bottom: 3px;
+        border-bottom: 1px solid #cbd5e1;
     }
 
-    /* Ultra-Modern Executive KPI Cards with Radial Glow */
+    /* Corner Download Excel Button */
+    div[data-testid="stElementContainer"]:has(.dl-excel-pill) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid #065f46 !important;
+        border-radius: 9px !important;
+        min-height: 43px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25) !important;
+    }
+
+    /* Enterprise Telemetry KPI Cards (Strong Contrast, Colored Header Strip + Bold Metrics) */
     .kpi-card {
         position: relative;
         overflow: hidden;
         background: #ffffff;
         color: #0f172a;
-        padding: 15px 12px;
-        border-radius: 14px;
-        border: 1px solid #e2e8f0;
-        border-bottom: 4px solid #334155;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+        padding: 14px 12px;
+        border-radius: 11px;
+        border: 1px solid #cbd5e1;
+        border-top: 4px solid #1e293b;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
         text-align: center;
         margin-bottom: 6px;
-        height: 94px;
+        height: 90px;
         width: 100%;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .kpi-card::before {
-        content: "";
-        position: absolute;
-        top: -28px;
-        right: -28px;
-        width: 72px;
-        height: 72px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(71, 85, 105, 0.14) 0%, transparent 70%);
-        pointer-events: none;
+        transition: all 0.18s ease;
     }
     .kpi-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.11);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+        border-color: #94a3b8;
     }
-    .kpi-card.gold {
-        border-bottom-color: #d97706;
-        background: linear-gradient(145deg, #ffffff 45%, #fffbeb 100%);
-    }
-    .kpi-card.gold::before {
-        background: radial-gradient(circle, rgba(245, 158, 11, 0.24) 0%, transparent 70%);
-    }
-    .kpi-card.green {
-        border-bottom-color: #059669;
-        background: linear-gradient(145deg, #ffffff 45%, #ecfdf5 100%);
-    }
-    .kpi-card.green::before {
-        background: radial-gradient(circle, rgba(16, 185, 129, 0.24) 0%, transparent 70%);
-    }
-    .kpi-card.purple {
-        border-bottom-color: #4f46e5;
-        background: linear-gradient(145deg, #ffffff 45%, #eef2ff 100%);
-    }
-    .kpi-card.purple::before {
-        background: radial-gradient(circle, rgba(99, 102, 241, 0.24) 0%, transparent 70%);
-    }
-    .kpi-card.teal {
-        border-bottom-color: #0d9488;
-        background: linear-gradient(145deg, #ffffff 45%, #f0fdfa 100%);
-    }
-    .kpi-card.teal::before {
-        background: radial-gradient(circle, rgba(20, 184, 166, 0.24) 0%, transparent 70%);
-    }
-    .kpi-card.rose {
-        border-bottom-color: #e11d48;
-        background: linear-gradient(145deg, #ffffff 45%, #fff1f2 100%);
-    }
-    .kpi-card.rose::before {
-        background: radial-gradient(circle, rgba(244, 63, 94, 0.24) 0%, transparent 70%);
-    }
+    .kpi-card.gold { border-top-color: #d97706; background: linear-gradient(180deg, #fffbeb 0%, #ffffff 42%); }
+    .kpi-card.green { border-top-color: #059669; background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 42%); }
+    .kpi-card.purple { border-top-color: #4f46e5; background: linear-gradient(180deg, #eef2ff 0%, #ffffff 42%); }
+    .kpi-card.teal { border-top-color: #0d9488; background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 42%); }
+    .kpi-card.rose { border-top-color: #e11d48; background: linear-gradient(180deg, #fff1f2 0%, #ffffff 42%); }
+
     .kpi-title {
         font-size: 10.5px;
         text-transform: uppercase;
-        letter-spacing: 0.8px;
-        margin-bottom: 6px;
-        font-weight: 800;
-        color: #64748b;
+        letter-spacing: 0.7px;
+        margin-bottom: 5px;
+        font-weight: 700;
+        color: #475569;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 100%;
     }
     .kpi-value {
-        font-family: 'JetBrains Mono', 'Plus Jakarta Sans', sans-serif !important;
-        font-size: 25px;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 24px;
         font-weight: 800;
         margin: 0;
         line-height: 1.1;
         color: #0f172a;
     }
 
-    /* Tactile 3D Glossy Buttons & Filter Chips */
+    /* Default Buttons */
     .stButton > button, [data-testid="stDownloadButton"] > button {
         width: 100% !important;
-        min-height: 40px !important;
-        border-radius: 10px !important;
-        font-weight: 700 !important;
+        min-height: 38px !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
         font-size: 12.5px !important;
-        letter-spacing: 0.2px !important;
-        padding: 7px 14px !important;
+        padding: 6px 12px !important;
         color: #ffffff !important;
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+        background: #1e293b !important;
         border: 1px solid #334155 !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 3px 8px rgba(15, 23, 42, 0.14) !important;
+        box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08) !important;
         margin-top: 2px !important;
-        margin-bottom: 6px !important;
+        margin-bottom: 5px !important;
         white-space: nowrap !important;
-        transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        transition: all 0.15s ease !important;
     }
     .stButton > button:hover, [data-testid="stDownloadButton"] > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 7px 16px rgba(15, 23, 42, 0.2) !important;
-    }
-    .stButton > button:active {
-        transform: translateY(0px) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 5px 12px rgba(15, 23, 42, 0.14) !important;
     }
 
-    /* Vibrant Sapphire Blue */
-    div[data-testid="stElementContainer"]:has(.visa-color-0) + div[data-testid="stElementContainer"] button,
+    /* Filter Chips (Lead & Sheet Switchers) */
     div[data-testid="stElementContainer"]:has(.admin-btn-0) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 60%, #3b82f6 100%) !important;
-        border: 1px solid #1e40af !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(37, 99, 235, 0.28) !important;
+        background: #2563eb !important;
+        border: 1px solid #1d4ed8 !important;
         color: #ffffff !important;
+        font-weight: 700 !important;
+        box-shadow: 0 3px 10px rgba(37, 99, 235, 0.25) !important;
     }
-    /* Lush Emerald */
-    div[data-testid="stElementContainer"]:has(.visa-color-1) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-1) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #047857 0%, #059669 60%, #10b981 100%) !important;
-        border: 1px solid #065f46 !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(5, 150, 105, 0.28) !important;
+        background: #059669 !important;
+        border: 1px solid #047857 !important;
         color: #ffffff !important;
+        font-weight: 700 !important;
+        box-shadow: 0 3px 10px rgba(5, 150, 105, 0.25) !important;
     }
-    /* Royal Amber / Gold */
-    div[data-testid="stElementContainer"]:has(.visa-color-2) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-2) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #b45309 0%, #d97706 60%, #f59e0b 100%) !important;
-        border: 1px solid #92400e !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(217, 119, 6, 0.28) !important;
+        background: #d97706 !important;
+        border: 1px solid #b45309 !important;
         color: #ffffff !important;
     }
-    /* Electric Indigo */
-    div[data-testid="stElementContainer"]:has(.visa-color-3) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-3) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #3730a3 0%, #4f46e5 60%, #6366f1 100%) !important;
-        border: 1px solid #312e81 !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(79, 70, 229, 0.28) !important;
+        background: #4f46e5 !important;
+        border: 1px solid #4338ca !important;
         color: #ffffff !important;
     }
-    /* Magenta / Crimson Rose */
-    div[data-testid="stElementContainer"]:has(.visa-color-4) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-4) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #9d174d 0%, #db2777 60%, #ec4899 100%) !important;
-        border: 1px solid #831843 !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(219, 39, 119, 0.28) !important;
+        background: #db2777 !important;
+        border: 1px solid #be185d !important;
         color: #ffffff !important;
     }
-    /* Ocean Teal */
-    div[data-testid="stElementContainer"]:has(.visa-color-5) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-5) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #0f766e 0%, #0d9488 60%, #14b8a6 100%) !important;
-        border: 1px solid #115e59 !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(13, 148, 136, 0.28) !important;
+        background: #0d9488 !important;
+        border: 1px solid #0f766e !important;
         color: #ffffff !important;
     }
-    /* Clean Frosted White Pill Chip (Inactive Filters & Tabs) */
-    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button {
         background: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
-        box-shadow: 0 2px 5px rgba(15, 23, 42, 0.04) !important;
         color: #1e293b !important;
+        font-weight: 600 !important;
     }
-    div[data-testid="stElementContainer"]:has(.visa-color-6) + div[data-testid="stElementContainer"] button:hover,
     div[data-testid="stElementContainer"]:has(.admin-btn-6) + div[data-testid="stElementContainer"] button:hover {
-        background: #eff6ff !important;
-        border-color: #3b82f6 !important;
+        background: #f1f5f9 !important;
+        border-color: #2563eb !important;
         color: #1d4ed8 !important;
     }
-    /* Ruby Red Alert */
-    div[data-testid="stElementContainer"]:has(.visa-color-7) + div[data-testid="stElementContainer"] button,
     div[data-testid="stElementContainer"]:has(.admin-btn-7) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #991b1b 0%, #dc2626 60%, #ef4444 100%) !important;
-        border: 1px solid #7f1d1d !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(220, 38, 38, 0.28) !important;
+        background: #dc2626 !important;
+        border: 1px solid #b91c1c !important;
         color: #ffffff !important;
     }
 
-    /* Modern Spotlight Search Input */
+    /* Quick Actions & Reports: Crisp Corporate Software Command Buttons (No Truncation, Bold Contrast) */
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+        border-left: 4px solid #334155 !important;
+        border-radius: 9px !important;
+        min-height: 44px !important;
+        padding: 8px 14px !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05) !important;
+        transition: all 0.16s ease !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button p {
+        text-align: left !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button:hover {
+        transform: translateY(-2px) !important;
+        background: #0f172a !important;
+        border-color: #0f172a !important;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button:hover p {
+        color: #ffffff !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button { border-left-color: #2563eb !important; }
+    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button { border-left-color: #059669 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button { border-left-color: #d97706 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button { border-left-color: #4f46e5 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button { border-left-color: #db2777 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button { border-left-color: #0d9488 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button { border-left-color: #475569 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button { border-left-color: #ea580c !important; }
+    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button { border-left-color: #dc2626 !important; }
+
+    /* Enterprise Visa Type Stat Chips */
+    div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+        border-left: 4px solid #2563eb !important;
+        border-radius: 9px !important;
+        min-height: 40px !important;
+        padding: 6px 12px !important;
+        font-size: 12.5px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 5px rgba(15, 23, 42, 0.04) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button:hover {
+        background: #f1f5f9 !important;
+        border-color: #2563eb !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button { border-left-color: #2563eb !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button { border-left-color: #059669 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button { border-left-color: #d97706 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button { border-left-color: #4f46e5 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button { border-left-color: #db2777 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button { border-left-color: #0d9488 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button { border-left-color: #475569 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button { border-left-color: #dc2626 !important; }
+
+    div[data-testid="stElementContainer"]:has([class*="visa-chip-active-"]) + div[data-testid="stElementContainer"] button {
+        background: #0f172a !important;
+        color: #ffffff !important;
+        border: 1px solid #0f172a !important;
+        border-left: 4px solid #38bdf8 !important;
+        box-shadow: 0 5px 14px rgba(15, 23, 42, 0.22) !important;
+    }
+
+    /* Search Input */
     div[data-testid="stTextInput"] input {
         background-color: #ffffff !important;
-        border: 1.5px solid #cbd5e1 !important;
-        border-radius: 11px !important;
-        padding: 10px 15px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 9px !important;
+        padding: 9px 14px !important;
         font-size: 13.5px !important;
-        font-weight: 500 !important;
         color: #0f172a !important;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04) !important;
-        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
     }
     div[data-testid="stTextInput"] input:focus {
         border-color: #2563eb !important;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14), 0 4px 12px rgba(37, 99, 235, 0.1) !important;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16) !important;
     }
 
-    /* Interactive Data Table Row Polish */
-    table tbody tr {
-        transition: background-color 0.14s ease;
-    }
+    /* Table & Hyperlinks */
     table tbody tr:hover {
         background-color: #eff6ff !important;
     }
     .username-hyperlink {
         color: #1d4ed8 !important;
         text-decoration: none !important;
-        font-weight: 800 !important;
+        font-weight: 700 !important;
         padding: 2px 6px;
-        border-radius: 6px;
-        background: rgba(37, 99, 235, 0.08);
-        transition: all 0.15s ease;
+        border-radius: 5px;
+        background: rgba(37, 99, 235, 0.09);
     }
     .username-hyperlink:hover {
         background: #2563eb;
         color: #ffffff !important;
     }
 
-    /* Public Hero & Feature Cards */
+    /* Public Pages & Cards */
     .hero-section {
-        background: linear-gradient(135deg, #060b19 0%, #172554 55%, #1e40af 100%);
+        background: linear-gradient(135deg, #090d16 0%, #1e293b 55%, #1d4ed8 100%);
         color: white;
-        padding: 50px 32px;
-        border-radius: 18px;
+        padding: 48px 30px;
+        border-radius: 14px;
         text-align: center;
-        margin-bottom: 24px;
-        border: 1px solid rgba(251, 191, 36, 0.35);
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+        margin-bottom: 22px;
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
     }
-    .hero-title {
-        font-size: 34px;
-        font-weight: 800;
-        margin-bottom: 12px;
-        letter-spacing: -0.3px;
-    }
-    .hero-subtitle {
-        font-size: 15.5px;
-        opacity: 0.94;
-        line-height: 1.65;
-        max-width: 780px;
-        margin: 0 auto;
-        color: #e2e8f0;
-    }
+    .hero-title { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
+    .hero-subtitle { font-size: 15px; opacity: 0.92; line-height: 1.6; max-width: 780px; margin: 0 auto; color: #e2e8f0; }
+
     .corporate-card {
         background: #ffffff;
-        padding: 24px;
-        border-radius: 15px;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-        border: 1px solid #e2e8f0;
+        padding: 22px;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+        border: 1px solid #cbd5e1;
         border-top: 4px solid #2563eb;
         height: 100%;
         margin-bottom: 12px;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .corporate-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
-    }
-    .corporate-card h3 {
-        color: #0f172a;
-        font-size: 18px;
-        font-weight: 800;
-        margin-bottom: 8px;
-    }
-    .corporate-card p {
-        color: #475569;
-        font-size: 14px;
-        line-height: 1.6;
-        margin: 0;
-    }
+    .corporate-card h3 { color: #0f172a; font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+    .corporate-card p { color: #475569; font-size: 13.5px; line-height: 1.6; margin: 0; }
 
-    /* Notice Ticker */
     .marquee-container {
-        background: linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%);
-        color: #92400e;
-        padding: 10px 16px;
-        border-radius: 10px;
+        background: #1e293b;
+        color: #fde047;
+        padding: 9px 16px;
+        border-radius: 9px;
         font-weight: 700;
-        font-size: 13.5px;
-        margin-bottom: 14px !important;
+        font-size: 13px;
+        margin-bottom: 12px !important;
         overflow: hidden;
         white-space: nowrap;
-        border: 1px solid #fcd34d;
-        border-left: 5px solid #d97706;
-        box-shadow: 0 3px 10px rgba(217, 119, 6, 0.08);
+        border-left: 5px solid #f59e0b;
     }
 
-    /* Segmented Navigation Pills */
     div[data-testid="stRadio"] > div[role="radiogroup"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: wrap !important;
         gap: 6px !important;
         background: #ffffff !important;
-        padding: 6px !important;
-        border-radius: 12px !important;
+        padding: 5px !important;
+        border-radius: 10px !important;
         border: 1px solid #cbd5e1 !important;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05) !important;
         width: fit-content !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] label {
         background: transparent !important;
-        padding: 7px 16px !important;
-        border-radius: 8px !important;
+        padding: 6px 15px !important;
+        border-radius: 7px !important;
         margin: 0 !important;
-        transition: all 0.15s ease !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] label > div:first-child,
     div[data-testid="stRadio"] > div[role="radiogroup"] label > span:first-child,
@@ -2620,431 +2731,21 @@ st.markdown("""
         margin: 0 !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;
-        box-shadow: 0 3px 8px rgba(15, 23, 42, 0.2) !important;
+        background: #0f172a !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) p {
         color: #ffffff !important;
     }
 
-    /* Expander Polish */
     div[data-testid="stExpander"] {
         background: #ffffff !important;
-        border: 1px solid #e2e8f0 !important;
-        border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
-    }
-
-    [data-testid="stVerticalBlock"] {
-        gap: 0.35rem !important;
-    }
-    hr {
-        margin-top: 0.75rem !important;
-        margin-bottom: 0.75rem !important;
-    }
-
-    /* Enterprise Quick Action Command Tiles (Replaces Loud Rainbow Blocks) */
-    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button {
-        background: #ffffff !important;
-        color: #0f172a !important;
-        border: 1px solid #e2e8f0 !important;
-        border-left: 4.5px solid #334155 !important;
-        border-radius: 12px !important;
-        min-height: 64px !important;
-        padding: 11px 15px !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        white-space: pre-line !important;
-        line-height: 1.38 !important;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04) !important;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button p {
-        text-align: left !important;
-        font-size: 13.5px !important;
-        font-weight: 800 !important;
-        color: #0f172a !important;
-        margin: 0 !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button p::first-line {
-        font-size: 13.5px !important;
-        font-weight: 800 !important;
-        color: #0f172a !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.09) !important;
-        background: #f8fafc !important;
-    }
-
-    /* Colored Accent Variants for Quick Action Tiles */
-    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button {
-        border-left-color: #2563eb !important;
-        background: linear-gradient(135deg, #ffffff 70%, #eff6ff 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #93c5fd !important;
-        border-left-color: #1d4ed8 !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button {
-        border-left-color: #059669 !important;
-        background: linear-gradient(135deg, #ffffff 70%, #ecfdf5 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #6ee7b7 !important;
-        border-left-color: #047857 !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button {
-        border-left-color: #d97706 !important;
-        background: linear-gradient(135deg, #ffffff 70%, #fffbeb 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #fcd34d !important;
-        border-left-color: #b45309 !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button {
-        border-left-color: #4f46e5 !important;
-        background: linear-gradient(135deg, #ffffff 70%, #eef2ff 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #a5b4fc !important;
-        border-left-color: #4338ca !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button {
-        border-left-color: #db2777 !important;
-        background: linear-gradient(135deg, #ffffff 70%, #fdf2f8 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #f9a8d4 !important;
-        border-left-color: #be185d !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button {
-        border-left-color: #0d9488 !important;
-        background: linear-gradient(135deg, #ffffff 70%, #f0fdfa 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #5eead4 !important;
-        border-left-color: #0f766e !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button {
-        border-left-color: #475569 !important;
-        background: linear-gradient(135deg, #ffffff 70%, #f1f5f9 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #94a3b8 !important;
-        border-left-color: #1e293b !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button {
-        border-left-color: #ea580c !important;
-        background: linear-gradient(135deg, #ffffff 70%, #fff7ed 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #fdba74 !important;
-        border-left-color: #c2410c !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button {
-        border-left-color: #dc2626 !important;
-        background: linear-gradient(135deg, #ffffff 70%, #fef2f2 100%) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button:hover {
-        border-color: #fca5a5 !important;
-        border-left-color: #b91c1c !important;
-    }
-
-    /* Enterprise Visa Type Filter Chips (Clean White-Tinted Pills with Colored Left Bar) */
-    div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button {
-        background: #ffffff !important;
-        color: #0f172a !important;
-        border: 1px solid #e2e8f0 !important;
-        border-left: 4px solid #3b82f6 !important;
+        border: 1px solid #cbd5e1 !important;
         border-radius: 10px !important;
-        min-height: 40px !important;
-        padding: 6px 12px !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-        font-size: 12.5px !important;
-        font-weight: 700 !important;
         box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
-        transition: all 0.18s ease !important;
-    }
-    div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08) !important;
-        background: #f8fafc !important;
     }
 
-    /* Subtle Left Border Accents per Visa Category */
-    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button { border-left-color: #2563eb !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button { border-left-color: #059669 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button { border-left-color: #d97706 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button { border-left-color: #4f46e5 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button { border-left-color: #db2777 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button { border-left-color: #0d9488 !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button { border-left-color: #64748b !important; }
-    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button { border-left-color: #dc2626 !important; }
-
-    /* Highlighted State When a Visa Chip is Clicked/Selected */
-    div[data-testid="stElementContainer"]:has([class*="visa-chip-active-"]) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;
-        color: #ffffff !important;
-        border: 1px solid #1d4ed8 !important;
-        border-left: 4px solid #fbbf24 !important;
-        box-shadow: 0 6px 16px rgba(30, 58, 138, 0.28) !important;
-    }
-
-    /* Sleek Light-Frosted Top Brand Bar (Replaces Heavy Dark Top Strip) */
-    .sticky-top-banner {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        z-index: 99999;
-        background: rgba(255, 255, 255, 0.92) !important;
-        backdrop-filter: blur(18px) !important;
-        -webkit-backdrop-filter: blur(18px) !important;
-        padding: 8px 28px !important;
-        border-bottom: 1px solid #e2e8f0 !important;
-        border-image: none !important;
-        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05) !important;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        box-sizing: border-box;
-    }
-    .brand-left-wrap {
-        display: flex;
-        align-items: center;
-        gap: 11px;
-    }
-    .logo-container {
-        margin-left: 4px !important;
-        display: flex;
-        align-items: center;
-    }
-    .sticky-top-banner img {
-        max-height: 44px !important;
-        width: auto;
-        border-radius: 10px !important;
-        background: #ffffff;
-        padding: 2px;
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
-    }
-    .brand-name-stack {
-        display: flex;
-        flex-direction: column;
-        line-height: 1.15;
-    }
-    .brand-main-name {
-        font-size: 16px;
-        font-weight: 800;
-        color: #0f172a;
-        letter-spacing: 0.6px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .brand-tag {
-        background: linear-gradient(135deg, #2563eb, #4f46e5);
-        color: #ffffff;
-        font-size: 9.5px;
-        font-weight: 800;
-        padding: 2px 6px;
-        border-radius: 5px;
-        letter-spacing: 0.8px;
-    }
-    .brand-sub-tag {
-        font-size: 10.5px;
-        font-weight: 600;
-        color: #64748b;
-    }
-    .world-map-title {
-        font-size: 14.5px !important;
-        font-weight: 800 !important;
-        background: linear-gradient(90deg, #0f172a 0%, #1d4ed8 55%, #059669 100%) !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        letter-spacing: 1px !important;
-        text-transform: uppercase;
-        margin-bottom: 1px;
-    }
-    .world-map-subtitle {
-        font-size: 11px !important;
-        font-weight: 600 !important;
-        color: #64748b !important;
-        letter-spacing: 0.4px !important;
-    }
-    .banner-badge {
-        background: #f8fafc !important;
-        border: 1px solid #e2e8f0 !important;
-        padding: 5px 12px !important;
-        border-radius: 999px !important;
-        color: #334155 !important;
-        font-weight: 600 !important;
-    }
-    .banner-badge:hover {
-        background: #eff6ff !important;
-        border-color: #93c5fd !important;
-    }
-    .banner-info a {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-    }
-    .social-icons {
-        background: #f8fafc !important;
-        border: 1px solid #e2e8f0 !important;
-        padding: 5px 11px !important;
-        border-radius: 999px !important;
-    }
-
-    /* Clean Crisp White Control Panel Header (Replaces Heavy Dark Blue Block) */
-    .sticky-control-panel {
-        top: 63px !important;
-        background: rgba(244, 247, 251, 0.88) !important;
-        border-bottom: none !important;
-        padding: 6px 0 4px 0 !important;
-        margin-bottom: 8px !important;
-    }
-    .workspace-header-bar {
-        background: #ffffff !important;
-        color: #0f172a !important;
-        padding: 10px 18px !important;
-        border-radius: 13px !important;
-        border: 1px solid #e2e8f0 !important;
-        border-left: 5px solid #2563eb !important;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-    }
-    .ws-title-group {
-        display: flex;
-        align-items: center;
-        gap: 11px;
-    }
-    .ws-crown-badge {
-        background: linear-gradient(135deg, #eff6ff, #dbeafe);
-        border: 1px solid #bfdbfe;
-        width: 34px;
-        height: 34px;
-        border-radius: 9px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-    }
-    .ws-main-title {
-        font-size: 15.5px;
-        font-weight: 800;
-        color: #0f172a;
-        line-height: 1.15;
-    }
-    .ws-sub-caption {
-        font-size: 11px;
-        font-weight: 600;
-        color: #64748b;
-    }
-    .ws-right-pills {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .ws-live-dot {
-        background: #ecfdf5;
-        border: 1px solid #a7f3d0;
-        color: #047857;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 10.5px;
-        font-weight: 800;
-        letter-spacing: 0.5px;
-    }
-    .workspace-sheet-pill {
-        background: #eff6ff !important;
-        border: 1px solid #93c5fd !important;
-        color: #1d4ed8 !important;
-        padding: 4px 13px !important;
-        border-radius: 999px !important;
-        font-size: 12px !important;
-        font-weight: 800 !important;
-        box-shadow: none !important;
-    }
-
-    /* Refresh & Logout Crisp Control Buttons */
-    div[data-testid="stElementContainer"]:has(.ctrl-btn-refresh) + div[data-testid="stElementContainer"] button {
-        background: #ffffff !important;
-        color: #1d4ed8 !important;
-        border: 1px solid #bfdbfe !important;
-        border-radius: 11px !important;
-        min-height: 52px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.ctrl-btn-refresh) + div[data-testid="stElementContainer"] button:hover {
-        background: #eff6ff !important;
-        border-color: #3b82f6 !important;
-    }
-
-    div[data-testid="stElementContainer"]:has(.ctrl-btn-logout) + div[data-testid="stElementContainer"] button {
-        background: #fff1f2 !important;
-        color: #be123c !important;
-        border: 1px solid #fecdd3 !important;
-        border-radius: 11px !important;
-        min-height: 52px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 3px 10px rgba(225, 29, 72, 0.06) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.ctrl-btn-logout) + div[data-testid="stElementContainer"] button:hover {
-        background: #ffe4e6 !important;
-        border-color: #fb7185 !important;
-    }
-
-    /* Segmented Modern Navigation Tabs */
-    div[data-testid="stElementContainer"]:has(.nav-tab-active) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;
-        color: #ffffff !important;
-        border: 1px solid #1d4ed8 !important;
-        border-bottom: 3px solid #38bdf8 !important;
-        border-radius: 11px !important;
-        min-height: 42px !important;
-        font-size: 13px !important;
-        font-weight: 800 !important;
-        box-shadow: 0 6px 15px rgba(30, 58, 138, 0.22) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.nav-tab-inactive) + div[data-testid="stElementContainer"] button {
-        background: #ffffff !important;
-        color: #475569 !important;
-        border: 1px solid #e2e8f0 !important;
-        border-radius: 11px !important;
-        min-height: 42px !important;
-        font-size: 13px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.nav-tab-inactive) + div[data-testid="stElementContainer"] button:hover {
-        background: #f8fafc !important;
-        color: #0f172a !important;
-        border-color: #cbd5e1 !important;
-    }
-
-    /* Corner Download Excel Button Polish */
-    div[data-testid="stElementContainer"]:has(.dl-excel-pill) + div[data-testid="stElementContainer"] button {
-        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
-        color: #ffffff !important;
-        border: 1px solid #065f46 !important;
-        border-radius: 11px !important;
-        min-height: 44px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.22) !important;
-    }
+    [data-testid="stVerticalBlock"] { gap: 0.35rem !important; }
+    hr { margin-top: 0.75rem !important; margin-bottom: 0.75rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -6317,7 +6018,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "👥  Users & Permissions\nManage roles, passwords & access",
+                "👥  Users & Permissions",
                 key="q_btn_perms",
                 use_container_width=True,
             ):
@@ -6328,7 +6029,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📊  Worker Booked Report\nToday & overall visa bookings",
+                "📊  Worker Booked Report",
                 key="q_btn_wrep",
                 use_container_width=True,
             ):
@@ -6339,7 +6040,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📋  New / Updated & Cal\nRecent edits & date-wise view",
+                "📋  New / Updated & Cal",
                 key="q_btn_upd",
                 use_container_width=True,
             ):
@@ -6350,7 +6051,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"🗑️  Delete Reqs ({del_reqs_count_d})\nReview worker deletion requests",
+                f"🗑️  Delete Requests ({del_reqs_count_d})",
                 key="q_btn_delreqs",
                 use_container_width=True,
             ):
@@ -6363,7 +6064,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📥  Appointment PDFs\nDate-wise folders & PDF search",
+                "📥  Appointment PDFs",
                 key="q_btn_pdfs",
                 use_container_width=True,
             ):
@@ -6374,7 +6075,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🟢  Login Status\nLive online & offline workers",
+                "🟢  Worker Login Status",
                 key="q_btn_lstatus",
                 use_container_width=True,
             ):
@@ -6385,7 +6086,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🕒  Attendance Log\nDaily & total logged work hours",
+                "🕒  Attendance & Hours",
                 key="q_btn_att",
                 use_container_width=True,
             ):
@@ -6396,7 +6097,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📢  Notice Board\nBroadcast scrolling announcement",
+                "📢  Notice Board",
                 key="q_btn_notice",
                 use_container_width=True,
             ):
@@ -6409,7 +6110,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"👤  Not Assigned ({not_assigned_count_d})\nUnallocated cases in active sheet",
+                f"👤  Not Assigned ({not_assigned_count_d})",
                 key="q_btn_not_assigned",
                 use_container_width=True,
             ):
@@ -6424,7 +6125,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📤  Sync Excel to Cloud\nUpload .xlsx to Google Sheets",
+                "📤  Sync Excel to Cloud",
                 key="q_btn_sync",
                 use_container_width=True,
             ):
@@ -6435,7 +6136,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🔑  Change Admin Pass\nUpdate admin login credentials",
+                "🔑  Admin Password",
                 key="q_btn_apass",
                 use_container_width=True,
             ):
@@ -6447,9 +6148,9 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🔓  Unblock All Workers\nRestore portal login for team"
+                "🔓  Unblock All Workers"
                 if all_blk_d
-                else "🔒  Block All Workers\nEmergency lock all worker logins",
+                else "🔒  Block All Workers",
                 key="q_btn_blkall",
                 use_container_width=True,
             ):
@@ -6463,7 +6164,7 @@ elif st.session_state["role"] == "admin":
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"✏️  Edit Reqs ({pending_edit_reqs_cnt})\nApprove cross-worker edit access",
+                f"✏️  Edit Requests ({pending_edit_reqs_cnt})",
                 key="q_btn_editreqs",
                 use_container_width=True,
             ):
@@ -6471,9 +6172,9 @@ elif st.session_state["role"] == "admin":
         with q_r4_2:
             unread_admin_cnt = get_unread_messages_count("admin", role="admin")
             admin_msg_lbl = (
-                f"💬  Messages ({unread_admin_cnt} Unread)\nTeam inbox & full chat monitor"
+                f"💬  Messages ({unread_admin_cnt} New)"
                 if unread_admin_cnt > 0
-                else "💬  Messages\nTeam inbox & full chat monitor"
+                else "💬  Portal Messages"
             )
             st.markdown(
                 '<span class="qa-tile qa-teal" style="display:none;"></span>',
