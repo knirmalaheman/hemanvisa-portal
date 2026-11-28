@@ -32,6 +32,7 @@ SYSTEM_SHEETS = {
     "App_Permissions",
     "App_Config",
     "App_Edit_Requests",
+    "App_Messages",
 }
 
 if not os.path.exists(PDF_BASE_DIR):
@@ -4894,7 +4895,196 @@ def search_data_dialog(current_user=None, allow_edit=True):
                 allow_edit=allow_edit,
                 restrict_edit_to_user=None,
             )
+MSG_COLS = [
+    "Msg_ID",
+    "Sender",
+    "Sender_Role",
+    "Receiver",
+    "Case_ID",
+    "Message",
+    "Sent_At",
+    "Is_Read",
+]
 
+
+def load_messages():
+    rows = _read_sheet_rows("App_Messages")
+    cleaned = []
+    for r in rows:
+        m_txt = str(r.get("Message", "")).strip()
+        if m_txt:
+            cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
+    return cleaned
+
+
+def save_messages(msg_list):
+    records = [
+        {col: str(item.get(col, "")).strip() for col in MSG_COLS}
+        for item in (msg_list or [])
+    ]
+    _write_sheet_records("App_Messages", MSG_COLS, records)
+
+
+def get_unread_messages_count(user_name, role="worker"):
+    target = "admin" if role == "admin" else str(user_name).strip().lower()
+    msgs = load_messages()
+    cnt = 0
+    for m in msgs:
+        rec = m.get("Receiver", "").strip().lower()
+        is_read = m.get("Is_Read", "").strip().lower() in ["true", "1", "yes"]
+        if not is_read and (rec == target or (role == "worker" and rec == "all workers")):
+            if m.get("Sender", "").strip().lower() != target:
+                cnt += 1
+    return cnt
+
+
+@st.dialog("💬 Portal Messages & Chat Monitor", width="large")
+def internal_messages_dialog(current_user, role="worker"):
+    sender_label = "admin" if role == "admin" else str(current_user).strip()
+    sender_low = sender_label.lower()
+
+    all_workers = get_all_workers_list()
+    if role == "admin":
+        recipient_options = ["All Workers"] + [w for w in all_workers if w.lower() != "admin"]
+    else:
+        recipient_options = ["admin"] + [
+            w for w in all_workers if w.strip().lower() != sender_low and w.lower() != "admin"
+        ]
+
+    all_msgs = load_messages()
+
+    if role == "admin":
+        tab_inbox, tab_send, tab_sent, tab_all_chats = st.tabs([
+            "📥 Admin Inbox",
+            "✉️ Send Message",
+            "📤 Sent Messages",
+            "👁️ All Case Workers Chat Log",
+        ])
+    else:
+        tab_inbox, tab_send, tab_sent = st.tabs([
+            "📥 My Inbox",
+            "✉️ Send Message",
+            "📤 Sent Messages",
+        ])
+        tab_all_chats = None
+
+    with tab_send:
+        with st.form("internal_send_msg_form", clear_on_submit=True):
+            to_user = st.selectbox(
+                "👤 Select Recipient (Admin / Case Worker):",
+                options=recipient_options,
+            )
+            ref_case_id = st.text_input(
+                "🆔 Case ID (Optional):",
+                placeholder="e.g., HM1025 (leave blank if general message)",
+            )
+            msg_body = st.text_area(
+                "✍️ Message:",
+                placeholder="Type your message here...",
+                height=120,
+            )
+            if st.form_submit_button("🚀 Send Message", type="primary", use_container_width=True):
+                if not msg_body.strip():
+                    st.warning("⚠️ Please type a message before sending.")
+                else:
+                    now_str = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                    new_msg = {
+                        "Msg_ID": f"MSG{int(get_ist_now().timestamp())}{len(all_msgs) + 1}",
+                        "Sender": sender_label,
+                        "Sender_Role": role,
+                        "Receiver": str(to_user).strip(),
+                        "Case_ID": ref_case_id.strip() if ref_case_id.strip() else "-",
+                        "Message": msg_body.strip(),
+                        "Sent_At": now_str,
+                        "Is_Read": "False",
+                    }
+                    all_msgs.append(new_msg)
+                    save_messages(all_msgs)
+                    st.success(f"✅ Message sent to **{to_user}**!")
+                    st.rerun()
+
+    with tab_inbox:
+        inbox_msgs = [
+            m for m in reversed(all_msgs)
+            if (
+                m.get("Receiver", "").strip().lower() == sender_low
+                or (role == "worker" and m.get("Receiver", "").strip().lower() == "all workers")
+            )
+            and m.get("Sender", "").strip().lower() != sender_low
+        ]
+        if not inbox_msgs:
+            st.info("No received messages in your inbox.")
+        else:
+            if st.button("✅ Mark All as Read", key=f"mark_all_read_{sender_low}", use_container_width=True):
+                for m in all_msgs:
+                    rec_l = m.get("Receiver", "").strip().lower()
+                    if rec_l == sender_low or (role == "worker" and rec_l == "all workers"):
+                        m["Is_Read"] = "True"
+                save_messages(all_msgs)
+                st.rerun()
+
+            for m_item in inbox_msgs:
+                is_rd = m_item.get("Is_Read", "").strip().lower() in ["true", "1", "yes"]
+                badge = "✅ Read" if is_rd else "🔔 New"
+                cid_txt = m_item.get("Case_ID", "-")
+                with st.container(border=True):
+                    st.markdown(
+                        f"**From:** `{m_item.get('Sender', '')}` &nbsp;|&nbsp; "
+                        f"**Case ID:** `{cid_txt}` &nbsp;|&nbsp; "
+                        f"**Status:** {badge}"
+                    )
+                    st.write(m_item.get("Message", ""))
+                    st.caption(f"🕒 {m_item.get('Sent_At', '')}")
+
+    with tab_sent:
+        sent_msgs = [
+            m for m in reversed(all_msgs)
+            if m.get("Sender", "").strip().lower() == sender_low
+        ]
+        if not sent_msgs:
+            st.info("You haven't sent any messages yet.")
+        else:
+            for m_item in sent_msgs:
+                with st.container(border=True):
+                    st.markdown(
+                        f"**To:** `{m_item.get('Receiver', '')}` &nbsp;|&nbsp; "
+                        f"**Case ID:** `{m_item.get('Case_ID', '-')}`"
+                    )
+                    st.write(m_item.get("Message", ""))
+                    st.caption(f"🕒 {m_item.get('Sent_At', '')}")
+
+    if role == "admin" and tab_all_chats is not None:
+        with tab_all_chats:
+            st.info("👁️ Case workers madhya jarigina anni chats & admin tho jarigina anni messages ikkada kanipisthayi:")
+            if not all_msgs:
+                st.warning("No messages found yet.")
+            else:
+                filter_worker_chat = st.selectbox(
+                    "🔍 Filter by Case Worker:",
+                    options=["All"] + [w for w in all_workers if w.lower() != "admin"],
+                    key="admin_chat_monitor_worker_filter",
+                )
+                filtered_all = list(reversed(all_msgs))
+                if filter_worker_chat != "All":
+                    fw_low = filter_worker_chat.strip().lower()
+                    filtered_all = [
+                        m for m in filtered_all
+                        if m.get("Sender", "").strip().lower() == fw_low
+                        or m.get("Receiver", "").strip().lower() == fw_low
+                    ]
+
+                if not filtered_all:
+                    st.info(f"No chat history found for {filter_worker_chat}.")
+                else:
+                    for m_item in filtered_all:
+                        with st.container(border=True):
+                            st.markdown(
+                                f"📤 **From:** `{m_item.get('Sender', '')}` ➡️ "
+                                f"📥 **To:** `{m_item.get('Receiver', '')}` &nbsp;|&nbsp; "
+                                f"🆔 **Case ID:** `{m_item.get('Case_ID', '-')}`"
+                            )
+                            st.write(m_item.get("Message", ""))
+                            st.caption(f"🕒 {m_item.get('Sent_At', '')} | Read: {m_item.get('Is_Read', 'False')}")
 
 dialog_map = {
     "permissions": permissions_dialog,
@@ -5870,8 +6060,11 @@ else:
             f'<div class="marquee-container"><marquee behavior="scroll" direction="left" scrollamount="6">📢 ADMIN NOTICE: {notice_msg}</marquee></div>',
             unsafe_allow_html=True,
         )
-
-    w_c1, w_c2, w_c3, w_c4 = st.columns([1.3, 1.3, 1.4, 1.4], gap="small")
+unread_w_cnt = get_unread_messages_count(current_user, role="worker")
+    if unread_w_cnt > 0:
+        st.info(f"🔔 Meeku **{unread_w_cnt}** kotha message(s) vachayi! Chudataniki **💬 Messages ({unread_w_cnt})** click cheyandi.")
+    msg_btn_label_w = f"💬 Messages ({unread_w_cnt})" if unread_w_cnt > 0 else "💬 Messages"
+    w_c1, w_c2, w_c3, w_c4, w_c5 = st.columns([1.2, 1.2, 1.3, 1.3, 1.2], gap="small")
     with w_c1:
         if can_add:
             st.markdown(
@@ -5941,7 +6134,17 @@ else:
                 disabled=True,
                 use_container_width=True,
             )
-
+	with w_c5:
+        st.markdown(
+            '<span class="admin-btn-3" style="display:none;"></span>',
+            unsafe_allow_html=True,
+        )
+        if st.button(
+            msg_btn_label_w,
+            key="w_btn_messages",
+            use_container_width=True,
+        ):
+            internal_messages_dialog(current_user=current_user, role="worker")
     w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
     if w_visible_sheets:
         st.markdown(
