@@ -5703,33 +5703,13 @@ else:
         st.session_state["worker_selected_lead"] = "All"
 
     st.markdown('<div class="sticky-control-panel">', unsafe_allow_html=True)
-    w_top1, w_top2, w_top3, w_top4 = st.columns([5.4, 1.2, 1.2, 1.2], gap="small")
+    w_top1, w_top2, w_top3 = st.columns([6.6, 1.2, 1.2], gap="small")
     with w_top1:
         st.markdown(
             f"<div class='worker-hero-banner'><span class='worker-hero-title'>👷 Case Worker: {current_user}</span><div class='worker-pill-group'><span class='worker-pill-gold'>📂 {current_sheet}</span><span class='worker-pill-cyan'>🎯 Lead: {st.session_state['worker_selected_lead']}</span></div></div>",
             unsafe_allow_html=True,
         )
     with w_top2:
-        if can_download:
-            w_dl_bytes = get_worker_export_bytes(
-                _get_file_mtime(), current_user, current_sheet
-            )
-            st.download_button(
-                label="📥 Excel",
-                data=w_dl_bytes,
-                file_name=f"{current_user}_Cases.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="worker_top_excel_dl",
-            )
-        else:
-            st.button(
-                "📥 Excel",
-                key="worker_top_excel_dl_disabled",
-                disabled=True,
-                use_container_width=True,
-            )
-    with w_top3:
         if st.button("🔄 Refresh", key="worker_refresh", use_container_width=True):
             st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
             st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
@@ -5740,7 +5720,7 @@ else:
             close_case_popup_state()
             st.query_params["active_sheet"] = act_s
             st.rerun()
-    with w_top4:
+    with w_top3:
         if st.button("🚪 Logout", key="worker_logout", use_container_width=True):
             record_worker_logout(current_user)
             st.session_state["attendance_recorded"] = False
