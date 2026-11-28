@@ -4571,7 +4571,6 @@ def worker_password_dialog(worker_name):
 
 
 @st.dialog("➕ Add New Case", width="large")
-@st.dialog("➕ Add New Case", width="large")
 def add_case_dialog(worker_name):
     sheets = get_sheet_names()
     default_idx = 0
