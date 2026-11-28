@@ -5836,7 +5836,19 @@ elif st.session_state["role"] == "admin":
                 use_container_width=True,
             ):
                 admin_edit_requests_dialog()
-
+		with q_r4_2:
+            unread_admin_cnt = get_unread_messages_count("admin", role="admin")
+            admin_msg_lbl = f"💬 Messages ({unread_admin_cnt})" if unread_admin_cnt > 0 else "💬 Messages"
+            st.markdown(
+                '<span class="admin-btn-5" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                admin_msg_lbl,
+                key="q_btn_admin_msgs",
+                use_container_width=True,
+            ):
+                internal_messages_dialog(current_user="admin", role="admin")
     elif active_admin_view == "records":
         rec_s_name = st.session_state.get("records_sheet", default_act_s)
         if rec_s_name not in sheets:
@@ -6147,7 +6159,8 @@ else:
             use_container_width=True,
         ):
             internal_messages_dialog(current_user=current_user, role="worker")
-	w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
+
+    w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
     if w_visible_sheets:
         st.markdown(
             "<div class='action-group-title'>📑 SWITCH SHEET:</div>",
