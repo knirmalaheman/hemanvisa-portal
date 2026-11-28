@@ -2553,49 +2553,142 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* Quick Actions & Reports: Crisp Corporate Software Command Buttons (No Truncation, Bold Contrast) */
+    /* Quick Actions & Reports: Colorful Pastel-Glass Enterprise Command Tiles */
     div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button {
         background: #ffffff !important;
         color: #0f172a !important;
         border: 1px solid #cbd5e1 !important;
-        border-left: 4px solid #334155 !important;
-        border-radius: 9px !important;
-        min-height: 44px !important;
+        border-left: 4.5px solid #334155 !important;
+        border-radius: 10px !important;
+        min-height: 45px !important;
         padding: 8px 14px !important;
         text-align: left !important;
         justify-content: flex-start !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05) !important;
-        transition: all 0.16s ease !important;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05) !important;
+        transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
     div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button p {
         text-align: left !important;
         font-size: 13px !important;
         font-weight: 700 !important;
-        color: #0f172a !important;
         margin: 0 !important;
     }
     div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button:hover {
         transform: translateY(-2px) !important;
-        background: #0f172a !important;
-        border-color: #0f172a !important;
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16) !important;
-    }
-    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button:hover p {
-        color: #ffffff !important;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.13) !important;
     }
 
-    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button { border-left-color: #2563eb !important; }
-    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button { border-left-color: #059669 !important; }
-    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button { border-left-color: #d97706 !important; }
-    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button { border-left-color: #4f46e5 !important; }
-    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button { border-left-color: #db2777 !important; }
-    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button { border-left-color: #0d9488 !important; }
-    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button { border-left-color: #475569 !important; }
-    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button { border-left-color: #ea580c !important; }
-    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button { border-left-color: #dc2626 !important; }
+    /* Vibrant Pastel-Tinted Surfaces + Rich Colored Text & Borders per Action */
+    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+        border: 1px solid #93c5fd !important;
+        border-left: 4.5px solid #2563eb !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button p { color: #1e3a8a !important; }
+    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        border-color: #1d4ed8 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+        border: 1px solid #6ee7b7 !important;
+        border-left: 4.5px solid #059669 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button p { color: #064e3b !important; }
+    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+        border-color: #047857 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+        border: 1px solid #fcd34d !important;
+        border-left: 4.5px solid #d97706 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button p { color: #78350f !important; }
+    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+        border-color: #b45309 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%) !important;
+        border: 1px solid #a5b4fc !important;
+        border-left: 4.5px solid #4f46e5 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button p { color: #312e81 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+        border-color: #4338ca !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%) !important;
+        border: 1px solid #f9a8d4 !important;
+        border-left: 4.5px solid #db2777 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button p { color: #831843 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #db2777 0%, #be185d 100%) !important;
+        border-color: #be185d !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%) !important;
+        border: 1px solid #5eead4 !important;
+        border-left: 4.5px solid #0d9488 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button p { color: #134e4a !important; }
+    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%) !important;
+        border-color: #0f766e !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+        border: 1px solid #94a3b8 !important;
+        border-left: 4.5px solid #334155 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button p { color: #0f172a !important; }
+    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #334155 0%, #1e293b 100%) !important;
+        border-color: #1e293b !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
+        border: 1px solid #fdba74 !important;
+        border-left: 4.5px solid #ea580c !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button p { color: #7c2d12 !important; }
+    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%) !important;
+        border-color: #c2410c !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
+
+    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+        border: 1px solid #fca5a5 !important;
+        border-left: 4.5px solid #dc2626 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button p { color: #7f1d1d !important; }
+    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+        border-color: #b91c1c !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button:hover p { color: #ffffff !important; }
 
     /* Enterprise Visa Type Stat Chips */
     div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button {
