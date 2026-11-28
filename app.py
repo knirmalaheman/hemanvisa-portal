@@ -6060,9 +6060,11 @@ else:
             f'<div class="marquee-container"><marquee behavior="scroll" direction="left" scrollamount="6">📢 ADMIN NOTICE: {notice_msg}</marquee></div>',
             unsafe_allow_html=True,
         )
-unread_w_cnt = get_unread_messages_count(current_user, role="worker")
+
+    unread_w_cnt = get_unread_messages_count(current_user, role="worker")
     if unread_w_cnt > 0:
         st.info(f"🔔 Meeku **{unread_w_cnt}** kotha message(s) vachayi! Chudataniki **💬 Messages ({unread_w_cnt})** click cheyandi.")
+
     msg_btn_label_w = f"💬 Messages ({unread_w_cnt})" if unread_w_cnt > 0 else "💬 Messages"
     w_c1, w_c2, w_c3, w_c4, w_c5 = st.columns([1.2, 1.2, 1.3, 1.3, 1.2], gap="small")
     with w_c1:
