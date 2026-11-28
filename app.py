@@ -2758,6 +2758,46 @@ st.markdown("""
         border-color: #fca5a5 !important;
         border-left-color: #b91c1c !important;
     }
+
+    /* Enterprise Visa Type Filter Chips (Clean White-Tinted Pills with Colored Left Bar) */
+    div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #e2e8f0 !important;
+        border-left: 4px solid #3b82f6 !important;
+        border-radius: 10px !important;
+        min-height: 40px !important;
+        padding: 6px 12px !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-size: 12.5px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+        transition: all 0.18s ease !important;
+    }
+    div[data-testid="stElementContainer"]:has(.visa-chip) + div[data-testid="stElementContainer"] button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08) !important;
+        background: #f8fafc !important;
+    }
+
+    /* Subtle Left Border Accents per Visa Category */
+    div[data-testid="stElementContainer"]:has(.visa-chip-0) + div[data-testid="stElementContainer"] button { border-left-color: #2563eb !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-1) + div[data-testid="stElementContainer"] button { border-left-color: #059669 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-2) + div[data-testid="stElementContainer"] button { border-left-color: #d97706 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-3) + div[data-testid="stElementContainer"] button { border-left-color: #4f46e5 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-4) + div[data-testid="stElementContainer"] button { border-left-color: #db2777 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-5) + div[data-testid="stElementContainer"] button { border-left-color: #0d9488 !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-6) + div[data-testid="stElementContainer"] button { border-left-color: #64748b !important; }
+    div[data-testid="stElementContainer"]:has(.visa-chip-7) + div[data-testid="stElementContainer"] button { border-left-color: #dc2626 !important; }
+
+    /* Highlighted State When a Visa Chip is Clicked/Selected */
+    div[data-testid="stElementContainer"]:has([class*="visa-chip-active-"]) + div[data-testid="stElementContainer"] button {
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid #1d4ed8 !important;
+        border-left: 4px solid #fbbf24 !important;
+        box-shadow: 0 6px 16px rgba(30, 58, 138, 0.28) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -6231,16 +6271,23 @@ elif st.session_state["role"] == "admin":
                     st.rerun()
 
         if visa_counts_r:
+            st.markdown(
+                "<div class='action-group-title'>✈️ FILTER BY VISA TYPE:</div>",
+                unsafe_allow_html=True,
+            )
             visa_items = list(visa_counts_r.items())
             w_cols = st.columns(min(len(visa_items), 6), gap="small")
             for idx, (v_name, v_count) in enumerate(visa_items):
                 with w_cols[idx % len(w_cols)]:
+                    is_v_act = st.session_state["selected_visa_filter"] == v_name
+                    v_cls = f"visa-chip visa-chip-active-{idx % 8}" if is_v_act else f"visa-chip visa-chip-{idx % 8}"
+                    v_lbl = f"✅ {v_name}  •  {v_count}" if is_v_act else f"✈️ {v_name}  •  {v_count}"
                     st.markdown(
-                        f'<span class="visa-color-{idx % 8}" style="display:none;"></span>',
+                        f'<span class="{v_cls}" style="display:none;"></span>',
                         unsafe_allow_html=True,
                     )
                     if st.button(
-                        f"✈️ {v_name}: {v_count}",
+                        v_lbl,
                         key=f"admin_visa_card_btn_{rec_s_name}_{v_name}_{idx}",
                         use_container_width=True,
                     ):
@@ -6262,23 +6309,44 @@ elif st.session_state["role"] == "admin":
                     st.session_state[f"page_num_admin_{rec_s_name}"] = 1
                     st.rerun()
 
-        col_search, col_sheets = st.columns([1.2, 1.8], gap="medium")
-        with col_search:
-            admin_search = st.text_input(
-                "Search main data (any field):",
-                placeholder="Type Case ID, Username, DS160, Visa Type, Lead...",
-                key="admin_search_input",
-            ).strip()
-        with col_sheets:
-            rec_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
-            if rec_visible_sheets:
-                st.markdown("📑 **Switch Sheet:**")
-                sw_cols_r = st.columns(min(len(rec_visible_sheets), 6), gap="small")
-                for s_idx, s_name in enumerate(rec_visible_sheets):
-                    with sw_cols_r[s_idx % len(sw_cols_r)]:
-                        is_act = s_name == rec_s_name
-                        color_c = "admin-btn-1" if is_act else "admin-btn-6"
-                        b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
+        rec_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
+        if rec_visible_sheets:
+            st.markdown(
+                "<div class='action-group-title'>📑 SWITCH SHEET:</div>",
+                unsafe_allow_html=True,
+            )
+            sw_cols_r = st.columns(min(len(rec_visible_sheets), 6), gap="small")
+            for s_idx, s_name in enumerate(rec_visible_sheets):
+                with sw_cols_r[s_idx % len(sw_cols_r)]:
+                    is_act = s_name == rec_s_name
+                    color_c = "admin-btn-1" if is_act else "admin-btn-6"
+                    b_txt = f"✅ {s_name}" if is_act else f"📄 {s_name}"
+                    st.markdown(
+                        f'<span class="{color_c}" style="display:none;"></span>',
+                        unsafe_allow_html=True,
+                    )
+                    if st.button(
+                        b_txt,
+                        key=f"records_only_sheet_btn_{s_idx}",
+                        use_container_width=True,
+                    ):
+                        st.session_state["records_sheet"] = s_name
+                        st.session_state["active_sheet"] = s_name
+                        st.session_state["selected_visa_filter"] = "All"
+                        st.rerun()
+
+        admin_search = st.text_input(
+            "🔍 Search Main Data (Any Field):",
+            placeholder="Type Case ID, Username, DS160, Visa Type, Lead...",
+            key="admin_search_input",
+        ).strip()
+        if False:
+            if False:
+                if False:
+                    with sw_cols_r[0]:
+                        is_act = False
+                        color_c = "admin-btn-6"
+                        b_txt = ""
                         st.markdown(
                             f'<span class="{color_c}" style="display:none;"></span>',
                             unsafe_allow_html=True,
@@ -6620,12 +6688,15 @@ else:
         w_vcols = st.columns(min(len(visa_items_w), 6), gap="small")
         for idx_v, (v_name_w, v_count_w) in enumerate(visa_items_w):
             with w_vcols[idx_v % len(w_vcols)]:
+                is_wv_act = st.session_state["worker_selected_visa_filter"] == v_name_w
+                wv_cls = f"visa-chip visa-chip-active-{idx_v % 8}" if is_wv_act else f"visa-chip visa-chip-{idx_v % 8}"
+                wv_lbl = f"✅ {v_name_w}  •  {v_count_w}" if is_wv_act else f"✈️ {v_name_w}  •  {v_count_w}"
                 st.markdown(
-                    f'<span class="visa-color-{idx_v % 8}" style="display:none;"></span>',
+                    f'<span class="{wv_cls}" style="display:none;"></span>',
                     unsafe_allow_html=True,
                 )
                 if st.button(
-                    f"✈️ {v_name_w}: {v_count_w}",
+                    wv_lbl,
                     key=f"worker_visa_card_btn_{current_sheet}_{v_name_w}_{idx_v}",
                     use_container_width=True,
                 ):
