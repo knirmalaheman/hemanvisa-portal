@@ -2940,13 +2940,6 @@ st.markdown("""
     [data-testid="stVerticalBlock"] { gap: 0.35rem !important; }
     hr { margin-top: 0.75rem !important; margin-bottom: 0.75rem !important; }
 
-    /* Make black-background logo.jpg look crisp & sleek in navbar */
-    .sticky-top-banner img {
-        background: #000000 !important;
-        padding: 3px !important;
-        border: 1.5px solid rgba(251, 191, 36, 0.55) !important;
-    }
-
     /* Mobile App & Tablet Responsive Breakpoints */
     @media screen and (max-width: 900px) {
         .sticky-top-banner {
@@ -3033,7 +3026,6 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# Inject PWA Mobile App Manifest, Home-Screen App Icon (logo.jpg) & Mobile App Mode
 components.html(
     f"""
     <script>
