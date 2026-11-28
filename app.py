@@ -1337,8 +1337,8 @@ def load_all_sheets_cached(file_mtime):
     base_key = os.path.getmtime(EXCEL_FILE) if os.path.exists(EXCEL_FILE) else 0
     processed = _fetch_and_process_all_sheets_cached(base_key)
     if isinstance(processed, dict) and len(processed) > 0:
-        st.session_state["_mem_sheets_cache"] = {k: v.copy() for k, v in processed.items()}
-        return st.session_state["_mem_sheets_cache"]
+        st.session_state["_mem_sheets_cache"] = processed
+        return processed
     return processed
 
 
@@ -5275,16 +5275,25 @@ elif st.session_state["role"] == "admin":
                 for c in df_dash.columns
                 if any(k in c.lower() for k in ["date", "time", "day", "created"])
             ]
-            for _, r in df_dash.iterrows():
-                if any(
-                    today_str_d in str(r.get(dc, "")).strip()
-                    for dc in date_cols_d
-                ) or today_str_d in str(r.get("Updated_At", "")):
-                    today_count_d += 1
-                if is_today_updated_row(r, today_str_d):
-                    today_updated_count_d += 1
-                if is_not_assigned_value(r.get(login_c_d, "")):
-                    not_assigned_count_d += 1
+            check_cols_d = list(dict.fromkeys(date_cols_d + (["Updated_At"] if "Updated_At" in df_dash.columns else [])))
+            if check_cols_d:
+                today_mask = pd.Series(False, index=df_dash.index)
+                for dc in check_cols_d:
+                    today_mask = today_mask | df_dash[dc].astype(str).str.contains(today_str_d, na=False, regex=False)
+                today_count_d = int(today_mask.sum())
+
+            if "Updated_At" in df_dash.columns and "Updated_By" in df_dash.columns:
+                upd_mask = (
+                    df_dash["Updated_At"].astype(str).str.contains(today_str_d, na=False, regex=False)
+                    & (df_dash["Updated_By"].astype(str).str.strip() != "")
+                )
+                today_updated_count_d = int(upd_mask.sum())
+
+            if login_c_d in df_dash.columns:
+                na_vals = {"", "nan", "none", "not assigned", "unassigned", "-"}
+                not_assigned_count_d = int(
+                    df_dash[login_c_d].astype(str).str.strip().str.lower().isin(na_vals).sum()
+                )
 
         del_reqs_count_d = 0
         for s_k, df_s in all_sheets_map.items():
@@ -5365,8 +5374,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_perms",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "permissions"
-                st.rerun()
+                permissions_dialog()
         with q_r1_2:
             st.markdown(
                 '<span class="admin-btn-1" style="display:none;"></span>',
@@ -5377,8 +5385,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_wrep",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_worker_report"
-                st.rerun()
+                admin_worker_wise_report_dialog()
         with q_r1_3:
             st.markdown(
                 '<span class="admin-btn-2" style="display:none;"></span>',
@@ -5389,8 +5396,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_upd",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_updated_cases"
-                st.rerun()
+                admin_updated_cases_dialog()
         with q_r1_4:
             st.markdown(
                 '<span class="admin-btn-3" style="display:none;"></span>',
@@ -5401,8 +5407,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_delreqs",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_delete_requests"
-                st.rerun()
+                admin_delete_requests_dialog()
 
         q_r2_1, q_r2_2, q_r2_3, q_r2_4 = st.columns(4, gap="small")
         with q_r2_1:
@@ -5415,8 +5420,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_pdfs",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_pdf_downloads"
-                st.rerun()
+                admin_pdf_download_dialog()
         with q_r2_2:
             st.markdown(
                 '<span class="admin-btn-5" style="display:none;"></span>',
@@ -5427,9 +5431,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_lstatus",
                 use_container_width=True,
             ):
-                _clear_sheet_runtime_caches()
-                st.session_state["open_dialog"] = "admin_login_status"
-                st.rerun()
+                admin_login_status_dialog()
         with q_r2_3:
             st.markdown(
                 '<span class="admin-btn-6" style="display:none;"></span>',
@@ -5440,8 +5442,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_att",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_attendance"
-                st.rerun()
+                admin_attendance_dialog()
         with q_r2_4:
             st.markdown(
                 '<span class="admin-btn-7" style="display:none;"></span>',
@@ -5452,8 +5453,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_notice",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_notice"
-                st.rerun()
+                admin_notice_dialog()
 
         q_r3_1, q_r3_2, q_r3_3, q_r3_4 = st.columns(4, gap="small")
         with q_r3_1:
@@ -5466,13 +5466,11 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_not_assigned",
                 use_container_width=True,
             ):
-                st.session_state["admin_kpi_popup_meta"] = {
-                    "sheet": dash_s_name,
-                    "mode": "not_assigned",
-                    "lead": st.session_state["admin_selected_lead"],
-                }
-                st.session_state["open_dialog"] = "admin_kpi_popup"
-                st.rerun()
+                admin_kpi_cases_dialog(
+                    sheet_name=dash_s_name,
+                    filter_mode="not_assigned",
+                    lead_filter=st.session_state["admin_selected_lead"],
+                )
         with q_r3_2:
             st.markdown(
                 '<span class="admin-btn-1" style="display:none;"></span>',
@@ -5483,8 +5481,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_sync",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "sync_excel"
-                st.rerun()
+                sync_excel_dialog()
         with q_r3_3:
             st.markdown(
                 '<span class="admin-btn-6" style="display:none;"></span>',
@@ -5495,8 +5492,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_apass",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_password"
-                st.rerun()
+                admin_password_dialog()
         with q_r3_4:
             all_blk_d = are_all_workers_blocked()
             st.markdown(
@@ -5524,8 +5520,7 @@ elif st.session_state["role"] == "admin":
                 key="q_btn_editreqs",
                 use_container_width=True,
             ):
-                st.session_state["open_dialog"] = "admin_edit_requests"
-                st.rerun()
+                admin_edit_requests_dialog()
 
     elif active_admin_view == "records":
         rec_s_name = st.session_state.get("records_sheet", default_act_s)
