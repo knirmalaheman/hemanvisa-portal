@@ -4908,6 +4908,38 @@ MSG_COLS = [
 
 
 def load_messages():
+    fresh_sheets = _fetch_sheets_from_webapp()
+    if isinstance(fresh_sheets, dict) and "App_Messages" in fresh_sheets:
+        df_m = fresh_sheets["App_Messages"]
+        if df_m is not None and not df_m.empty:
+            rows = df_m.fillna("").astype(str).to_dict(orient="records")
+            cleaned = []
+            for r in rows:
+                m_txt = str(r.get("Message", "")).strip()
+                if m_txt:
+                    cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
+            return cleaned
+    rows = _read_sheet_rows("App_Messages")
+    cleaned = []
+    for r in rows:
+        m_txt = str(r.get("Message", "")).strip()
+        if m_txt:
+            cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
+    return cleaned
+
+
+def load_messages():
+    fresh_sheets = _fetch_sheets_from_webapp()
+    if isinstance(fresh_sheets, dict) and "App_Messages" in fresh_sheets:
+        df_m = fresh_sheets["App_Messages"]
+        if df_m is not None and not df_m.empty:
+            rows = df_m.fillna("").astype(str).to_dict(orient="records")
+            cleaned = []
+            for r in rows:
+                m_txt = str(r.get("Message", "")).strip()
+                if m_txt:
+                    cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
+            return cleaned
     rows = _read_sheet_rows("App_Messages")
     cleaned = []
     for r in rows:
@@ -4994,8 +5026,9 @@ def internal_messages_dialog(current_user, role="worker"):
                     st.warning("⚠️ Please type a message before sending.")
                 else:
                     now_str = get_ist_now().strftime("%Y-%m-%d %I:%M:%S %p")
+                    latest_msgs = load_messages()
                     new_msg = {
-                        "Msg_ID": f"MSG{int(get_ist_now().timestamp())}{len(all_msgs) + 1}",
+                        "Msg_ID": f"MSG{int(get_ist_now().timestamp())}{len(latest_msgs) + 1}",
                         "Sender": sender_label,
                         "Sender_Role": role,
                         "Receiver": str(to_user).strip(),
@@ -5004,8 +5037,8 @@ def internal_messages_dialog(current_user, role="worker"):
                         "Sent_At": now_str,
                         "Is_Read": "False",
                     }
-                    all_msgs.append(new_msg)
-                    save_messages(all_msgs)
+                    latest_msgs.append(new_msg)
+                    save_messages(latest_msgs)
                     st.success(f"✅ Message sent to **{to_user}**!")
                     st.rerun()
 
