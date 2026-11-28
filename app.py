@@ -4571,6 +4571,7 @@ def worker_password_dialog(worker_name):
 
 
 @st.dialog("➕ Add New Case", width="large")
+@st.dialog("➕ Add New Case", width="large")
 def add_case_dialog(worker_name):
     sheets = get_sheet_names()
     default_idx = 0
@@ -4590,7 +4591,6 @@ def add_case_dialog(worker_name):
         target_df = pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"])
     t_login_col = find_login_user_column(target_df)
     t_pass_col = find_password_column(target_df)
-    t_disp_col = _detect_case_username_col(target_df) or find_display_username_column(target_df)
     preview_next_id = generate_next_case_id()
 
     available_usernames = sorted(
@@ -4601,9 +4601,32 @@ def add_case_dialog(worker_name):
     if worker_name not in available_usernames and worker_name != "":
         available_usernames.insert(1, worker_name)
 
+    # All sheets nundi unna anni Visa Types collect cheyadam
+    all_sheets_data = load_all_sheets_cached(_get_file_mtime())
+    visa_types_set = set()
+    for s_k, df_s in all_sheets_data.items():
+        if str(s_k).strip() in SYSTEM_SHEETS or df_s is None or df_s.empty:
+            continue
+        v_col_s = find_visa_type_column(df_s)
+        if v_col_s and v_col_s in df_s.columns:
+            for val in df_s[v_col_s].astype(str).str.strip():
+                if val and val.lower() not in ["nan", "none", "null", ""]:
+                    visa_types_set.add(val)
+
+    visa_type_options = sorted(list(visa_types_set), key=lambda x: x.lower())
+    if not visa_type_options:
+        visa_type_options = ["B1/B2", "F1", "H1B", "H4", "L1", "L2"]
+
+    lead_dropdown_options = ["Kiran", "Shanthi"]
+    visa_col_target = find_visa_type_column(target_df)
+    lead_col_target = next(
+        (c for c in target_df.columns if "lead" in c.strip().lower()),
+        None,
+    )
+
     with st.form("dlg_new_case_form", clear_on_submit=True):
         st.text_input(
-            "🆔 Auto-Generated Case ID (Matches existing Case Username ID across sheets if found)",
+            "🆔 Auto-Generated Case ID (Locked)",
             value=preview_next_id,
             disabled=True,
         )
@@ -4640,7 +4663,19 @@ def add_case_dialog(worker_name):
         ]
         for col_name in cols:
             c_lower = col_name.lower()
-            if "date" in c_lower and "prefer" not in c_lower:
+            if lead_col_target and col_name == lead_col_target:
+                form_data[col_name] = st.selectbox(
+                    f"{col_name} (Lead)",
+                    options=lead_dropdown_options,
+                    key=f"add_lead_{col_name}",
+                )
+            elif visa_col_target and col_name == visa_col_target:
+                form_data[col_name] = st.selectbox(
+                    f"{col_name} (Visa Type)",
+                    options=visa_type_options,
+                    key=f"add_visa_{col_name}",
+                )
+            elif "date" in c_lower and "prefer" not in c_lower:
                 sel_date = st.date_input(
                     f"{col_name}",
                     value=get_ist_now().date(),
