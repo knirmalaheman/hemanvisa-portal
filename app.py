@@ -4922,7 +4922,13 @@ def save_messages(msg_list):
         {col: str(item.get(col, "")).strip() for col in MSG_COLS}
         for item in (msg_list or [])
     ]
-    _write_sheet_records("App_Messages", MSG_COLS, records)
+    df_new = _build_records_df(MSG_COLS, records)
+    _update_session_sheets_cache({"App_Messages": df_new})
+    _push_sheet_to_webapp("App_Messages", df_new, all_sheets_dict=None)
+    st.session_state["_gsheet_sync_version"] = (
+        st.session_state.get("_gsheet_sync_version", 0) + 1
+    )
+    _clear_sheet_runtime_caches()
 
 
 def get_unread_messages_count(user_name, role="worker"):
