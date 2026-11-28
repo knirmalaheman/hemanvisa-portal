@@ -4907,7 +4907,8 @@ MSG_COLS = [
 ]
 
 
-def load_messages():
+@st.cache_data(ttl=25, show_spinner=False)
+def _fetch_messages_cached(_cache_ver):
     fresh_sheets = _fetch_sheets_from_webapp()
     if isinstance(fresh_sheets, dict) and "App_Messages" in fresh_sheets:
         df_m = fresh_sheets["App_Messages"]
@@ -4919,33 +4920,25 @@ def load_messages():
                 if m_txt:
                     cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
             return cleaned
-    rows = _read_sheet_rows("App_Messages")
-    cleaned = []
-    for r in rows:
-        m_txt = str(r.get("Message", "")).strip()
-        if m_txt:
-            cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
-    return cleaned
+    return None
 
 
 def load_messages():
-    fresh_sheets = _fetch_sheets_from_webapp()
-    if isinstance(fresh_sheets, dict) and "App_Messages" in fresh_sheets:
-        df_m = fresh_sheets["App_Messages"]
-        if df_m is not None and not df_m.empty:
-            rows = df_m.fillna("").astype(str).to_dict(orient="records")
-            cleaned = []
-            for r in rows:
-                m_txt = str(r.get("Message", "")).strip()
-                if m_txt:
-                    cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
-            return cleaned
+    mem_msgs = st.session_state.get("_mem_messages_cache")
+    if isinstance(mem_msgs, list):
+        return mem_msgs
+    msg_ver = st.session_state.get("_msg_sync_ver", 0)
+    cached_res = _fetch_messages_cached(msg_ver)
+    if isinstance(cached_res, list):
+        st.session_state["_mem_messages_cache"] = cached_res
+        return cached_res
     rows = _read_sheet_rows("App_Messages")
     cleaned = []
     for r in rows:
         m_txt = str(r.get("Message", "")).strip()
         if m_txt:
             cleaned.append({col: str(r.get(col, "")).strip() for col in MSG_COLS})
+    st.session_state["_mem_messages_cache"] = cleaned
     return cleaned
 
 
@@ -4954,13 +4947,12 @@ def save_messages(msg_list):
         {col: str(item.get(col, "")).strip() for col in MSG_COLS}
         for item in (msg_list or [])
     ]
+    st.session_state["_mem_messages_cache"] = records
+    st.session_state["_msg_sync_ver"] = st.session_state.get("_msg_sync_ver", 0) + 1
+    _fetch_messages_cached.clear()
     df_new = _build_records_df(MSG_COLS, records)
     _update_session_sheets_cache({"App_Messages": df_new})
     _push_sheet_to_webapp("App_Messages", df_new, all_sheets_dict=None)
-    st.session_state["_gsheet_sync_version"] = (
-        st.session_state.get("_gsheet_sync_version", 0) + 1
-    )
-    _clear_sheet_runtime_caches()
 
 
 def get_unread_messages_count(user_name, role="worker"):
