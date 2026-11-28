@@ -4694,7 +4694,117 @@ def admin_worker_wise_report_dialog():
             )
             df_visa.index = range(1, len(df_visa) + 1)
             st.dataframe(df_visa, use_container_width=True)
+@st.dialog("📋 Active Worker Cases", width="large")
+def admin_active_worker_cases_dialog():
+    st.info(
+        "💡 Only **Active** sheet nundi `Booking_Status` active unnavi (`booked`, `rescheduled`, `issues`) worker-wise count + case usernames format lo chupistundi."
+    )
 
+    df_active = load_data(sheet_name="Active")
+    if df_active is None or df_active.empty:
+        st.warning("'Active' sheet lo data emi ledhu.")
+        return
+
+    df_work = df_active.copy()
+    df_work.columns = df_work.columns.str.strip()
+
+    col_lower_map = {str(c).strip().lower(): c for c in df_work.columns}
+    status_col = col_lower_map.get("booking_status")
+    worker_col = find_login_user_column(df_work)
+    user_col = find_display_username_column(df_work)
+
+    if not status_col or status_col not in df_work.columns:
+        st.warning("'Active' sheet lo `Booking_Status` column dorakaledhu.")
+        return
+
+    active_statuses = {"booked", "rescheduled", "issues"}
+    status_norm = df_work[status_col].astype(str).str.strip().str.lower()
+    filtered_df = df_work[status_norm.isin(active_statuses)].copy()
+
+    if filtered_df.empty:
+        st.info(
+            "'Active' sheet lo prastutam `booked` / `rescheduled` / `issues` status lo active cases levu."
+        )
+        return
+
+    filtered_df[worker_col] = filtered_df[worker_col].astype(str).str.strip()
+    filtered_df[user_col] = filtered_df[user_col].astype(str).str.strip()
+
+    invalid_vals = {"", "nan", "none", "null", "not assigned", "unassigned", "-"}
+    filtered_df = filtered_df[
+        (~filtered_df[worker_col].str.lower().isin(invalid_vals))
+        & (~filtered_df[user_col].str.lower().isin(invalid_vals))
+    ]
+
+    if filtered_df.empty:
+        st.info("'Active' sheet lo valid Case Worker + Case Username unna active cases levu.")
+        return
+
+    summary_lines = []
+    for worker_name, grp in filtered_df.groupby(worker_col, sort=True):
+        usernames = list(dict.fromkeys([u for u in grp[user_col].tolist() if u]))
+        case_cnt = len(usernames)
+        users_text = ", ".join(usernames)
+        summary_lines.append(f"{worker_name} ({case_cnt}): {users_text}")
+
+    ready_copy_text = "\n".join(summary_lines)
+
+    st.markdown(f"**📂 Sheet:** `Active` &nbsp;|&nbsp; **👷 Workers:** `{len(summary_lines)}`")
+    st.text_area(
+        "Copy-Ready Active Cases List (Worker Count & Usernames)",
+        value=ready_copy_text,
+        height=240,
+        key="admin_active_worker_cases_copy_area",
+    )
+
+    safe_text_json = json.dumps(ready_copy_text)
+    components.html(
+        f"""
+        <div style="margin-top: 6px;">
+            <button id="copy_active_worker_cases_btn" type="button" style="
+                background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 700;
+                cursor: pointer;
+                box-shadow: 0 3px 8px rgba(37, 99, 235, 0.25);
+            ">📋 Copy</button>
+            <span id="copy_active_worker_cases_status" style="margin-left: 10px; font-size: 13px; font-weight: 700; color: #047857;"></span>
+        </div>
+        <script>
+        (function() {{
+            const btn = document.getElementById("copy_active_worker_cases_btn");
+            const statusEl = document.getElementById("copy_active_worker_cases_status");
+            const txt = {safe_text_json};
+            if (!btn) return;
+            btn.addEventListener("click", async function() {{
+                try {{
+                    if (navigator.clipboard && navigator.clipboard.writeText) {{
+                        await navigator.clipboard.writeText(txt);
+                    }} else {{
+                        const ta = document.createElement("textarea");
+                        ta.value = txt;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(ta);
+                    }}
+                    if (statusEl) {{
+                        statusEl.textContent = "✅ Copied!";
+                        setTimeout(() => {{ statusEl.textContent = ""; }}, 2500);
+                    }}
+                }} catch (e) {{
+                    if (statusEl) statusEl.textContent = "⚠️ Select text above & Ctrl+C";
+                }}
+            }});
+        }})();
+        </script>
+        """,
+        height=46,
+    )
 
 @st.dialog("📋 New / Updated Cases & Calendar", width="large")
 def admin_updated_cases_dialog():
@@ -5745,6 +5855,7 @@ dialog_map = {
     "admin_login_status": admin_login_status_dialog,
     "admin_attendance": admin_attendance_dialog,
     "admin_worker_report": admin_worker_wise_report_dialog,
+    "admin_active_worker_cases": admin_active_worker_cases_dialog,
     "admin_pdf_downloads": admin_pdf_download_dialog,
     "worker_password": lambda: worker_password_dialog(
         st.session_state.get("username", "")
@@ -6520,6 +6631,17 @@ elif st.session_state["role"] == "admin":
                 use_container_width=True,
             ):
                 internal_messages_dialog(current_user="admin", role="admin")
+        with q_r4_3:
+            st.markdown(
+                '<span class="qa-tile qa-blue" style="display:none;"></span>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                "📋  Active Worker Cases",
+                key="q_btn_active_worker_cases",
+                use_container_width=True,
+            ):
+                admin_active_worker_cases_dialog()
     elif active_admin_view == "records":
         rec_s_name = st.session_state.get("records_sheet", default_act_s)
         if rec_s_name not in sheets:
