@@ -4285,7 +4285,7 @@ def admin_delete_requests_dialog():
 @st.dialog("👥 Users, Passwords & Permissions (All Sheets)", width="large")
 def permissions_dialog():
     st.info(
-        "💡 Manage case worker status (Active / Blocked), passwords, and permissions."
+        "💡 Manage case worker status (Active / Blocked), passwords, and individual or bulk permissions."
     )
     all_blocked_now = are_all_workers_blocked()
     if all_blocked_now:
@@ -4305,7 +4305,6 @@ def permissions_dialog():
             toggle_all_workers_block(True)
             st.rerun()
 
-    st.divider()
     all_sheets = load_all_sheets_cached(_get_file_mtime())
     all_users_dict = {}
     for s_name, df_s in all_sheets.items():
@@ -4323,6 +4322,131 @@ def permissions_dialog():
                             all_users_dict[u_name] = pwd
 
     current_perms = load_permissions()
+    worker_names_list = list(all_users_dict.keys())
+
+    # --- BULK / MULTIPLE PERMISSIONS SECTION ---
+    if worker_names_list:
+        with st.container(border=True):
+            st.markdown("#### ⚡ Bulk Permissions (Multiple Workers ki Okesari)")
+            b_sel_col1, b_sel_col2 = st.columns([1.2, 2.8], gap="small")
+            with b_sel_col1:
+                select_all_w = st.checkbox(
+                    "Select All Workers",
+                    value=False,
+                    key="bulk_select_all_workers",
+                )
+            with b_sel_col2:
+                selected_bulk_workers = st.multiselect(
+                    "Select Case Workers (Multiple)",
+                    options=worker_names_list,
+                    default=worker_names_list if select_all_w else [],
+                    placeholder="Choose workers or tick Select All Workers...",
+                    key="bulk_workers_multiselect",
+                )
+
+            bp1, bp2, bp3, bp4, bp5 = st.columns(5, gap="small")
+            with bp1:
+                b_upd = st.checkbox("Update", value=False, key="bulk_chk_upd")
+            with bp2:
+                b_add = st.checkbox("Add", value=False, key="bulk_chk_add")
+            with bp3:
+                b_sch = st.checkbox("Search", value=False, key="bulk_chk_sch")
+            with bp4:
+                b_dl = st.checkbox("Download", value=False, key="bulk_chk_dl")
+            with bp5:
+                b_sync = st.checkbox("Sync", value=False, key="bulk_chk_sync")
+
+            b_act1, b_act2 = st.columns(2, gap="small")
+            with b_act1:
+                if st.button(
+                    "✅ Enable Selected Permissions",
+                    key="bulk_enable_perms_btn",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    target_workers = worker_names_list if select_all_w else selected_bulk_workers
+                    if not target_workers:
+                        st.warning("⚠️ Please select at least one Case Worker.")
+                    elif not any([b_upd, b_add, b_sch, b_dl, b_sync]):
+                        st.warning("⚠️ Please select at least one permission (Update, Add, Search, Download, Sync).")
+                    else:
+                        for w_target in target_workers:
+                            m_key = next(
+                                (k for k in current_perms if k.lower() == w_target.lower()),
+                                w_target,
+                            )
+                            existing = current_perms.get(
+                                m_key,
+                                {
+                                    "can_update": True,
+                                    "can_add": True,
+                                    "can_search": True,
+                                    "can_download": False,
+                                    "can_sync": False,
+                                    "block_login": False,
+                                },
+                            )
+                            if b_upd:
+                                existing["can_update"] = True
+                            if b_add:
+                                existing["can_add"] = True
+                            if b_sch:
+                                existing["can_search"] = True
+                            if b_dl:
+                                existing["can_download"] = True
+                            if b_sync:
+                                existing["can_sync"] = True
+                            current_perms[m_key] = existing
+                        save_permissions(current_perms)
+                        st.success(f"✅ Enabled selected permissions for {len(target_workers)} worker(s)!")
+                        st.rerun()
+
+            with b_act2:
+                if st.button(
+                    "🚫 Disable Selected Permissions",
+                    key="bulk_disable_perms_btn",
+                    use_container_width=True,
+                ):
+                    target_workers = worker_names_list if select_all_w else selected_bulk_workers
+                    if not target_workers:
+                        st.warning("⚠️ Please select at least one Case Worker.")
+                    elif not any([b_upd, b_add, b_sch, b_dl, b_sync]):
+                        st.warning("⚠️ Please select at least one permission (Update, Add, Search, Download, Sync).")
+                    else:
+                        for w_target in target_workers:
+                            m_key = next(
+                                (k for k in current_perms if k.lower() == w_target.lower()),
+                                w_target,
+                            )
+                            existing = current_perms.get(
+                                m_key,
+                                {
+                                    "can_update": True,
+                                    "can_add": True,
+                                    "can_search": True,
+                                    "can_download": False,
+                                    "can_sync": False,
+                                    "block_login": False,
+                                },
+                            )
+                            if b_upd:
+                                existing["can_update"] = False
+                            if b_add:
+                                existing["can_add"] = False
+                            if b_sch:
+                                existing["can_search"] = False
+                            if b_dl:
+                                existing["can_download"] = False
+                            if b_sync:
+                                existing["can_sync"] = False
+                            current_perms[m_key] = existing
+                        save_permissions(current_perms)
+                        st.success(f"✅ Disabled selected permissions for {len(target_workers)} worker(s)!")
+                        st.rerun()
+
+    st.divider()
+
+    # --- INDIVIDUAL WORKER CARDS ---
     for idx, (u_name, curr_pwd) in enumerate(all_users_dict.items()):
         matched_key = next(
             (k for k in current_perms if k.lower() == u_name.lower()), u_name
@@ -4458,7 +4582,8 @@ def permissions_dialog():
                         }
                         save_permissions(current_perms)
                         st.session_state["_gsheet_sync_version"] = st.session_state.get("_gsheet_sync_version", 0) + 1
-                        st.session_state.pop("_mem_sheets_cache", None); st.cache_data.clear()
+                        st.session_state.pop("_mem_sheets_cache", None)
+                        st.cache_data.clear()
                         st.success(f"✅ Saved changes for '{u_name}'!")
                     except Exception as e:
                         st.error(f"❌ Error updating '{u_name}': {e}")
