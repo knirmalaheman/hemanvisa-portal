@@ -5919,15 +5919,7 @@ else:
             .str.lower()
             .str.contains(sel_lw, na=False)
         ]
-	user_rows_w = user_rows_w[
-            user_rows_w[lead_col_w]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-            .str.contains(sel_lw, na=False)
-        ]
 
-    # --- IKKADA PASTE CHEYANDI (Line 5922) ---
     if "worker_selected_visa_filter" not in st.session_state:
         st.session_state["worker_selected_visa_filter"] = "All"
 
@@ -5984,7 +5976,8 @@ else:
         user_rows_w = user_rows_w[
             user_rows_w[visa_col_w].astype(str).str.strip().str.upper() == target_visa_w
         ]
-    # --- PASTE END ---
+
+    total_w_cases = len(user_rows_w) if not user_rows_w.empty else 0
 
     
     total_w_cases = len(user_rows_w) if not user_rows_w.empty else 0
