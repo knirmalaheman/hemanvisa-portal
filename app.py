@@ -1409,6 +1409,70 @@ def generate_next_case_id(extra_reserved_ids=None):
     return f"HM{max_num + 1}"
 
 
+def resolve_and_sync_case_id_by_username(case_username_val, new_generated_id, current_user="", ts_str=""):
+    u_clean = str(case_username_val).strip()
+    if not _is_valid_case_username(u_clean):
+        return new_generated_id
+
+    u_key = u_clean.lower()
+    all_sheets = load_all_sheets_cached(_get_file_mtime())
+    if not all_sheets:
+        return new_generated_id
+
+    existing_id = ""
+    for s_name, df_s in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS or df_s is None or df_s.empty:
+            continue
+        disp_col = _detect_case_username_col(df_s)
+        if not disp_col or disp_col not in df_s.columns or "Case_ID" not in df_s.columns:
+            continue
+        for idx in df_s.index:
+            b_stat = str(df_s.at[idx, "Booking_Status"]).strip().lower() if "Booking_Status" in df_s.columns else ""
+            act_t = str(df_s.at[idx, "Action_Type"]).strip().lower() if "Action_Type" in df_s.columns else ""
+            if b_stat == "rescheduled" or act_t == "rescheduled case":
+                continue
+            row_u = str(df_s.at[idx, disp_col]).strip().lower()
+            row_cid = str(df_s.at[idx, "Case_ID"]).strip()
+            if row_u == u_key and row_cid and row_cid.lower() != "nan":
+                existing_id = row_cid
+                break
+        if existing_id:
+            break
+
+    final_cid = existing_id if existing_id else new_generated_id
+
+    updated_sheets = {}
+    for s_name, df_s in all_sheets.items():
+        if str(s_name).strip() in SYSTEM_SHEETS or df_s is None or df_s.empty:
+            continue
+        disp_col = _detect_case_username_col(df_s)
+        if not disp_col or disp_col not in df_s.columns or "Case_ID" not in df_s.columns:
+            continue
+        df_copy = df_s.copy()
+        sheet_changed = False
+        for idx in df_copy.index:
+            b_stat = str(df_copy.at[idx, "Booking_Status"]).strip().lower() if "Booking_Status" in df_copy.columns else ""
+            act_t = str(df_copy.at[idx, "Action_Type"]).strip().lower() if "Action_Type" in df_copy.columns else ""
+            if b_stat == "rescheduled" or act_t == "rescheduled case":
+                continue
+            row_u = str(df_copy.at[idx, disp_col]).strip().lower()
+            if row_u == u_key and str(df_copy.at[idx, "Case_ID"]).strip() != final_cid:
+                df_copy.at[idx, "Case_ID"] = final_cid
+                sheet_changed = True
+        if sheet_changed:
+            updated_sheets[s_name] = reorder_dataframe_columns(df_copy)
+
+    if updated_sheets:
+        merged_all = {str(k): v.copy() for k, v in all_sheets.items()}
+        for k, v in updated_sheets.items():
+            merged_all[str(k)] = v
+        _update_session_sheets_cache(updated_sheets)
+        first_s = list(updated_sheets.keys())[0]
+        _push_sheet_to_webapp(first_s, updated_sheets[first_s], merged_all)
+
+    return final_cid
+
+
 def append_rescheduled_to_active_sheet(
     source_row,
     pref_loc,
@@ -4526,6 +4590,7 @@ def add_case_dialog(worker_name):
         target_df = pd.DataFrame(columns=["Case_ID", "Username", "USERNAME", "Password", "Lead"])
     t_login_col = find_login_user_column(target_df)
     t_pass_col = find_password_column(target_df)
+    t_disp_col = _detect_case_username_col(target_df) or find_display_username_column(target_df)
     preview_next_id = generate_next_case_id()
 
     available_usernames = sorted(
@@ -4538,7 +4603,7 @@ def add_case_dialog(worker_name):
 
     with st.form("dlg_new_case_form", clear_on_submit=True):
         st.text_input(
-            "🆔 Auto-Generated Case ID (Locked)",
+            "🆔 Auto-Generated Case ID (Matches existing Case Username ID across sheets if found)",
             value=preview_next_id,
             disabled=True,
         )
@@ -5908,4 +5973,4 @@ else:
         sheet_for_link=current_sheet,
         allow_edit=can_update,
     )
-	
+						
