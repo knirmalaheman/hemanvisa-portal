@@ -2642,6 +2642,122 @@ st.markdown("""
         margin-top: 0.75rem !important;
         margin-bottom: 0.75rem !important;
     }
+
+    /* Enterprise Quick Action Command Tiles (Replaces Loud Rainbow Blocks) */
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #e2e8f0 !important;
+        border-left: 4.5px solid #334155 !important;
+        border-radius: 12px !important;
+        min-height: 64px !important;
+        padding: 11px 15px !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: pre-line !important;
+        line-height: 1.38 !important;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04) !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button p {
+        text-align: left !important;
+        font-size: 13.5px !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button p::first-line {
+        font-size: 13.5px !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-tile) + div[data-testid="stElementContainer"] button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.09) !important;
+        background: #f8fafc !important;
+    }
+
+    /* Colored Accent Variants for Quick Action Tiles */
+    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button {
+        border-left-color: #2563eb !important;
+        background: linear-gradient(135deg, #ffffff 70%, #eff6ff 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-blue) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #93c5fd !important;
+        border-left-color: #1d4ed8 !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button {
+        border-left-color: #059669 !important;
+        background: linear-gradient(135deg, #ffffff 70%, #ecfdf5 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-emerald) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #6ee7b7 !important;
+        border-left-color: #047857 !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button {
+        border-left-color: #d97706 !important;
+        background: linear-gradient(135deg, #ffffff 70%, #fffbeb 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-amber) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #fcd34d !important;
+        border-left-color: #b45309 !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button {
+        border-left-color: #4f46e5 !important;
+        background: linear-gradient(135deg, #ffffff 70%, #eef2ff 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-indigo) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #a5b4fc !important;
+        border-left-color: #4338ca !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button {
+        border-left-color: #db2777 !important;
+        background: linear-gradient(135deg, #ffffff 70%, #fdf2f8 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-rose) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #f9a8d4 !important;
+        border-left-color: #be185d !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button {
+        border-left-color: #0d9488 !important;
+        background: linear-gradient(135deg, #ffffff 70%, #f0fdfa 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-teal) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #5eead4 !important;
+        border-left-color: #0f766e !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button {
+        border-left-color: #475569 !important;
+        background: linear-gradient(135deg, #ffffff 70%, #f1f5f9 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-slate) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #94a3b8 !important;
+        border-left-color: #1e293b !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button {
+        border-left-color: #ea580c !important;
+        background: linear-gradient(135deg, #ffffff 70%, #fff7ed 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-orange) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #fdba74 !important;
+        border-left-color: #c2410c !important;
+    }
+
+    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button {
+        border-left-color: #dc2626 !important;
+        background: linear-gradient(135deg, #ffffff 70%, #fef2f2 100%) !important;
+    }
+    div[data-testid="stElementContainer"]:has(.qa-crimson) + div[data-testid="stElementContainer"] button:hover {
+        border-color: #fca5a5 !important;
+        border-left-color: #b91c1c !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -5889,44 +6005,44 @@ elif st.session_state["role"] == "admin":
         q_r1_1, q_r1_2, q_r1_3, q_r1_4 = st.columns(4, gap="small")
         with q_r1_1:
             st.markdown(
-                '<span class="admin-btn-0" style="display:none;"></span>',
+                '<span class="qa-tile qa-blue" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "👥 Users & Permissions",
+                "👥  Users & Permissions\nManage roles, passwords & access",
                 key="q_btn_perms",
                 use_container_width=True,
             ):
                 permissions_dialog()
         with q_r1_2:
             st.markdown(
-                '<span class="admin-btn-1" style="display:none;"></span>',
+                '<span class="qa-tile qa-emerald" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📊 Worker Booked Report",
+                "📊  Worker Booked Report\nToday & overall visa bookings",
                 key="q_btn_wrep",
                 use_container_width=True,
             ):
                 admin_worker_wise_report_dialog()
         with q_r1_3:
             st.markdown(
-                '<span class="admin-btn-2" style="display:none;"></span>',
+                '<span class="qa-tile qa-amber" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📋 New / Updated & Cal",
+                "📋  New / Updated & Cal\nRecent edits & date-wise view",
                 key="q_btn_upd",
                 use_container_width=True,
             ):
                 admin_updated_cases_dialog()
         with q_r1_4:
             st.markdown(
-                '<span class="admin-btn-3" style="display:none;"></span>',
+                '<span class="qa-tile qa-indigo" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"🗑️ Delete Reqs ({del_reqs_count_d})",
+                f"🗑️  Delete Reqs ({del_reqs_count_d})\nReview worker deletion requests",
                 key="q_btn_delreqs",
                 use_container_width=True,
             ):
@@ -5935,44 +6051,44 @@ elif st.session_state["role"] == "admin":
         q_r2_1, q_r2_2, q_r2_3, q_r2_4 = st.columns(4, gap="small")
         with q_r2_1:
             st.markdown(
-                '<span class="admin-btn-4" style="display:none;"></span>',
+                '<span class="qa-tile qa-rose" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📥 Appointment PDFs",
+                "📥  Appointment PDFs\nDate-wise folders & PDF search",
                 key="q_btn_pdfs",
                 use_container_width=True,
             ):
                 admin_pdf_download_dialog()
         with q_r2_2:
             st.markdown(
-                '<span class="admin-btn-5" style="display:none;"></span>',
+                '<span class="qa-tile qa-teal" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🟢 Login Status",
+                "🟢  Login Status\nLive online & offline workers",
                 key="q_btn_lstatus",
                 use_container_width=True,
             ):
                 admin_login_status_dialog()
         with q_r2_3:
             st.markdown(
-                '<span class="admin-btn-6" style="display:none;"></span>',
+                '<span class="qa-tile qa-slate" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🕒 Attendance Log",
+                "🕒  Attendance Log\nDaily & total logged work hours",
                 key="q_btn_att",
                 use_container_width=True,
             ):
                 admin_attendance_dialog()
         with q_r2_4:
             st.markdown(
-                '<span class="admin-btn-7" style="display:none;"></span>',
+                '<span class="qa-tile qa-orange" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📢 Notice Board",
+                "📢  Notice Board\nBroadcast scrolling announcement",
                 key="q_btn_notice",
                 use_container_width=True,
             ):
@@ -5981,11 +6097,11 @@ elif st.session_state["role"] == "admin":
         q_r3_1, q_r3_2, q_r3_3, q_r3_4 = st.columns(4, gap="small")
         with q_r3_1:
             st.markdown(
-                '<span class="admin-btn-7" style="display:none;"></span>',
+                '<span class="qa-tile qa-crimson" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"👤 Not Assigned ({not_assigned_count_d})",
+                f"👤  Not Assigned ({not_assigned_count_d})\nUnallocated cases in active sheet",
                 key="q_btn_not_assigned",
                 use_container_width=True,
             ):
@@ -5996,22 +6112,22 @@ elif st.session_state["role"] == "admin":
                 )
         with q_r3_2:
             st.markdown(
-                '<span class="admin-btn-1" style="display:none;"></span>',
+                '<span class="qa-tile qa-emerald" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "📤 Sync Excel to Cloud",
+                "📤  Sync Excel to Cloud\nUpload .xlsx to Google Sheets",
                 key="q_btn_sync",
                 use_container_width=True,
             ):
                 sync_excel_dialog()
         with q_r3_3:
             st.markdown(
-                '<span class="admin-btn-6" style="display:none;"></span>',
+                '<span class="qa-tile qa-slate" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🔑 Change Admin Pass",
+                "🔑  Change Admin Pass\nUpdate admin login credentials",
                 key="q_btn_apass",
                 use_container_width=True,
             ):
@@ -6019,13 +6135,13 @@ elif st.session_state["role"] == "admin":
         with q_r3_4:
             all_blk_d = are_all_workers_blocked()
             st.markdown(
-                f'<span class="{"admin-btn-1" if all_blk_d else "admin-btn-7"}" style="display:none;"></span>',
+                f'<span class="qa-tile {"qa-emerald" if all_blk_d else "qa-crimson"}" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                "🔓 Unblock All Workers"
+                "🔓  Unblock All Workers\nRestore portal login for team"
                 if all_blk_d
-                else "🔒 Block All Workers",
+                else "🔒  Block All Workers\nEmergency lock all worker logins",
                 key="q_btn_blkall",
                 use_container_width=True,
             ):
@@ -6035,20 +6151,24 @@ elif st.session_state["role"] == "admin":
         q_r4_1, q_r4_2, q_r4_3, q_r4_4 = st.columns(4, gap="small")
         with q_r4_1:
             st.markdown(
-                '<span class="admin-btn-3" style="display:none;"></span>',
+                '<span class="qa-tile qa-indigo" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
-                f"✏️ Edit Reqs ({pending_edit_reqs_cnt})",
+                f"✏️  Edit Reqs ({pending_edit_reqs_cnt})\nApprove cross-worker edit access",
                 key="q_btn_editreqs",
                 use_container_width=True,
             ):
                 admin_edit_requests_dialog()
         with q_r4_2:
             unread_admin_cnt = get_unread_messages_count("admin", role="admin")
-            admin_msg_lbl = f"💬 Messages ({unread_admin_cnt})" if unread_admin_cnt > 0 else "💬 Messages"
+            admin_msg_lbl = (
+                f"💬  Messages ({unread_admin_cnt} Unread)\nTeam inbox & full chat monitor"
+                if unread_admin_cnt > 0
+                else "💬  Messages\nTeam inbox & full chat monitor"
+            )
             st.markdown(
-                '<span class="admin-btn-5" style="display:none;"></span>',
+                '<span class="qa-tile qa-teal" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
             if st.button(
