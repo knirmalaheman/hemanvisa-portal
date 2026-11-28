@@ -6147,7 +6147,7 @@ else:
             use_container_width=True,
         ):
             internal_messages_dialog(current_user=current_user, role="worker")
-    w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
+	w_visible_sheets = [s for s in sheets if str(s).strip() not in SYSTEM_SHEETS]
     if w_visible_sheets:
         st.markdown(
             "<div class='action-group-title'>📑 SWITCH SHEET:</div>",
